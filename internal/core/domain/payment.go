@@ -1,7 +1,6 @@
 package domain
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -62,7 +61,7 @@ type Payment struct {
 func (p *Payment) CanTransitionTo(target PaymentStatus) error {
 	switch p.Status {
 	case StatusVoided, StatusRefunded, StatusExpired, StatusFailed:
-		return fmt.Errorf("payment is in terminal state %s; no further transitions allowed", p.Status)
+		return NewInvalidTransitionError(p.Status, target)
 
 	case StatusPending:
 		if target == StatusAuthorized || target == StatusFailed {
@@ -79,8 +78,7 @@ func (p *Payment) CanTransitionTo(target PaymentStatus) error {
 			return nil
 		}
 	}
-
-	return fmt.Errorf("cannot transition from %s to %s", p.Status, target)
+	return NewInvalidTransitionError(p.Status, target)
 }
 
 func (p *Payment) IsTerminal() bool {
