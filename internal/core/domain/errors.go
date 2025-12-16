@@ -1,6 +1,9 @@
 package domain
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
 
 // DomainError represents a business logic error
 type DomainError struct {
@@ -23,10 +26,11 @@ func (e *DomainError) Unwrap() error {
 
 // Domain validation errors
 const (
-	ErrCodeInvalidTransition = "INVALID_TRANSITION"
-	ErrCodePaymentExpired    = "PAYMENT_EXPIRED"
-	ErrCodePaymentNotFound   = "PAYMENT_NOT_FOUND"
-	ErrCodeInvalidAmount     = "INVALID_AMOUNT"
+	ErrCodeInvalidTransition       = "INVALID_TRANSITION"
+	ErrCodePaymentExpired          = "PAYMENT_EXPIRED"
+	ErrCodePaymentNotFound         = "PAYMENT_NOT_FOUND"
+	ErrCodeInvalidAmount           = "INVALID_AMOUNT"
+	ErrCodeDuplicateIdempotencyKey = "DUPLICATE_IDEMPOTENCY_KEY"
 )
 
 func NewInvalidTransitionError(from, to PaymentStatus) *DomainError {
@@ -34,4 +38,34 @@ func NewInvalidTransitionError(from, to PaymentStatus) *DomainError {
 		Code:    ErrCodeInvalidTransition,
 		Message: fmt.Sprintf("cannot transition from %s to %s", from, to),
 	}
+}
+
+func NewPaymentNotFoundError(id string) *DomainError {
+	return &DomainError{
+		Code:    ErrCodePaymentNotFound,
+		Message: fmt.Sprintf("payment with ID %s not found", id),
+	}
+}
+
+func NewDuplicateKeyError(key string) *DomainError {
+	return &DomainError{
+		Code:    ErrCodeDuplicateIdempotencyKey,
+		Message: fmt.Sprintf("idempotency key %s already exists", key),
+	}
+}
+
+func NewPaymentExpiredError(id string) *DomainError {
+	return &DomainError{
+		Code:    ErrCodePaymentExpired,
+		Message: fmt.Sprintf("payment %s has expired", id),
+	}
+}
+
+// IsErrorCode checks if an error is a DomainError with a specific code
+func IsErrorCode(err error, code string) bool {
+	var domainErr *DomainError
+	if errors.As(err, &domainErr) {
+		return domainErr.Code == code
+	}
+	return false
 }
