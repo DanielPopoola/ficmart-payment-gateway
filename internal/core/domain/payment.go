@@ -48,6 +48,14 @@ type Payment struct {
 	LastErrorCategory *string
 }
 
+type PendingPaymentCheck struct {
+	ID            uuid.UUID
+	BankAuthID    *string
+	BankCaptureID *string
+	Status        PaymentStatus
+	AttemptCount  int
+}
+
 // CanTransitionTo validates whether a payment can transition from its current status to the target status.
 // It returns nil if the transition is allowed, otherwise returns an error describing why the transition is invalid.
 //

@@ -32,5 +32,5 @@ type PaymentRepository interface {
 	Update(ctx context.Context, payment *domain.Payment) error
 
 	// FindPendingPayments retrieves payments that are eligible for reconciliation/retry.
-	FindPendingPayments(ctx context.Context, olderThan time.Duration, limit int) ([]*domain.Payment, error)
+	FindPendingPayments(ctx context.Context, olderThan time.Duration, limit int) ([]*domain.PendingPaymentCheck, error)
 }

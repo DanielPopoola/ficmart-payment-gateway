@@ -1,0 +1,261 @@
+package db
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"time"
+
+	"github.com/DanielPopoola/ficmart-payment-gateway/internal/core/domain"
+	"github.com/DanielPopoola/ficmart-payment-gateway/internal/core/ports"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+)
+
+type PaymentRepository struct {
+	db *DB
+}
+
+func NewPaymentRepository(db *DB) ports.PaymentRepository {
+	return &PaymentRepository{db: db}
+}
+
+// Create saves a new payment to the database
+func (r *PaymentRepository) Create(ctx context.Context, p *domain.Payment) error {
+	query := `INSERT INTO payments (
+				id, order_id, customer_id, amount_cents, currency, status, idempotency_key,
+				attempt_count)
+				VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+	`
+
+	_, err := r.db.Pool.Exec(ctx, query,
+		p.ID,
+		p.OrderID,
+		p.CustomerID,
+		p.AmountCents,
+		p.Currency,
+		p.Status,
+		p.IdempotencyKey,
+		p.AttemptCount,
+	)
+	if err != nil {
+		if IsUniqueViolation(err) {
+			var pgErr *pgconn.Error
+			if errors.As(err, &pgErr) {
+				if pgErr.ConstraintName == "payments_idempotency_key_key" {
+					return domain.NewDuplicateKeyError(p.IdempotencyKey)
+				}
+			}
+		}
+		return fmt.Errorf("failed to create payment: %w", err)
+	}
+	return nil
+}
+
+// FindByID retrieves a payment by its unique system ID
+func (r *PaymentRepository) FindByID(ctx context.Context, id uuid.UUID) (*domain.Payment, error) {
+	query := `
+			SELECT id, order_id, customer_id, amount_cents, currency, status, idempotency_key,
+				bank_auth_id, bank_capture_id, bank_void_id, bank_refund_id,
+				created_at, updated_at, authorized_at, captured_at, voided_at, refunded_at, expires_at,
+				attempt_count, next_retry_at, last_error_category
+			FROM payments
+			WHERE id = $1
+			`
+
+	row := r.db.Pool.QueryRow(ctx, query, id)
+	return scanPayment(row)
+}
+
+// FindByIdempotencyKey retrieves a payment by the client's idempotency key.
+func (r *PaymentRepository) FindByIdempotencyKey(ctx context.Context, key string) (*domain.Payment, error) {
+	query := `
+			SELECT id, order_id, customer_id, amount_cents, currency, status, idempotency_key,
+				bank_auth_id, bank_capture_id, bank_void_id, bank_refund_id,
+				created_at, updated_at, authorized_at, captured_at, voided_at, refunded_at, expires_at,
+				attempt_count, next_retry_at, last_error_category
+			FROM payments
+			WHERE idempotency_key = $1
+			`
+
+	row := r.db.Pool.QueryRow(ctx, query, key)
+	return scanPayment(row)
+}
+
+// FindByOrderID retrieves a payment by FicMart's order ID.
+func (r *PaymentRepository) FindByOrderID(ctx context.Context, orderID string) (*domain.Payment, error) {
+	query := `
+			SELECT id, order_id, customer_id, amount_cents, currency, status, idempotency_key,
+				bank_auth_id, bank_capture_id, bank_void_id, bank_refund_id,
+				created_at, updated_at, authorized_at, captured_at, voided_at, refunded_at, expires_at,
+				attempt_count, next_retry_at, last_error_category
+			FROM payments
+			WHERE order_id = $1
+			`
+
+	row := r.db.Pool.QueryRow(ctx, query, orderID)
+	return scanPayment(row)
+}
+
+func (r *PaymentRepository) FindByCustomerID(ctx context.Context, customerID string, limit, offset int) ([]*domain.Payment, error) {
+	query := `
+			SELECT id, order_id, customer_id, amount_cents, currency, status, idempotency_key,
+				bank_auth_id, bank_capture_id, bank_void_id, bank_refund_id,
+				created_at, updated_at, authorized_at, captured_at, voided_at, refunded_at, expires_at,
+				attempt_count, next_retry_at, last_error_category
+			FROM payments
+			WHERE customer_id = $1
+			LIMIT $2 OFFSET $3
+			`
+
+	rows, err := r.db.Pool.Query(ctx, query, customerID, limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("query payments by customer_id: %w", err)
+	}
+	return scanPayments(rows)
+}
+
+func (r *PaymentRepository) FindPendingPayments(ctx context.Context, olderThan time.Duration, limit int) ([]*domain.PendingPaymentCheck, error) {
+	cutoff := time.Now().Add(-olderThan)
+
+	query := `
+        SELECT id, status, bank_auth_id, bank_capture_id, attempt_count
+        FROM payments
+        WHERE status = 'PENDING'
+            AND created_at < $1
+            AND (next_retry_at IS NULL OR next_retry_at <= NOW())
+        ORDER BY next_retry_at ASC NULLS FIRST
+        LIMIT $2
+    `
+
+	rows, err := r.db.Pool.Query(ctx, query, cutoff, limit)
+	if err != nil {
+		return nil, fmt.Errorf("query pending payments: %w", err)
+	}
+
+	pending, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (*domain.PendingPaymentCheck, error) {
+		var p domain.PendingPaymentCheck
+		err := row.Scan(
+			&p.ID,
+			&p.Status,
+			&p.BankAuthID,
+			&p.BankCaptureID,
+			&p.AttemptCount,
+		)
+		return &p, err
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to scan pending payments: %w", err)
+	}
+
+	return pending, nil
+}
+
+func (r *PaymentRepository) Update(ctx context.Context, p *domain.Payment) error {
+	query := `
+			UPDATE payments SET status = $1,
+				bank_auth_id = $2, bank_capture_id = $3, bank_void_id = $4, bank_refund_id = $5,
+				authorized_at = $6, captured_at = $7, voided_at = $8, refunded_at = $9, expires_at = $10, 
+				attempt_count = $11, next_retry_at = $12, last_error_category = $13, updated_at = NOW() 
+			WHERE id = $14
+	`
+
+	cmdTag, err := r.db.Pool.Exec(ctx, query,
+		p.Status,
+		p.BankAuthID,
+		p.BankCaptureID,
+		p.BankVoidID,
+		p.BankRefundID,
+		p.AuthorizedAt,
+		p.CapturedAt,
+		p.VoidedAt,
+		p.RefundedAt,
+		p.ExpiresAt,
+		p.AttemptCount,
+		p.NextRetryAt,
+		p.LastErrorCategory,
+		p.ID,
+	)
+
+	if err != nil {
+		return fmt.Errorf("failed to update payment record: %w", err)
+	}
+
+	if cmdTag.RowsAffected() == 0 {
+		return domain.NewPaymentNotFoundError(p.ID.String())
+	}
+	return nil
+}
+
+// scanPayment scans a pgx.Row into a domain.Payment and returns a pointer to the populated Payment.
+func scanPayment(row pgx.Row) (*domain.Payment, error) {
+	var p domain.Payment
+	err := row.Scan(
+		&p.ID,
+		&p.OrderID,
+		&p.CustomerID,
+		&p.AmountCents,
+		&p.Currency,
+		&p.Status,
+		&p.IdempotencyKey,
+		&p.BankAuthID,
+		&p.BankCaptureID,
+		&p.BankVoidID,
+		&p.BankRefundID,
+		&p.CreatedAt,
+		&p.UpdatedAt,
+		&p.AuthorizedAt,
+		&p.CapturedAt,
+		&p.VoidedAt,
+		&p.RefundedAt,
+		&p.ExpiresAt,
+		&p.AttemptCount,
+		&p.NextRetryAt,
+		&p.LastErrorCategory,
+	)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, domain.NewPaymentNotFoundError(p.ID.String())
+		}
+		return nil, fmt.Errorf("failed to scan payment: %w", err)
+	}
+	return &p, nil
+}
+
+func scanPayments(rows pgx.Rows) ([]*domain.Payment, error) {
+	results, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (*domain.Payment, error) {
+		var p domain.Payment
+		err := row.Scan(
+			&p.ID,
+			&p.OrderID,
+			&p.CustomerID,
+			&p.AmountCents,
+			&p.Currency,
+			&p.Status,
+			&p.IdempotencyKey,
+			&p.BankAuthID,
+			&p.BankCaptureID,
+			&p.BankVoidID,
+			&p.BankRefundID,
+			&p.CreatedAt,
+			&p.UpdatedAt,
+			&p.AuthorizedAt,
+			&p.CapturedAt,
+			&p.VoidedAt,
+			&p.RefundedAt,
+			&p.ExpiresAt,
+			&p.AttemptCount,
+			&p.NextRetryAt,
+			&p.LastErrorCategory,
+		)
+		return &p, err
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("error occcured while scanning rows: %w", err)
+	}
+	return results, nil
+}
