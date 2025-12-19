@@ -1,4 +1,4 @@
-package db
+package postgres
 
 import (
 	"context"
@@ -9,8 +9,8 @@ import (
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/core/domain"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/core/ports"
 	"github.com/google/uuid"
+	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 )
 
 type PaymentRepository struct {
@@ -41,7 +41,7 @@ func (r *PaymentRepository) Create(ctx context.Context, p *domain.Payment) error
 	)
 	if err != nil {
 		if IsUniqueViolation(err) {
-			var pgErr *pgconn.Error
+			var pgErr *pgconn.PgError
 			if errors.As(err, &pgErr) {
 				if pgErr.ConstraintName == "payments_idempotency_key_key" {
 					return domain.NewDuplicateKeyError(p.IdempotencyKey)
