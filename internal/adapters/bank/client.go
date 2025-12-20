@@ -75,15 +75,18 @@ func postJSON[Req any, Resp any](c *HTTPBankClient, ctx context.Context, path st
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("bank returned status %d, failed to read body", resp.StatusCode)
+		}
+
 		var bankErrResp BankErrorResponse
-		if err := json.NewDecoder(resp.Body).Decode(&bankErrResp); err != nil {
-			body, _ := io.ReadAll(resp.Body)
+		if err := json.Unmarshal(body, &bankErrResp); err != nil {
 			return nil, fmt.Errorf("bank returned status %d: %s", resp.StatusCode, string(body))
 		}
 
 		return nil, &BankError{
 			Code:       bankErrResp.Err,
-			Err:        fmt.Errorf(bankErrResp.Err),
 			Message:    bankErrResp.Message,
 			StatusCode: resp.StatusCode,
 		}

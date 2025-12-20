@@ -28,7 +28,7 @@ func NewRetryBankClient(inner ports.BankPort, cfg config.RetryConfig) ports.Bank
 
 // Authorize with retry logic
 func (r *RetryBankClient) Authorize(ctx context.Context, req domain.BankAuthorizationRequest, idempotencyKey string) (*domain.BankAuthorizationResponse, error) {
-	return retry[domain.BankAuthorizationResponse](
+	return retry(
 		r,
 		ctx,
 		func(ctx context.Context) (*domain.BankAuthorizationResponse, error) {
@@ -39,7 +39,7 @@ func (r *RetryBankClient) Authorize(ctx context.Context, req domain.BankAuthoriz
 
 // Capture with retry logic
 func (r *RetryBankClient) Capture(ctx context.Context, req domain.BankCaptureRequest, idempotencyKey string) (*domain.BankCaptureResponse, error) {
-	return retry[domain.BankCaptureResponse](
+	return retry(
 		r,
 		ctx,
 		func(ctx context.Context) (*domain.BankCaptureResponse, error) {
@@ -50,7 +50,7 @@ func (r *RetryBankClient) Capture(ctx context.Context, req domain.BankCaptureReq
 
 // Void with retry logic
 func (r *RetryBankClient) Void(ctx context.Context, req domain.BankVoidRequest, idempotencyKey string) (*domain.BankVoidResponse, error) {
-	return retry[domain.BankVoidResponse](
+	return retry(
 		r,
 		ctx,
 		func(ctx context.Context) (*domain.BankVoidResponse, error) {
@@ -61,7 +61,7 @@ func (r *RetryBankClient) Void(ctx context.Context, req domain.BankVoidRequest, 
 
 // Refund with retry logic
 func (r *RetryBankClient) Refund(ctx context.Context, req domain.BankRefundRequest, idempotencyKey string) (*domain.BankRefundResponse, error) {
-	return retry[domain.BankRefundResponse](
+	return retry(
 		r,
 		ctx,
 		func(ctx context.Context) (*domain.BankRefundResponse, error) {

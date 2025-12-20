@@ -4,7 +4,6 @@ import "fmt"
 
 type BankError struct {
 	Code       string
-	Err        error
 	Message    string
 	StatusCode int
 }
