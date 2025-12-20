@@ -11,25 +11,30 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type PaymentRepository struct {
-	db *DB
+	pool *pgxpool.Pool
+	q    Executor
 }
 
 func NewPaymentRepository(db *DB) ports.PaymentRepository {
-	return &PaymentRepository{db: db}
+	return &PaymentRepository{
+		pool: db.Pool,
+		q:    db.Pool,
+	}
 }
 
 // Create saves a new payment to the database
-func (r *PaymentRepository) Create(ctx context.Context, p *domain.Payment) error {
+func (r *PaymentRepository) CreatePayment(ctx context.Context, p *domain.Payment) error {
 	query := `INSERT INTO payments (
 				id, order_id, customer_id, amount_cents, currency, status, idempotency_key,
 				attempt_count)
 				VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 	`
 
-	_, err := r.db.Pool.Exec(ctx, query,
+	_, err := r.q.Exec(ctx, query,
 		p.ID,
 		p.OrderID,
 		p.CustomerID,
@@ -64,7 +69,7 @@ func (r *PaymentRepository) FindByID(ctx context.Context, id uuid.UUID) (*domain
 			WHERE id = $1
 			`
 
-	row := r.db.Pool.QueryRow(ctx, query, id)
+	row := r.q.QueryRow(ctx, query, id)
 	return scanPayment(row)
 }
 
@@ -79,7 +84,7 @@ func (r *PaymentRepository) FindByIdempotencyKey(ctx context.Context, key string
 			WHERE idempotency_key = $1
 			`
 
-	row := r.db.Pool.QueryRow(ctx, query, key)
+	row := r.q.QueryRow(ctx, query, key)
 	return scanPayment(row)
 }
 
@@ -94,7 +99,7 @@ func (r *PaymentRepository) FindByOrderID(ctx context.Context, orderID string) (
 			WHERE order_id = $1
 			`
 
-	row := r.db.Pool.QueryRow(ctx, query, orderID)
+	row := r.q.QueryRow(ctx, query, orderID)
 	return scanPayment(row)
 }
 
@@ -109,7 +114,7 @@ func (r *PaymentRepository) FindByCustomerID(ctx context.Context, customerID str
 			LIMIT $2 OFFSET $3
 			`
 
-	rows, err := r.db.Pool.Query(ctx, query, customerID, limit, offset)
+	rows, err := r.q.Query(ctx, query, customerID, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("query payments by customer_id: %w", err)
 	}
@@ -129,7 +134,7 @@ func (r *PaymentRepository) FindPendingPayments(ctx context.Context, olderThan t
         LIMIT $2
     `
 
-	rows, err := r.db.Pool.Query(ctx, query, cutoff, limit)
+	rows, err := r.q.Query(ctx, query, cutoff, limit)
 	if err != nil {
 		return nil, fmt.Errorf("query pending payments: %w", err)
 	}
@@ -153,7 +158,7 @@ func (r *PaymentRepository) FindPendingPayments(ctx context.Context, olderThan t
 	return pending, nil
 }
 
-func (r *PaymentRepository) Update(ctx context.Context, p *domain.Payment) error {
+func (r *PaymentRepository) UpdatePayment(ctx context.Context, p *domain.Payment) error {
 	query := `
 			UPDATE payments SET status = $1,
 				bank_auth_id = $2, bank_capture_id = $3, bank_void_id = $4, bank_refund_id = $5,
@@ -162,7 +167,7 @@ func (r *PaymentRepository) Update(ctx context.Context, p *domain.Payment) error
 			WHERE id = $14
 	`
 
-	cmdTag, err := r.db.Pool.Exec(ctx, query,
+	cmdTag, err := r.q.Exec(ctx, query,
 		p.Status,
 		p.BankAuthID,
 		p.BankCaptureID,
@@ -186,6 +191,74 @@ func (r *PaymentRepository) Update(ctx context.Context, p *domain.Payment) error
 	if cmdTag.RowsAffected() == 0 {
 		return domain.NewPaymentNotFoundError(p.ID.String())
 	}
+	return nil
+}
+
+func (r *PaymentRepository) CreateIdempotencyKey(ctx context.Context, k *domain.IdempotencyKey) error {
+	query := `INSERT INTO idempotency_keys (key, request_payload, response_payload, status_code, locked_at, completed_at)
+			  VALUES ($1, $2, $3, $4, $5, $6)`
+
+	_, err := r.q.Exec(ctx, query,
+		k.Key,
+		k.RequestPayload,
+		k.ResponsePayload,
+		k.StatusCode,
+		k.LockedAt,
+		k.CompletedAt,
+	)
+	if err != nil {
+		if IsUniqueViolation(err) {
+			return domain.NewDuplicateKeyError(k.Key)
+		}
+		return fmt.Errorf("failed to create idempotency key: %w", err)
+	}
+	return nil
+}
+
+func (r *PaymentRepository) UpdateIdempotencyKey(ctx context.Context, k *domain.IdempotencyKey) error {
+	query := `UPDATE idempotency_keys
+			  SET response_payload = $1, status_code = $2, completed_at = $3
+			  WHERE key = $4`
+
+	cmdTag, err := r.q.Exec(ctx, query,
+		k.ResponsePayload,
+		k.StatusCode,
+		k.CompletedAt,
+		k.Key,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to update idempotency key: %w", err)
+	}
+
+	if cmdTag.RowsAffected() == 0 {
+		return fmt.Errorf("idempotency key not found: %s", k.Key)
+	}
+	return nil
+}
+
+// WithTx executes a function within a database transaction
+func (r *PaymentRepository) WithTx(ctx context.Context, fn func(ports.PaymentRepository) error) error {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+
+	// Defer rollback in case of panic or error (if commit isn't reached)
+	defer tx.Rollback(ctx)
+
+	repoWithTx := &PaymentRepository{
+		pool: r.pool,
+		q:    tx, // Switch the executor to the transaction
+	}
+
+	if err := fn(repoWithTx); err != nil {
+		return err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
 	return nil
 }
 

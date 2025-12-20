@@ -33,6 +33,13 @@ const (
 	ErrCodeDuplicateIdempotencyKey = "DUPLICATE_IDEMPOTENCY_KEY"
 )
 
+func NewInvalidAmountError(amount int64) *DomainError {
+	return &DomainError{
+		Code:    ErrCodeInvalidAmount,
+		Message: fmt.Sprintf("invalid amount %d", amount),
+	}
+}
+
 func NewInvalidTransitionError(from, to PaymentStatus) *DomainError {
 	return &DomainError{
 		Code:    ErrCodeInvalidTransition,
@@ -68,4 +75,9 @@ func IsErrorCode(err error, code string) bool {
 		return domainErr.Code == code
 	}
 	return false
+}
+
+// RetryableError is an interface that errors can implement to indicate if they are transient.
+type RetryableError interface {
+	IsRetryable() bool
 }
