@@ -2,9 +2,9 @@
 
 ## Architecture
 
-### Smart Assistant vs Simple Proxy
+### Why did I structure it this way?
 
-I chose to make the gateway a "smart assistant" that validates requests before calling the bank rather than a simple proxy that forwards everything. This prevents wasted API calls to the bank. The gateway knows which requests are valid based on the current payment state and can reject invalid transitions (like trying to capture a voided payment) without even calling the bank.
+From my FastAPI experience, I try to ensure clean separation of concerns and I looked at other codebases for examples. For the adapter it's tailored to PostgreSQL because of the driver I used(pgx), then for the handler, I made the http layer own its request types - because it matches Go convention.
 
 ### Gateway-Owned State
 
@@ -61,6 +61,10 @@ I don't retry 4xx errors (like invalid card or insufficient funds) at all. These
 
 The worker stops retrying stuck payments after 24 hours. This is based on the bank's idempotency cache TTL. After the idempotency window closes, retrying risks creating a duplicate authorization if the bank doesn't remember the original request. Beyond this window, human intervention is safer than automated recovery.
 
+
+### How I handled partial failures?
+
+I used an executor interface and a method (a closure really - it takes a function and executes it within a database transaction (WithTx in internal/adapters/postgres/repository.go).  This was to prevent situations like I'll save to my idempotency table but my db crashes before saving to the payments table, so they are wrapped in a transaction like Django's transaction.atomic() either both succeed or not
 ---
 
 ## What I'd Do Differently
@@ -88,7 +92,7 @@ Future additions would include:
 
 ### Performance Optimization
 
-Instead of polling the database for concurrent requests, I'd use PostgreSQL's `LISTEN/NOTIFY` for more efficient signaling when responses are ready. However, polling with a 5-second timeout is acceptable for the initial implementation given the simplicity tradeoff.
+I'd move the idempotency table to Redis for faster reads since they are temporary
 
 ---
 
