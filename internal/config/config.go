@@ -17,6 +17,7 @@ type Config struct {
 	Server     ServerConfig
 	Database   DatabaseConfig
 	BankClient BankConfig
+	Retry      RetryConfig
 	Logger     LoggerConfig
 }
 
@@ -47,6 +48,11 @@ type DatabaseConfig struct {
 type BankConfig struct {
 	BankBaseURL     string        `koanf:"bank_base_url" validate:"required"`
 	BankConnTimeout time.Duration `koanf:"bank_conn_timeout" validate:"required"`
+}
+
+type RetryConfig struct {
+	BaseDelay  int32
+	MaxRetries int32
 }
 
 type LoggerConfig struct {
