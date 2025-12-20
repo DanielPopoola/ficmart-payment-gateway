@@ -17,6 +17,11 @@ coverage.html
 # Dependency directories
 vendor/
 
+.env
+GUIDE.md
+GEMINI.md
+settings.json
+
 # Go workspace file
 go.work
 go.work.sum
