@@ -10,7 +10,6 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/DanielPopoola/ficmart-payment-gateway/internal/adapters/bank"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/core/domain"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/core/ports"
 	"github.com/google/uuid"
@@ -106,23 +105,17 @@ func (r *RefundService) Refund(ctx context.Context, paymentID uuid.UUID, amount 
 		}
 
 		if bankErr != nil {
-			p.Status = domain.StatusCaptured
-			p.AttemptCount++
 			errMsg := bankErr.Error()
-			p.LastErrorCategory = &errMsg
-
 			isRetryable := false
-			var bankAPIError *bank.BankError
-			if errors.As(bankErr, &bankAPIError) {
-				isRetryable = bankAPIError.IsRetryable()
+			var retryableErr domain.Retryable
+			if errors.As(bankErr, &retryableErr) {
+				isRetryable = retryableErr.IsRetryable()
 			} else if errors.Is(bankErr, context.DeadlineExceeded) {
-				isRetryable = true
-			} else {
 				isRetryable = true
 			}
 
 			if isRetryable {
-				baseDelay := math.Pow(2, float64(p.AttemptCount)) * float64(time.Minute)
+				baseDelay := math.Pow(2, float64(p.AttemptCount+1)) * float64(time.Minute)
 				maxDelay := float64(4 * time.Minute)
 				if baseDelay > maxDelay {
 					baseDelay = maxDelay
@@ -130,14 +123,16 @@ func (r *RefundService) Refund(ctx context.Context, paymentID uuid.UUID, amount 
 
 				jitter := rand.Int63n(1000)
 				nextRetry := time.Now().Add(time.Duration(baseDelay) + time.Duration(jitter)*time.Millisecond)
-				p.NextRetryAt = &nextRetry
+				p.ScheduleRetry(errMsg, nextRetry)
 			} else {
-				p.Status = domain.StatusFailed
+				if err := p.Fail(errMsg); err != nil {
+					return err
+				}
 			}
 		} else {
-			p.Status = domain.StatusRefunded
-			p.BankRefundID = &bankResp.RefundID
-			p.RefundedAt = &bankResp.RefundedAt
+			if err := p.Refund(bankResp.RefundID, bankResp.RefundedAt); err != nil {
+				return err
+			}
 		}
 		return txRepo.UpdatePayment(ctx, p)
 	})
