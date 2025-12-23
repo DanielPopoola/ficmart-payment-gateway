@@ -57,10 +57,10 @@ func (r *RefundService) Refund(ctx context.Context, paymentID uuid.UUID, amount 
 			return err
 		}
 		if p.Status != domain.StatusCaptured {
-			return fmt.Errorf("invalid state: payment is %s, expected CAPTURED", p.Status)
+			return domain.NewInvalidStateError(string(p.Status), string(domain.StatusCaptured))
 		}
 		if p.BankCaptureID == nil {
-			return fmt.Errorf("payment doesn't have captureid: %w", err)
+			return domain.NewMissingDependencyError("BankCaptureID")
 		}
 
 		p.AttemptCount = 0
@@ -83,7 +83,7 @@ func (r *RefundService) Refund(ctx context.Context, paymentID uuid.UUID, amount 
 			}
 
 			if existingKey.RequestHash != requestHash {
-				return nil, fmt.Errorf("idempotency key reused with different parameters")
+				return nil, domain.NewIdempotencyMismatchError()
 			}
 
 			return r.pollForPayment(ctx, idempotencyKey)
@@ -162,7 +162,7 @@ func (r *RefundService) pollForPayment(ctx context.Context, key string) (*domain
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		case <-timeout:
-			return nil, errors.New("timeout waiting for payment processing")
+			return nil, domain.NewTimeoutError("payment processing")
 		case <-ticker.C:
 			p, err := r.repo.FindByIdempotencyKey(ctx, key)
 			if err != nil {

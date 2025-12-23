@@ -54,13 +54,10 @@ func (v *VoidService) Void(ctx context.Context, paymentID uuid.UUID, idempotency
 			return err
 		}
 		if p.Status != domain.StatusAuthorized {
-			return fmt.Errorf("invalid state: payment is %s, expected AUTHORIZED", p.Status)
+			return domain.NewInvalidStateError(string(p.Status), string(domain.StatusAuthorized))
 		}
 		if p.BankAuthID == nil {
-			return &domain.DomainError{
-				Code:    "PAYMENT_PROCESSING",
-				Message: "payment authorization still in progress, try again",
-			}
+			return domain.NewRequestProcessingError()
 		}
 
 		p.Status = domain.StatusVoiding
@@ -84,7 +81,7 @@ func (v *VoidService) Void(ctx context.Context, paymentID uuid.UUID, idempotency
 			}
 
 			if existingKey.RequestHash != requestHash {
-				return nil, fmt.Errorf("idempotency key reused with different parameters")
+				return nil, domain.NewIdempotencyMismatchError()
 			}
 
 			return v.pollForPayment(ctx, idempotencyKey)
@@ -168,7 +165,7 @@ func (v *VoidService) pollForPayment(ctx context.Context, key string) (*domain.P
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		case <-timeout:
-			return nil, errors.New("timeout waiting for payment processing")
+			return nil, domain.NewTimeoutError("payment processing")
 		case <-ticker.C:
 			p, err := v.repo.FindByIdempotencyKey(ctx, key)
 			if err != nil {

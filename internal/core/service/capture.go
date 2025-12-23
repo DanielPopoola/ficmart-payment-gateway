@@ -57,14 +57,14 @@ func (c *CaptureService) Capture(ctx context.Context, paymentID uuid.UUID, amoun
 			return err
 		}
 		if p.AmountCents != amount {
-			return fmt.Errorf("amount mismatch: expected %d, got %d", p.AmountCents, amount)
+			return domain.NewAmountMismatchError(p.AmountCents, amount)
 		}
 
 		if p.Status != domain.StatusAuthorized {
-			return fmt.Errorf("invalid state: payment is %s, expected AUTHORIZED", p.Status)
+			return domain.NewInvalidStateError(string(p.Status), string(domain.StatusAuthorized))
 		}
 		if p.BankAuthID == nil {
-			return fmt.Errorf("payment doesn't have authid:%w", err)
+			return domain.NewMissingDependencyError("BankAuthID")
 		}
 
 		p.Status = domain.StatusCapturing
@@ -88,7 +88,7 @@ func (c *CaptureService) Capture(ctx context.Context, paymentID uuid.UUID, amoun
 			}
 
 			if existingKey.RequestHash != requestHash {
-				return nil, fmt.Errorf("idempotency key reused with different parameters")
+				return nil, domain.NewIdempotencyMismatchError()
 			}
 
 			return c.pollForPayment(ctx, idempotencyKey)
@@ -168,7 +168,7 @@ func (c *CaptureService) pollForPayment(ctx context.Context, key string) (*domai
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		case <-timeout:
-			return nil, errors.New("timeout waiting for payment processing")
+			return nil, domain.NewTimeoutError("payment processing")
 		case <-ticker.C:
 			p, err := c.repo.FindByIdempotencyKey(ctx, key)
 			if err != nil {

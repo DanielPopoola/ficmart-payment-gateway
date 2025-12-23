@@ -86,7 +86,7 @@ func (s *AuthorizationService) Authorize(
 			}
 
 			if existingKey.RequestHash != requestHash {
-				return nil, fmt.Errorf("idempotency key reused with different parameters")
+				return nil, domain.NewIdempotencyMismatchError()
 			}
 
 			return s.pollForPayment(ctx, idempotencyKey)
@@ -170,7 +170,7 @@ func (s *AuthorizationService) pollForPayment(ctx context.Context, key string) (
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		case <-timeout:
-			return nil, errors.New("timeout waiting for payment processing")
+			return nil, domain.NewTimeoutError("payment processing")
 		case <-ticker.C:
 			p, err := s.repo.FindByIdempotencyKey(ctx, key)
 			if err != nil {
@@ -191,10 +191,10 @@ func (s *AuthorizationService) validate(
 	amount int64,
 ) error {
 	if orderID == "" {
-		return errors.New("order_id is required")
+		return domain.NewMissingRequiredFieldError("order_id")
 	}
 	if customerID == "" {
-		return errors.New("customer_id is required")
+		return domain.NewMissingRequiredFieldError("customer_id")
 	}
 	if amount <= 0 {
 		return domain.NewInvalidAmountError(amount)

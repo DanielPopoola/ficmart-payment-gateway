@@ -37,7 +37,55 @@ const (
 	ErrCodeInvalidAmount           = "INVALID_AMOUNT"
 	ErrCodeDuplicateIdempotencyKey = "DUPLICATE_IDEMPOTENCY_KEY"
 	ErrRequestProcessing           = "REQUEST_PROCESSING"
+	ErrCodeMissingRequiredField    = "MISSING_REQUIRED_FIELD"
+	ErrCodeInvalidState            = "INVALID_STATE"
+	ErrCodeAmountMismatch          = "AMOUNT_MISMATCH"
+	ErrCodeMissingDependency       = "MISSING_DEPENDENCY"
+	ErrCodeIdempotencyMismatch     = "IDEMPOTENCY_MISMATCH"
+	ErrCodeTimeout                 = "TIMEOUT"
 )
+
+func NewMissingRequiredFieldError(field string) *DomainError {
+	return &DomainError{
+		Code:    ErrCodeMissingRequiredField,
+		Message: fmt.Sprintf("%s is required", field),
+	}
+}
+
+func NewInvalidStateError(current, expected string) *DomainError {
+	return &DomainError{
+		Code:    ErrCodeInvalidState,
+		Message: fmt.Sprintf("invalid state: payment is %s, expected %s", current, expected),
+	}
+}
+
+func NewAmountMismatchError(expected, actual int64) *DomainError {
+	return &DomainError{
+		Code:    ErrCodeAmountMismatch,
+		Message: fmt.Sprintf("amount mismatch: expected %d, got %d", expected, actual),
+	}
+}
+
+func NewMissingDependencyError(dependency string) *DomainError {
+	return &DomainError{
+		Code:    ErrCodeMissingDependency,
+		Message: fmt.Sprintf("payment missing required dependency: %s", dependency),
+	}
+}
+
+func NewIdempotencyMismatchError() *DomainError {
+	return &DomainError{
+		Code:    ErrCodeIdempotencyMismatch,
+		Message: "idempotency key reused with different parameters",
+	}
+}
+
+func NewTimeoutError(operation string) *DomainError {
+	return &DomainError{
+		Code:    ErrCodeTimeout,
+		Message: fmt.Sprintf("timeout waiting for %s", operation),
+	}
+}
 
 func NewInvalidAmountError(amount int64) *DomainError {
 	return &DomainError{

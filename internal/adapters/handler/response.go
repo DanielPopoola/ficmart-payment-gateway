@@ -49,14 +49,18 @@ func respondWithError(w http.ResponseWriter, err error) {
 		message = domainErr.Message
 
 		switch domainErr.Code {
-		case domain.ErrCodeInvalidAmount, domain.ErrCodeInvalidTransition:
+		case domain.ErrCodeInvalidAmount, domain.ErrCodeMissingRequiredField:
 			status = http.StatusBadRequest
 		case domain.ErrCodePaymentNotFound:
 			status = http.StatusNotFound
-		case domain.ErrCodeDuplicateIdempotencyKey:
+		case domain.ErrCodeDuplicateIdempotencyKey, domain.ErrCodeIdempotencyMismatch, domain.ErrCodeInvalidState, domain.ErrCodeAmountMismatch, domain.ErrCodeInvalidTransition:
 			status = http.StatusConflict
 		case domain.ErrRequestProcessing:
 			status = http.StatusAccepted
+		case domain.ErrCodeTimeout:
+			status = http.StatusGatewayTimeout
+		case domain.ErrCodeMissingDependency:
+			status = http.StatusPreconditionFailed
 		default:
 			status = http.StatusBadRequest
 		}
