@@ -1,0 +1,355 @@
+basePath: /
+definitions:
+  handler.APIError:
+    properties:
+      code:
+        example: INVALID_AMOUNT
+        type: string
+      message:
+        example: Amount must be greater than zero
+        type: string
+    type: object
+  handler.APIResponse:
+    properties:
+      data:
+        type: object
+      error:
+        $ref: '#/definitions/handler.APIError'
+      success:
+        example: true
+        type: boolean
+    type: object
+  handler.AuthorizeRequest:
+    properties:
+      amount:
+        example: 5000
+        type: integer
+      card_number:
+        example: "4111111111111111"
+        maxLength: 19
+        minLength: 13
+        type: string
+      customer_id:
+        example: cust-67890
+        type: string
+      cvv:
+        example: "123"
+        type: string
+      expiry_month:
+        example: 12
+        maximum: 12
+        minimum: 1
+        type: integer
+      expiry_year:
+        example: 2030
+        minimum: 2024
+        type: integer
+      order_id:
+        example: order-12345
+        type: string
+    required:
+    - amount
+    - card_number
+    - customer_id
+    - cvv
+    - expiry_month
+    - expiry_year
+    - order_id
+    type: object
+  handler.CaptureRequest:
+    properties:
+      amount:
+        example: 5000
+        type: integer
+      payment_id:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+    required:
+    - amount
+    - payment_id
+    type: object
+  handler.RefundRequest:
+    properties:
+      amount:
+        example: 5000
+        type: integer
+      payment_id:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+    required:
+    - amount
+    - payment_id
+    type: object
+  handler.VoidRequest:
+    properties:
+      payment_id:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+    required:
+    - payment_id
+    type: object
+host: localhost:8080
+info:
+  contact:
+    email: support@ficmart.com
+    name: API Support
+  description: Payment gateway for processing authorizations, captures, voids, and
+    refunds
+  title: FicMart Payment Gateway API
+  version: "1.0"
+paths:
+  /authorize:
+    post:
+      consumes:
+      - application/json
+      description: Reserve funds on a customer's card for a specific order. Returns
+        immediately with payment status.
+      parameters:
+      - description: Unique key to prevent duplicate requests
+        in: header
+        name: Idempotency-Key
+        required: true
+        type: string
+      - description: Payment authorization details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.AuthorizeRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Payment authorized successfully
+          schema:
+            $ref: '#/definitions/handler.APIResponse'
+        "202":
+          description: Request is being processed (duplicate idempotency key)
+          schema:
+            $ref: '#/definitions/handler.APIResponse'
+        "400":
+          description: Invalid request parameters
+          schema:
+            $ref: '#/definitions/handler.APIResponse'
+        "409":
+          description: Conflict - duplicate or invalid state
+          schema:
+            $ref: '#/definitions/handler.APIResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handler.APIResponse'
+      summary: Authorize a payment
+      tags:
+      - payments
+  /capture:
+    post:
+      consumes:
+      - application/json
+      description: Charge the funds that were previously authorized. The payment must
+        be in AUTHORIZED status.
+      parameters:
+      - description: Unique key to prevent duplicate requests
+        in: header
+        name: Idempotency-Key
+        required: true
+        type: string
+      - description: Payment capture details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.CaptureRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Payment captured successfully
+          schema:
+            $ref: '#/definitions/handler.APIResponse'
+        "400":
+          description: Invalid request or amount mismatch
+          schema:
+            $ref: '#/definitions/handler.APIResponse'
+        "404":
+          description: Payment not found
+          schema:
+            $ref: '#/definitions/handler.APIResponse'
+        "409":
+          description: Payment not in capturable state
+          schema:
+            $ref: '#/definitions/handler.APIResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handler.APIResponse'
+      summary: Capture a payment
+      tags:
+      - payments
+  /payments/customer/{customerID}:
+    get:
+      description: Retrieve all payment records for a specific customer with pagination
+        support
+      parameters:
+      - description: FicMart Customer ID
+        in: path
+        name: customerID
+        required: true
+        type: string
+      - description: Number of results to return
+        in: query
+        name: limit
+        type: integer
+      - description: Number of results to skip
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of payments
+          schema:
+            $ref: '#/definitions/handler.APIResponse'
+        "400":
+          description: Missing or invalid customer ID
+          schema:
+            $ref: '#/definitions/handler.APIResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handler.APIResponse'
+      summary: Get payments by customer ID
+      tags:
+      - queries
+  /payments/order/{orderID}:
+    get:
+      description: Retrieve the payment record associated with a specific FicMart
+        order
+      parameters:
+      - description: FicMart Order ID
+        in: path
+        name: orderID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Payment found
+          schema:
+            $ref: '#/definitions/handler.APIResponse'
+        "400":
+          description: Missing or invalid order ID
+          schema:
+            $ref: '#/definitions/handler.APIResponse'
+        "404":
+          description: Payment not found for this order
+          schema:
+            $ref: '#/definitions/handler.APIResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handler.APIResponse'
+      summary: Get payment by order ID
+      tags:
+      - queries
+  /refund:
+    post:
+      consumes:
+      - application/json
+      description: Return money to the customer for a previously captured payment.
+        The payment must be in CAPTURED status.
+      parameters:
+      - description: Unique key to prevent duplicate requests
+        in: header
+        name: Idempotency-Key
+        required: true
+        type: string
+      - description: Payment refund details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.RefundRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Payment refunded successfully
+          schema:
+            $ref: '#/definitions/handler.APIResponse'
+        "400":
+          description: Invalid request or amount
+          schema:
+            $ref: '#/definitions/handler.APIResponse'
+        "404":
+          description: Payment not found
+          schema:
+            $ref: '#/definitions/handler.APIResponse'
+        "409":
+          description: Payment not in refundable state
+          schema:
+            $ref: '#/definitions/handler.APIResponse'
+        "412":
+          description: Missing required bank capture ID
+          schema:
+            $ref: '#/definitions/handler.APIResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handler.APIResponse'
+      summary: Refund a payment
+      tags:
+      - payments
+  /void:
+    post:
+      consumes:
+      - application/json
+      description: Cancel an authorized payment before it has been captured. Releases
+        the hold on funds.
+      parameters:
+      - description: Unique key to prevent duplicate requests
+        in: header
+        name: Idempotency-Key
+        required: true
+        type: string
+      - description: Payment void details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.VoidRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Payment voided successfully
+          schema:
+            $ref: '#/definitions/handler.APIResponse'
+        "400":
+          description: Invalid request parameters
+          schema:
+            $ref: '#/definitions/handler.APIResponse'
+        "404":
+          description: Payment not found
+          schema:
+            $ref: '#/definitions/handler.APIResponse'
+        "409":
+          description: Payment not in voidable state
+          schema:
+            $ref: '#/definitions/handler.APIResponse'
+        "412":
+          description: Missing required bank authorization ID
+          schema:
+            $ref: '#/definitions/handler.APIResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handler.APIResponse'
+      summary: Void a payment
+      tags:
+      - payments
+schemes:
+- http
+swagger: "2.0"

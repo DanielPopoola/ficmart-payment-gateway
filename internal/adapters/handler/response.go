@@ -10,14 +10,14 @@ import (
 )
 
 type APIResponse struct {
-	Success bool        `json:"success"`
-	Data    interface{} `json:"data,omitempty"`
+	Success bool        `json:"success" example:"true"`
+	Data    interface{} `json:"data,omitempty" swaggertype:"object"`
 	Error   *APIError   `json:"error,omitempty"`
 }
 
 type APIError struct {
-	Code    string `json:"code"`
-	Message string `json:"message"`
+	Code    string `json:"code" example:"INVALID_AMOUNT"`
+	Message string `json:"message" example:"Amount must be greater than zero"`
 }
 
 func respondWithJSON(w http.ResponseWriter, status int, data interface{}) {

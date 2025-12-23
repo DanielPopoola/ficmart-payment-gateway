@@ -4,9 +4,11 @@ import (
 	"context"
 	"net/http"
 
+	_ "github.com/DanielPopoola/ficmart-payment-gateway/docs"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/core/domain"
 	"github.com/go-playground/validator"
 	"github.com/google/uuid"
+	httpSwagger "github.com/swaggo/http-swagger"
 )
 
 type AuthorizationService interface {
@@ -63,4 +65,7 @@ func (h *PaymentHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /void", h.HandleVoid)
 	mux.HandleFunc("GET /payments/order/{orderID}", h.HandleGetPaymentByOrder)
 	mux.HandleFunc("GET /payments/customer/{customerID}", h.HandleGetPaymentsByCustomer)
+	mux.HandleFunc("GET /docs/*", httpSwagger.Handler(
+		httpSwagger.URL("http://localhost:8080/docs/doc.json"),
+	))
 }

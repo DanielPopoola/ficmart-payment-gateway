@@ -1,5 +1,13 @@
 package main
 
+// @title           FicMart Payment Gateway API
+// @version         1.0
+// @description     Payment gateway for processing card payments with support for authorization, capture, void, and refund operations.
+// @contact.name    API Support
+// @contact.email   support@ficmart.com
+// @host            localhost:8080
+// @BasePath        /
+// @schemes         http
 import (
 	"context"
 	"errors"
@@ -18,6 +26,13 @@ import (
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/worker"
 )
 
+// @title           FicMart Payment Gateway API
+// @version         1.0
+// @description     Payment gateway for processing authorizations, captures, voids, and refunds
+// @contact.name    API Support
+// @contact.email   support@ficmart.com
+// @host            localhost:8080
+// @BasePath        /
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	slog.SetDefault(logger)

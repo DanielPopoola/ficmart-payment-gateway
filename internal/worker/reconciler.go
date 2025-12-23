@@ -16,15 +16,15 @@ type ReconcilerService interface {
 }
 
 type Reconciler struct {
-	repo         ports.PaymentRepository
-	bankClient   ports.BankPort
-	authService  ReconcilerService
-	capService   ReconcilerService
-	voidService  ReconcilerService
-	refService   ReconcilerService
-	interval     time.Duration
-	batchSize    int
-	logger       *slog.Logger
+	repo        ports.PaymentRepository
+	bankClient  ports.BankPort
+	authService ReconcilerService
+	capService  ReconcilerService
+	voidService ReconcilerService
+	refService  ReconcilerService
+	interval    time.Duration
+	batchSize   int
+	logger      *slog.Logger
 }
 
 func NewReconciler(
@@ -75,11 +75,9 @@ func (r *Reconciler) RunOnce(ctx context.Context) {
 
 func (r *Reconciler) run(ctx context.Context) {
 	r.reconcileStuckPayments(ctx)
-	// Lazy expiration is also handled here or in a separate ticker
 }
 
 func (r *Reconciler) reconcileStuckPayments(ctx context.Context) {
-	// Find payments in intermediate states older than 1 minute
 	pending, err := r.repo.FindPendingPayments(ctx, 1*time.Minute, r.batchSize)
 	if err != nil {
 		r.logger.Error("failed to fetch pending payments", "error", err)
@@ -140,7 +138,7 @@ func (r *Reconciler) checkExpiration(ctx context.Context, p *domain.Payment) {
 	}
 
 	r.logger.Info("checking expiration with bank", "id", p.ID, "auth_id", *p.BankAuthID)
-	
+
 	bankResp, err := r.bankClient.GetAuthorization(ctx, *p.BankAuthID)
 	if err != nil {
 		// If bank says not found, it's definitely expired or invalid
@@ -150,10 +148,6 @@ func (r *Reconciler) checkExpiration(ctx context.Context, p *domain.Payment) {
 		return
 	}
 
-	// If bank says it's expired or status is not authorized anymore
-	// The mock bank API documentation doesn't specify an 'expired' status field, 
-	// but we can check if the response indicates it's no longer valid.
-	// For now, if GetAuthorization returns successfully, we check the bank's own Expiry field if it exists.
 	if bankResp.ExpiresAt.Before(time.Now()) {
 		r.markExpired(ctx, p)
 	}
@@ -171,7 +165,7 @@ func (r *Reconciler) markExpired(ctx context.Context, p *domain.Payment) {
 		payment.Status = domain.StatusExpired
 		return txRepo.UpdatePayment(ctx, payment)
 	})
-	
+
 	if err != nil {
 		r.logger.Error("failed to mark payment as expired", "id", p.ID, "error", err)
 	} else {
