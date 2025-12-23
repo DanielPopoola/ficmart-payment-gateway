@@ -16,37 +16,29 @@ import (
 	"github.com/google/uuid"
 )
 
-type AuthorizationService struct {
+type RefundService struct {
 	repo       ports.PaymentRepository
 	bankClient ports.BankPort
 }
 
-func NewAuthorizationService(repo ports.PaymentRepository, bankClient ports.BankPort) *AuthorizationService {
-	return &AuthorizationService{
+func NewRefundService(repo ports.PaymentRepository, bankClient ports.BankPort) *RefundService {
+	return &RefundService{
 		repo:       repo,
 		bankClient: bankClient,
 	}
 }
 
-// Authorize processes a payment authorization request for a given order and customer.
-func (s *AuthorizationService) Authorize(
-	ctx context.Context,
-	orderID, customerID, idempotencyKey string,
-	amount int64,
-	cardNumber, cvv string,
-	expiryMonth, expiryYear int,
-) (*domain.Payment, error) {
-	if err := s.validate(orderID, customerID, amount); err != nil {
+func (r *RefundService) Refund(ctx context.Context, paymentID uuid.UUID, amount int64, idempotencyKey string) (*domain.Payment, error) {
+	if err := r.validate(amount); err != nil {
 		return nil, err
 	}
 
-	hashInput := fmt.Sprintf("%s|%d|%s", orderID, amount, customerID)
+	hashInput := fmt.Sprintf("%s|%d", paymentID.String(), amount)
 	hashBytes := sha256.Sum256([]byte(hashInput))
 	requestHash := hex.EncodeToString(hashBytes[:])
 
-	paymentID := uuid.New()
-
-	err := s.repo.WithTx(ctx, func(txRepo ports.PaymentRepository) error {
+	var payment *domain.Payment
+	err := r.repo.WithTx(ctx, func(txRepo ports.PaymentRepository) error {
 		idemKey := &domain.IdempotencyKey{
 			Key:         idempotencyKey,
 			RequestHash: requestHash,
@@ -61,23 +53,28 @@ func (s *AuthorizationService) Authorize(
 			return err
 		}
 
-		payment := &domain.Payment{
-			ID:             paymentID,
-			OrderID:        orderID,
-			CustomerID:     customerID,
-			AmountCents:    amount,
-			Currency:       "USD",
-			Status:         domain.StatusPending,
-			IdempotencyKey: idempotencyKey,
-			CreatedAt:      time.Now(),
-			UpdatedAt:      time.Now(),
+		p, err := txRepo.FindByIDForUpdate(ctx, paymentID)
+		if err != nil {
+			return err
 		}
-		return txRepo.CreatePayment(ctx, payment)
+		if p.Status != domain.StatusCaptured {
+			return fmt.Errorf("invalid state: payment is %s, expected CAPTURED", p.Status)
+		}
+		if p.BankCaptureID == nil {
+			return fmt.Errorf("payment doesn't have captureid: %w", err)
+		}
+
+		p.AttemptCount = 0
+		if err := txRepo.UpdatePayment(ctx, p); err != nil {
+			return err
+		}
+		payment = p
+		return nil
 	})
 
 	if err != nil {
-		if errors.Is(err, domain.NewRequestProcessingError()) {
-			existingKey, fetchErr := s.repo.FindIdempotencyKeyRecord(ctx, idempotencyKey)
+		if domain.IsErrorCode(err, domain.ErrRequestProcessing) {
+			existingKey, fetchErr := r.repo.FindIdempotencyKeyRecord(ctx, idempotencyKey)
 			if fetchErr != nil {
 				return nil, fmt.Errorf("failed to check existing idempotency key: %w", fetchErr)
 			}
@@ -90,28 +87,26 @@ func (s *AuthorizationService) Authorize(
 				return nil, fmt.Errorf("idempotency key reused with different parameters")
 			}
 
-			return s.pollForPayment(ctx, idempotencyKey)
+			return r.pollForPayment(ctx, idempotencyKey)
 		}
 		return nil, err
 	}
 
-	bankReq := domain.BankAuthorizationRequest{
-		Amount:      amount,
-		CardNumber:  cardNumber,
-		Cvv:         cvv,
-		ExpiryMonth: expiryMonth,
-		ExpiryYear:  expiryYear,
+	bankReq := &domain.BankRefundRequest{
+		Amount:    amount,
+		CaptureID: *payment.BankCaptureID,
 	}
 
-	bankResp, bankErr := s.bankClient.Authorize(ctx, bankReq, idempotencyKey)
+	bankResp, bankErr := r.bankClient.Refund(ctx, *bankReq, idempotencyKey)
 
-	updateErr := s.repo.WithTx(ctx, func(txRepo ports.PaymentRepository) error {
+	updateErr := r.repo.WithTx(ctx, func(txRepo ports.PaymentRepository) error {
 		p, err := txRepo.FindByIDForUpdate(ctx, paymentID)
 		if err != nil {
 			return err
 		}
 
 		if bankErr != nil {
+			p.Status = domain.StatusCaptured
 			p.AttemptCount++
 			errMsg := bankErr.Error()
 			p.LastErrorCategory = &errMsg
@@ -128,7 +123,7 @@ func (s *AuthorizationService) Authorize(
 
 			if isRetryable {
 				baseDelay := math.Pow(2, float64(p.AttemptCount)) * float64(time.Minute)
-				maxDelay := float64(24 * time.Hour)
+				maxDelay := float64(4 * time.Minute)
 				if baseDelay > maxDelay {
 					baseDelay = maxDelay
 				}
@@ -140,31 +135,28 @@ func (s *AuthorizationService) Authorize(
 				p.Status = domain.StatusFailed
 			}
 		} else {
-			p.Status = domain.StatusAuthorized
-			p.BankAuthID = &bankResp.AuthorizationID
-			p.AuthorizedAt = &bankResp.CreatedAt
-			p.ExpiresAt = &bankResp.ExpiresAt
+			p.Status = domain.StatusRefunded
+			p.BankRefundID = &bankResp.RefundID
+			p.RefundedAt = &bankResp.RefundedAt
 		}
 		return txRepo.UpdatePayment(ctx, p)
 	})
 
 	if updateErr != nil {
-		payment, fetchErr := s.repo.FindByID(ctx, paymentID)
+		payment, fetchErr := r.repo.FindByID(ctx, paymentID)
 		if fetchErr != nil {
 			return &domain.Payment{
 				ID:     paymentID,
-				Status: domain.StatusPending,
+				Status: domain.StatusCaptured,
 			}, nil
 		}
 		return payment, nil
 	}
 
-	return s.repo.FindByID(ctx, paymentID)
+	return r.repo.FindByID(ctx, paymentID)
 }
 
-// pollForPayment polls the repository for a payment status update until the payment is no longer pending,
-// the context is cancelled, or a 5-second timeout is reached.
-func (s *AuthorizationService) pollForPayment(ctx context.Context, key string) (*domain.Payment, error) {
+func (r *RefundService) pollForPayment(ctx context.Context, key string) (*domain.Payment, error) {
 	ticker := time.NewTicker(200 * time.Millisecond)
 	defer ticker.Stop()
 
@@ -177,31 +169,22 @@ func (s *AuthorizationService) pollForPayment(ctx context.Context, key string) (
 		case <-timeout:
 			return nil, errors.New("timeout waiting for payment processing")
 		case <-ticker.C:
-			p, err := s.repo.FindByIdempotencyKey(ctx, key)
+			p, err := r.repo.FindByIdempotencyKey(ctx, key)
 			if err != nil {
 				if domain.IsErrorCode(err, domain.ErrCodePaymentNotFound) {
 					continue
 				}
 				return nil, fmt.Errorf("error checking payment status: %w", err)
 			}
-			if p != nil && p.Status != domain.StatusPending {
+			if p != nil && p.Status != domain.StatusCaptured {
 				return p, nil
 			}
 		}
 	}
 }
 
-func (s *AuthorizationService) validate(
-	orderID, customerID string,
-	amount int64,
-) error {
-	if orderID == "" {
-		return errors.New("order_id is required")
-	}
-	if customerID == "" {
-		return errors.New("customer_id is required")
-	}
-	if amount <= 0 {
+func (r *RefundService) validate(amount int64) error {
+	if amount < 0 {
 		return domain.NewInvalidAmountError(amount)
 	}
 	return nil
