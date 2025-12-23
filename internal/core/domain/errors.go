@@ -24,6 +24,11 @@ func (e *DomainError) Unwrap() error {
 	return e.Err
 }
 
+// Retryable interface for errors that can be retried
+type Retryable interface {
+	IsRetryable() bool
+}
+
 // Domain validation errors
 const (
 	ErrCodeInvalidTransition       = "INVALID_TRANSITION"

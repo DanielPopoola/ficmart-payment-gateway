@@ -81,7 +81,17 @@ func (p *Payment) CanTransitionTo(target PaymentStatus) error {
 		}
 
 	case StatusAuthorized:
-		if target == StatusCaptured || target == StatusVoided || target == StatusExpired || target == StatusFailed {
+		if target == StatusCaptured || target == StatusVoided || target == StatusExpired || target == StatusFailed || target == StatusCapturing || target == StatusVoiding {
+			return nil
+		}
+
+	case StatusCapturing:
+		if target == StatusCaptured || target == StatusFailed {
+			return nil
+		}
+
+	case StatusVoiding:
+		if target == StatusVoided || target == StatusFailed {
 			return nil
 		}
 
@@ -100,4 +110,60 @@ func (p *Payment) IsTerminal() bool {
 	default:
 		return false
 	}
+}
+
+func (p *Payment) Authorize(authID string, authorizedAt, expiresAt time.Time) error {
+	if err := p.CanTransitionTo(StatusAuthorized); err != nil {
+		return err
+	}
+	p.Status = StatusAuthorized
+	p.BankAuthID = &authID
+	p.AuthorizedAt = &authorizedAt
+	p.ExpiresAt = &expiresAt
+	return nil
+}
+
+func (p *Payment) Capture(captureID string, capturedAt time.Time) error {
+	if err := p.CanTransitionTo(StatusCaptured); err != nil {
+		return err
+	}
+	p.Status = StatusCaptured
+	p.BankCaptureID = &captureID
+	p.CapturedAt = &capturedAt
+	return nil
+}
+
+func (p *Payment) Void(voidID string, voidedAt time.Time) error {
+	if err := p.CanTransitionTo(StatusVoided); err != nil {
+		return err
+	}
+	p.Status = StatusVoided
+	p.BankVoidID = &voidID
+	p.VoidedAt = &voidedAt
+	return nil
+}
+
+func (p *Payment) Refund(refundID string, refundedAt time.Time) error {
+	if err := p.CanTransitionTo(StatusRefunded); err != nil {
+		return err
+	}
+	p.Status = StatusRefunded
+	p.BankRefundID = &refundID
+	p.RefundedAt = &refundedAt
+	return nil
+}
+
+func (p *Payment) Fail(reason string) error {
+	if err := p.CanTransitionTo(StatusFailed); err != nil {
+		return err
+	}
+	p.Status = StatusFailed
+	p.LastErrorCategory = &reason
+	return nil
+}
+
+func (p *Payment) ScheduleRetry(reason string, nextRetry time.Time) {
+	p.AttemptCount++
+	p.LastErrorCategory = &reason
+	p.NextRetryAt = &nextRetry
 }
