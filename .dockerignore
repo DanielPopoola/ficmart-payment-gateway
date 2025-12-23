@@ -1,0 +1,52 @@
+# Binaries
+bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test files
+*.test
+*.out
+coverage.out
+coverage.html
+
+# Vendor
+vendor/
+
+# Environment files
+.env
+.env.local
+
+# Documentation
+GUIDE.md
+GEMINI.md
+README.md
+TRADEOFFS.md
+
+# Git
+.git
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Temporary files
+tmp/
+build-errors.log
+
+# Docker files
+docker/
+Dockerfile
+docker-compose*.yml
+
+# CI/CD
+.github/
+
+# Generated docs
+docs/

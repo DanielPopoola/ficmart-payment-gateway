@@ -1,0 +1,44 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: payment-gateway-db
+    environment:
+      POSTGRES_USER: ${GATEWAY_DATABASE__USER:-postgres}
+      POSTGRES_PASSWORD: ${GATEWAY_DATABASE__PASSWORD:-postgres}
+      POSTGRES_DB: postgres
+    ports:
+      - "5433:5432"  # Use 5433 to avoid conflict with local PostgreSQL
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${GATEWAY_DATABASE__USER:-postgres}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - payment-network
+
+  gateway:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: payment-gateway-app
+    env_file:
+      - ../.env
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - payment-network
+    restart: unless-stopped
+
+networks:
+  payment-network:
+    name: payment-network
+    driver: bridge
+
+volumes:
+  postgres_data:
+    name: payment-gateway-postgres-data
