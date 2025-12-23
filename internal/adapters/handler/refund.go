@@ -21,6 +21,11 @@ func (h *PaymentHandler) HandleRefund(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Extract Idempotency-Key from header, taking precedence over body
+	if idemKey := r.Header.Get("Idempotency-Key"); idemKey != "" {
+		req.IdempotencyKey = idemKey
+	}
+
 	if err := h.validate.Struct(req); err != nil {
 		respondWithError(w, &domain.DomainError{
 			Code:    "VALIDATION_ERROR",

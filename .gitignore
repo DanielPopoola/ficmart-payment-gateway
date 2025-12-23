@@ -18,12 +18,12 @@ coverage.html
 vendor/
 
 .env
-GUIDE.md
-GEMINI.md
-settings.json
+#GUIDE.md
+#GEMINI.md
+#settings.json
 
-.gemini/
-thoughts/
+#.gemini/
+#thoughts/
 # Go workspace file
 go.work
 go.work.sum

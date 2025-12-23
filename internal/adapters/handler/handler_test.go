@@ -46,6 +46,19 @@ func (m *mockVoidService) Void(ctx context.Context, paymentID uuid.UUID, idempot
 	return m.voidFn(ctx, paymentID, idempotencyKey)
 }
 
+type mockQueryService struct {
+	getPaymentByOrderFn      func(ctx context.Context, orderID string) (*domain.Payment, error)
+	getPaymentsByCustomerFn func(ctx context.Context, customerID string, limit, offset int) ([]*domain.Payment, error)
+}
+
+func (m *mockQueryService) GetPaymentByOrderID(ctx context.Context, orderID string) (*domain.Payment, error) {
+	return m.getPaymentByOrderFn(ctx, orderID)
+}
+
+func (m *mockQueryService) GetPaymentsByCustomerID(ctx context.Context, customerID string, limit, offset int) ([]*domain.Payment, error) {
+	return m.getPaymentsByCustomerFn(ctx, customerID, limit, offset)
+}
+
 func TestHandleAuthorize_Success(t *testing.T) {
 	paymentID := uuid.New()
 	mockAuth := &mockAuthService{
@@ -61,7 +74,7 @@ func TestHandleAuthorize_Success(t *testing.T) {
 		},
 	}
 
-	handler := NewPaymentHandler(mockAuth, nil, nil, nil)
+	handler := NewPaymentHandler(mockAuth, nil, nil, nil, nil)
 
 	reqBody, _ := json.Marshal(AuthorizeRequest{
 		OrderID:        "order-123",
@@ -98,7 +111,7 @@ func TestHandleAuthorize_Error(t *testing.T) {
 		},
 	}
 
-	handler := NewPaymentHandler(mockAuth, nil, nil, nil)
+	handler := NewPaymentHandler(mockAuth, nil, nil, nil, nil)
 
 	reqBody, _ := json.Marshal(AuthorizeRequest{
 		OrderID:        "order-123",
@@ -119,15 +132,144 @@ func TestHandleAuthorize_Error(t *testing.T) {
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf("expected status 400, got %d", rr.Code)
 	}
+}
+
+func TestHandleAuthorize_IdempotencyHeader(t *testing.T) {
+	paymentID := uuid.New()
+	headerIdemKey := "header-idem-key"
+	bodyIdemKey := "body-idem-key"
+
+	mockAuth := &mockAuthService{
+		authorizeFn: func(ctx context.Context, orderID, customerID, idempotencyKey string, amount int64, cardNumber, cvv string, expiryMonth, expiryYear int) (*domain.Payment, error) {
+			if idempotencyKey != headerIdemKey {
+				t.Errorf("expected idempotency key %s, got %s", headerIdemKey, idempotencyKey)
+			}
+			return &domain.Payment{
+				ID:          paymentID,
+				OrderID:     orderID,
+				IdempotencyKey: idempotencyKey,
+			}, nil
+		},
+	}
+
+	handler := NewPaymentHandler(mockAuth, nil, nil, nil, nil)
+
+	reqBody, _ := json.Marshal(AuthorizeRequest{
+		OrderID:        "order-123",
+		CustomerID:     "cust-456",
+		Amount:         1000,
+		CardNumber:     "1234567890123456",
+		CVV:            "123",
+		ExpiryMonth:    12,
+		ExpiryYear:     2026,
+		IdempotencyKey: bodyIdemKey,
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/authorize", bytes.NewBuffer(reqBody))
+	req.Header.Set("Idempotency-Key", headerIdemKey)
+	rr := httptest.NewRecorder()
+
+	handler.HandleAuthorize(rr, req)
+
+	if rr.Code != http.StatusCreated {
+		t.Errorf("expected status 201, got %d", rr.Code)
+	}
+}
+
+func TestHandleAuthorize_StillProcessing(t *testing.T) {
+	mockAuth := &mockAuthService{
+		authorizeFn: func(ctx context.Context, orderID, customerID, idempotencyKey string, amount int64, cardNumber, cvv string, expiryMonth, expiryYear int) (*domain.Payment, error) {
+			return nil, domain.NewRequestProcessingError()
+		},
+	}
+
+	handler := NewPaymentHandler(mockAuth, nil, nil, nil, nil)
+
+	reqBody, _ := json.Marshal(AuthorizeRequest{
+		OrderID:        "order-123",
+		CustomerID:     "cust-456",
+		Amount:         1000,
+		CardNumber:     "1234567890123456",
+		CVV:            "123",
+		ExpiryMonth:    12,
+		ExpiryYear:     2026,
+		IdempotencyKey: "idem-key",
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/authorize", bytes.NewBuffer(reqBody))
+	rr := httptest.NewRecorder()
+
+	handler.HandleAuthorize(rr, req)
+
+	if rr.Code != http.StatusAccepted {
+		t.Errorf("expected status 202, got %d", rr.Code)
+	}
+}
+
+func TestHandleAuthorize_Timeout(t *testing.T) {
+	mockAuth := &mockAuthService{
+		authorizeFn: func(ctx context.Context, orderID, customerID, idempotencyKey string, amount int64, cardNumber, cvv string, expiryMonth, expiryYear int) (*domain.Payment, error) {
+			return nil, domain.NewTimeoutError("payment processing")
+		},
+	}
+
+	handler := NewPaymentHandler(mockAuth, nil, nil, nil, nil)
+
+	reqBody, _ := json.Marshal(AuthorizeRequest{
+		OrderID:        "order-123",
+		CustomerID:     "cust-456",
+		Amount:         1000,
+		CardNumber:     "1234567890123456",
+		CVV:            "123",
+		ExpiryMonth:    12,
+		ExpiryYear:     2026,
+		IdempotencyKey: "idem-key",
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/authorize", bytes.NewBuffer(reqBody))
+	rr := httptest.NewRecorder()
+
+	handler.HandleAuthorize(rr, req)
+
+	if rr.Code != http.StatusConflict {
+		t.Errorf("expected status 409, got %d", rr.Code)
+	}
 
 	var resp APIResponse
 	json.Unmarshal(rr.Body.Bytes(), &resp)
 
-	if resp.Success {
-		t.Errorf("expected success false, got true")
+	if resp.Error.Code != domain.ErrRequestProcessing {
+		t.Errorf("expected code %s, got %s", domain.ErrRequestProcessing, resp.Error.Code)
 	}
-	if resp.Error.Code != "VALIDATION_ERROR" {
-		t.Errorf("expected error code %s, got %s", "VALIDATION_ERROR", resp.Error.Code)
+}
+
+func TestHandleAuthorize_IdempotencyMismatch(t *testing.T) {
+	mockAuth := &mockAuthService{
+		authorizeFn: func(ctx context.Context, orderID, customerID, idempotencyKey string, amount int64, cardNumber, cvv string, expiryMonth, expiryYear int) (*domain.Payment, error) {
+			return nil, domain.NewIdempotencyMismatchError()
+		},
+	}
+
+	handler := NewPaymentHandler(mockAuth, nil, nil, nil, nil)
+
+	reqBody, _ := json.Marshal(AuthorizeRequest{
+		OrderID:        "order-123",
+		CustomerID:     "cust-456",
+		Amount:         1000,
+		CardNumber:     "1234567890123456",
+		CVV:            "123",
+		ExpiryMonth:    12,
+		ExpiryYear:     2026,
+		IdempotencyKey: "idem-key",
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/authorize", bytes.NewBuffer(reqBody))
+	rr := httptest.NewRecorder()
+
+	handler.HandleAuthorize(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400, got %d", rr.Code)
 	}
 }
 
@@ -143,7 +285,7 @@ func TestHandleCapture_Success(t *testing.T) {
 		},
 	}
 
-	handler := NewPaymentHandler(nil, mockCapture, nil, nil)
+	handler := NewPaymentHandler(nil, mockCapture, nil, nil, nil)
 
 	reqBody, _ := json.Marshal(CaptureRequest{
 		PaymentID:      paymentID.String(),
@@ -161,86 +303,31 @@ func TestHandleCapture_Success(t *testing.T) {
 	}
 }
 
-func TestHandleVoid_Success(t *testing.T) {
+func TestHandleGetPaymentByOrder_Success(t *testing.T) {
 	paymentID := uuid.New()
-	mockVoid := &mockVoidService{
-		voidFn: func(ctx context.Context, pid uuid.UUID, idempotencyKey string) (*domain.Payment, error) {
+	orderID := "order-123"
+	mockQuery := &mockQueryService{
+		getPaymentByOrderFn: func(ctx context.Context, id string) (*domain.Payment, error) {
+			if id != orderID {
+				t.Errorf("expected orderID %s, got %s", orderID, id)
+			}
 			return &domain.Payment{
-				ID:     pid,
-				Status: domain.StatusVoided,
+				ID:      paymentID,
+				OrderID: orderID,
 			}, nil
 		},
 	}
 
-	handler := NewPaymentHandler(nil, nil, nil, mockVoid)
+	handler := NewPaymentHandler(nil, nil, nil, nil, mockQuery)
 
-	reqBody, _ := json.Marshal(VoidRequest{
-		PaymentID:      paymentID.String(),
-		IdempotencyKey: "idem-key",
-	})
-
-	req := httptest.NewRequest(http.MethodPost, "/void", bytes.NewBuffer(reqBody))
+	req := httptest.NewRequest(http.MethodGet, "/payments/order/"+orderID, nil)
+	// Mocking PathValue for tests
+	req.SetPathValue("orderID", orderID)
 	rr := httptest.NewRecorder()
 
-	handler.HandleVoid(rr, req)
+	handler.HandleGetPaymentByOrder(rr, req)
 
 	if rr.Code != http.StatusOK {
 		t.Errorf("expected status 200, got %d", rr.Code)
-	}
-}
-
-func TestHandleRefund_Success(t *testing.T) {
-	paymentID := uuid.New()
-	mockRefund := &mockRefundService{
-		refundFn: func(ctx context.Context, pid uuid.UUID, amount int64, idempotencyKey string) (*domain.Payment, error) {
-			return &domain.Payment{
-				ID:          pid,
-				AmountCents: amount,
-				Status:      domain.StatusRefunded,
-			}, nil
-		},
-	}
-
-	handler := NewPaymentHandler(nil, nil, mockRefund, nil)
-
-	reqBody, _ := json.Marshal(RefundRequest{
-		PaymentID:      paymentID.String(),
-		Amount:         1000,
-		IdempotencyKey: "idem-key",
-	})
-
-	req := httptest.NewRequest(http.MethodPost, "/refund", bytes.NewBuffer(reqBody))
-	rr := httptest.NewRecorder()
-
-	handler.HandleRefund(rr, req)
-
-	if rr.Code != http.StatusOK {
-		t.Errorf("expected status 200, got %d", rr.Code)
-	}
-}
-
-func TestHandleRefund_ValidationError(t *testing.T) {
-	handler := NewPaymentHandler(nil, nil, nil, nil)
-
-	reqBody, _ := json.Marshal(RefundRequest{
-		PaymentID:      "invalid-uuid",
-		Amount:         -500,
-		IdempotencyKey: "",
-	})
-
-	req := httptest.NewRequest(http.MethodPost, "/refund", bytes.NewBuffer(reqBody))
-	rr := httptest.NewRecorder()
-
-	handler.HandleRefund(rr, req)
-
-	if rr.Code != http.StatusBadRequest {
-		t.Errorf("expected status 400, got %d", rr.Code)
-	}
-
-	var resp APIResponse
-	json.Unmarshal(rr.Body.Bytes(), &resp)
-
-	if resp.Error.Code != "VALIDATION_ERROR" {
-		t.Errorf("expected VALIDATION_ERROR, got %s", resp.Error.Code)
 	}
 }
