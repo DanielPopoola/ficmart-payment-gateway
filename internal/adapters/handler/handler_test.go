@@ -62,7 +62,7 @@ func TestHandleAuthorize_Success(t *testing.T) {
 	}
 
 	handler := NewPaymentHandler(mockAuth, nil, nil, nil)
-	
+
 	reqBody, _ := json.Marshal(AuthorizeRequest{
 		OrderID:        "order-123",
 		CustomerID:     "cust-456",
@@ -99,7 +99,7 @@ func TestHandleAuthorize_Error(t *testing.T) {
 	}
 
 	handler := NewPaymentHandler(mockAuth, nil, nil, nil)
-	
+
 	reqBody, _ := json.Marshal(AuthorizeRequest{
 		OrderID:        "order-123",
 		CustomerID:     "cust-456",
@@ -144,7 +144,7 @@ func TestHandleCapture_Success(t *testing.T) {
 	}
 
 	handler := NewPaymentHandler(nil, mockCapture, nil, nil)
-	
+
 	reqBody, _ := json.Marshal(CaptureRequest{
 		PaymentID:      paymentID.String(),
 		Amount:         1000,
@@ -173,7 +173,7 @@ func TestHandleVoid_Success(t *testing.T) {
 	}
 
 	handler := NewPaymentHandler(nil, nil, nil, mockVoid)
-	
+
 	reqBody, _ := json.Marshal(VoidRequest{
 		PaymentID:      paymentID.String(),
 		IdempotencyKey: "idem-key",
@@ -202,7 +202,7 @@ func TestHandleRefund_Success(t *testing.T) {
 	}
 
 	handler := NewPaymentHandler(nil, nil, mockRefund, nil)
-	
+
 	reqBody, _ := json.Marshal(RefundRequest{
 		PaymentID:      paymentID.String(),
 		Amount:         1000,
@@ -221,7 +221,7 @@ func TestHandleRefund_Success(t *testing.T) {
 
 func TestHandleRefund_ValidationError(t *testing.T) {
 	handler := NewPaymentHandler(nil, nil, nil, nil)
-	
+
 	reqBody, _ := json.Marshal(RefundRequest{
 		PaymentID:      "invalid-uuid",
 		Amount:         -500,

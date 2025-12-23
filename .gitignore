@@ -22,6 +22,8 @@ GUIDE.md
 GEMINI.md
 settings.json
 
+.gemini/
+thoughts/
 # Go workspace file
 go.work
 go.work.sum

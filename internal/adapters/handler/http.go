@@ -25,11 +25,17 @@ type VoidService interface {
 	Void(ctx context.Context, paymentID uuid.UUID, idempotencyKey string) (*domain.Payment, error)
 }
 
+type QueryService interface {
+	GetPaymentByOrderID(ctx context.Context, orderID string) (*domain.Payment, error)
+	GetPaymentsByCustomerID(ctx context.Context, customerID string, limit, offset int) ([]*domain.Payment, error)
+}
+
 type PaymentHandler struct {
 	authService    AuthorizationService
 	captureService CaptureService
 	refundService  RefundService
 	voidService    VoidService
+	queryService   QueryService
 	validate       *validator.Validate
 }
 
@@ -38,12 +44,14 @@ func NewPaymentHandler(
 	captureService CaptureService,
 	refundService RefundService,
 	voidService VoidService,
+	queryService QueryService,
 ) *PaymentHandler {
 	return &PaymentHandler{
 		authService:    authService,
 		captureService: captureService,
 		refundService:  refundService,
 		voidService:    voidService,
+		queryService:   queryService,
 		validate:       validator.New(),
 	}
 }
@@ -53,4 +61,6 @@ func (h *PaymentHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /capture", h.HandleCapture)
 	mux.HandleFunc("POST /refund", h.HandleRefund)
 	mux.HandleFunc("POST /void", h.HandleVoid)
+	mux.HandleFunc("GET /payments/order/{orderID}", h.HandleGetPaymentByOrder)
+	mux.HandleFunc("GET /payments/customer/{customerID}", h.HandleGetPaymentsByCustomer)
 }
