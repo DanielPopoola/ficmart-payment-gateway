@@ -4,20 +4,20 @@
 This plan covers the implementation of the background reconciler worker, the application entry point (`main.go`), and enhancements to the idempotency system to support high-fidelity cached responses and "Lazy Expiration" using the bank as the source of truth.
 
 ## Current State Analysis
-- **Core Services**: Implemented and tested, but missing background reconciliation logic.
-- **Idempotency**: Basic key/hash check exists, but no response payload caching.
-- **Bank Client**: Missing GET endpoints for status verification.
-- **Worker**: Non-existent.
-- **Entry Point**: `cmd/gateway/main.go` was empty (now implemented but needs validation).
+- **Core Services**: Implemented and tested, with background reconciliation logic added.
+- **Idempotency**: High-fidelity payload caching implemented.
+- **Bank Client**: GET endpoints for status verification implemented.
+- **Worker**: Fully implemented and tested.
+- **Entry Point**: `cmd/gateway/main.go` implemented and verified.
 
 ## Desired End State
-- A background worker that resolves "stuck" payments (`PENDING`, `CAPTURING`, `VOIDING`, `REFUNDING`) and marks `EXPIRED` authorizations.
-- High-fidelity idempotent replays that return the original bank response.
-- A fully wired `main.go` with graceful shutdown.
-- All services updated to be re-entrant and cache-aware.
+- [x] A background worker that resolves "stuck" payments (`PENDING`, `CAPTURING`, `VOIDING`, `REFUNDING`) and marks `EXPIRED` authorizations.
+- [x] High-fidelity idempotent replays that return the original bank response.
+- [x] A fully wired `main.go` with graceful shutdown.
+- [x] All services updated to be re-entrant and cache-aware.
 
 ## Phase 1: Enhanced Idempotency & Domain Updates
-- [x] Create migration `002_enhance_idempotency.sql` to add `response_payload`, `status_code`, and `completed_at`.
+- [x] Create migration `001_initial_schema.sql` (updated with enhanced columns).
 - [x] Add `StatusRefunding` to domain and update transition rules.
 - [x] Implement `UpdateIdempotencyKey` in the repository.
 - [x] Update services to cache bank responses upon completion.
@@ -27,7 +27,7 @@ This plan covers the implementation of the background reconciler worker, the app
 - [x] Add `GetAuthorization`, `GetCapture`, and `GetRefund` to `BankPort`.
 - [x] Implement GET methods in `HTTPBankClient` and `RetryBankClient`.
 - [x] Implement `Reconcile(ctx, payment)` in all core services.
-- [x] Update mocks in `mock_test.go` to support new interfaces.
+- [x] Update mocks in `mocks.go` to support new interfaces.
 
 ## Phase 3: Background Reconciler Implementation
 - [x] Implement `internal/worker/reconciler.go` with ticker loop.
@@ -37,16 +37,16 @@ This plan covers the implementation of the background reconciler worker, the app
 
 ## Phase 4: Application Wiring (`main.go`)
 - [x] Implement `cmd/gateway/main.go` with dependency injection.
-- [x] Add `WorkerConfig` to `config.go`.
+- [x] Add `WorkerConfig` and `koanf` tags to `config.go`.
 - [x] Implement graceful shutdown logic (Signals + Context).
-- [x] Add missing environment variable defaults or sample `.env`.
+- [x] Add sample `.env.example`.
 
 ## Phase 5: Verification
-- [ ] Integration test: Stuck payment recovery.
-- [ ] Integration test: Concurrent request handling.
-- [ ] E2E Manual flow verification.
+- [x] Integration test: Stuck payment recovery.
+- [x] Integration test: Concurrent request handling.
+- [x] E2E Manual flow verification (verified via FullFlow integration test).
 
 ## Testing Strategy
-- **Unit Tests**: Ensure all services pass with new `Reconcile` and `UpdateIdempotencyKey` methods.
-- **Race Tests**: Run `go test -race` during concurrency verification.
-- **Worker Simulation**: Manually insert a `CAPTURING` payment and verify the worker moves it to `CAPTURED`.
+- [x] **Unit Tests**: All services pass.
+- [x] **Integration Tests**: Comprehensive suite in `internal/tests` passing against real Postgres and Docker Bank API.
+- [x] **Race Verification**: Concurrent tests prove idempotency and double-spend protection.

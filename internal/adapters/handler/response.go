@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/core/domain"
@@ -66,6 +67,9 @@ func respondWithError(w http.ResponseWriter, err error) {
 		default:
 			status = http.StatusBadRequest
 		}
+	} else {
+		// Log non-domain errors (like DB errors or panics)
+		slog.Error("request failed with internal error", "error", err)
 	}
 
 	respondWithJSON(w, status, &APIError{

@@ -68,6 +68,11 @@ func (r *Reconciler) Start(ctx context.Context) {
 	}
 }
 
+// RunOnce executes a single reconciliation cycle.
+func (r *Reconciler) RunOnce(ctx context.Context) {
+	r.run(ctx)
+}
+
 func (r *Reconciler) run(ctx context.Context) {
 	r.reconcileStuckPayments(ctx)
 	// Lazy expiration is also handled here or in a separate ticker

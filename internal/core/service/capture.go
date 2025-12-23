@@ -146,10 +146,11 @@ func (c *CaptureService) Capture(ctx context.Context, paymentID uuid.UUID, amoun
 
 			// Cache the response
 			respJSON, _ := json.Marshal(bankResp)
+			statusCode := 200
 			idemKey := &domain.IdempotencyKey{
 				Key:             idempotencyKey,
 				ResponsePayload: respJSON,
-				StatusCode:      200,
+				StatusCode:      &statusCode,
 				CompletedAt:     &bankResp.CapturedAt,
 			}
 			if err := txRepo.UpdateIdempotencyKey(ctx, idemKey); err != nil {

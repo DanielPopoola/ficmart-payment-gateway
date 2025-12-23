@@ -30,8 +30,10 @@ func NewPaymentRepository(db *DB) ports.PaymentRepository {
 func (r *PaymentRepository) CreatePayment(ctx context.Context, p *domain.Payment) error {
 	query := `INSERT INTO payments (
 				id, order_id, customer_id, amount_cents, currency, status, idempotency_key,
+				bank_auth_id, bank_capture_id, bank_void_id, bank_refund_id,
+				created_at, updated_at, authorized_at, captured_at, voided_at, refunded_at, expires_at,
 				attempt_count)
-				VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+				VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
 	`
 
 	_, err := r.q.Exec(ctx, query,
@@ -42,6 +44,17 @@ func (r *PaymentRepository) CreatePayment(ctx context.Context, p *domain.Payment
 		p.Currency,
 		p.Status,
 		p.IdempotencyKey,
+		p.BankAuthID,
+		p.BankCaptureID,
+		p.BankVoidID,
+		p.BankRefundID,
+		p.CreatedAt,
+		p.UpdatedAt,
+		p.AuthorizedAt,
+		p.CapturedAt,
+		p.VoidedAt,
+		p.RefundedAt,
+		p.ExpiresAt,
 		p.AttemptCount,
 	)
 	if err != nil {
@@ -175,7 +188,7 @@ func (r *PaymentRepository) FindPendingPayments(ctx context.Context, olderThan t
 	query := `
         SELECT id, idempotency_key, status, bank_auth_id, bank_capture_id, attempt_count
         FROM payments
-        WHERE status IN ('PENDING', 'AUTHORIZED', 'CAPTURED')
+        WHERE status IN ('PENDING', 'AUTHORIZED', 'CAPTURING', 'VOIDING', 'REFUNDING')
             AND created_at < $1
             AND (next_retry_at IS NULL OR next_retry_at <= NOW())
         ORDER BY next_retry_at ASC NULLS FIRST

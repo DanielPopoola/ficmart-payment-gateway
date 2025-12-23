@@ -144,10 +144,11 @@ func (v *VoidService) Void(ctx context.Context, paymentID uuid.UUID, idempotency
 
 			// Cache the response
 			respJSON, _ := json.Marshal(bankResp)
+			statusCode := 200
 			idemKey := &domain.IdempotencyKey{
 				Key:             idempotencyKey,
 				ResponsePayload: respJSON,
-				StatusCode:      200,
+				StatusCode:      &statusCode,
 				CompletedAt:     &bankResp.VoidedAt,
 			}
 			if err := txRepo.UpdateIdempotencyKey(ctx, idemKey); err != nil {

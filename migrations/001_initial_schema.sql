@@ -3,7 +3,7 @@ CREATE TABLE IF NOT EXISTS idempotency_keys (
     request_hash TEXT NOT NULL,
     response_payload JSONB,
     status_code INT,
-    locked_at TIMESTAMP WITH TIME ZONE NOT NULL
+    locked_at TIMESTAMP WITH TIME ZONE NOT NULL,
     completed_at TIMESTAMP WITH TIME ZONE
 );
 

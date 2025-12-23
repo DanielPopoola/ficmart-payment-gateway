@@ -13,13 +13,13 @@ import (
 )
 
 type Config struct {
-	Primary    Primary
-	Server     ServerConfig
-	Database   DatabaseConfig
-	BankClient BankConfig
-	Retry      RetryConfig
-	Logger     LoggerConfig
-	Worker     WorkerConfig
+	Primary    Primary        `koanf:"primary"`
+	Server     ServerConfig   `koanf:"server"`
+	Database   DatabaseConfig `koanf:"database"`
+	BankClient BankConfig     `koanf:"bank_client"`
+	Retry      RetryConfig    `koanf:"retry"`
+	Logger     LoggerConfig   `koanf:"logger"`
+	Worker     WorkerConfig   `koanf:"worker"`
 }
 
 type WorkerConfig struct {
@@ -57,12 +57,12 @@ type BankConfig struct {
 }
 
 type RetryConfig struct {
-	BaseDelay  int32
-	MaxRetries int32
+	BaseDelay  int32 `koanf:"base_delay"`
+	MaxRetries int32 `koanf:"max_retries"`
 }
 
 type LoggerConfig struct {
-	Level string
+	Level string `koanf:"level"`
 }
 
 func LoadConfig() (*Config, error) {
@@ -72,7 +72,11 @@ func LoadConfig() (*Config, error) {
 	k := koanf.New(".")
 
 	err := k.Load(env.Provider("GATEWAY_", ".", func(s string) string {
-		return strings.ToLower(strings.TrimPrefix(s, "GATEWAY_"))
+		return strings.ReplaceAll(
+			strings.ToLower(strings.TrimPrefix(s, "GATEWAY_")),
+			"__",
+			".",
+		)
 	}), nil)
 	if err != nil {
 		logger.Error("failed to load environment variables", "error", err)

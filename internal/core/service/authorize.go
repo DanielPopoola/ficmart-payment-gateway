@@ -151,10 +151,11 @@ func (s *AuthorizationService) Authorize(
 
 			// Cache the response
 			respJSON, _ := json.Marshal(bankResp)
+			statusCode := 201
 			idemKey := &domain.IdempotencyKey{
 				Key:             idempotencyKey,
 				ResponsePayload: respJSON,
-				StatusCode:      201,
+				StatusCode:      &statusCode,
 				CompletedAt:     &bankResp.CreatedAt,
 			}
 			if err := txRepo.UpdateIdempotencyKey(ctx, idemKey); err != nil {
