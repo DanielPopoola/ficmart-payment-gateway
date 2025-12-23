@@ -175,7 +175,7 @@ func (r *PaymentRepository) FindPendingPayments(ctx context.Context, olderThan t
 	query := `
         SELECT id, idempotency_key, status, bank_auth_id, bank_capture_id, attempt_count
         FROM payments
-        WHERE status = 'PENDING'
+        WHERE status IN ('PENDING', 'AUTHORIZED', 'CAPTURED')
             AND created_at < $1
             AND (next_retry_at IS NULL OR next_retry_at <= NOW())
         ORDER BY next_retry_at ASC NULLS FIRST
