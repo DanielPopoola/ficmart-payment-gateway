@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/core/domain"
@@ -9,21 +10,31 @@ import (
 )
 
 type RefundRequest struct {
-	PaymentID      string `json:"payment_id" validate:"required,uuid"`
-	Amount         int64  `json:"amount" validate:"required,gt=0"`
-	IdempotencyKey string `json:"idempotency_key" validate:"required"`
+	PaymentID string `json:"payment_id" validate:"required,uuid"`
+	Amount    int64  `json:"amount" validate:"required,gt=0"`
 }
 
 func (h *PaymentHandler) HandleRefund(w http.ResponseWriter, r *http.Request) {
-	var req RefundRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
 		respondWithError(w, err)
 		return
 	}
 
-	// Extract Idempotency-Key from header, taking precedence over body
-	if idemKey := r.Header.Get("Idempotency-Key"); idemKey != "" {
-		req.IdempotencyKey = idemKey
+	var req RefundRequest
+	if err := json.Unmarshal(body, &req); err != nil {
+		respondWithError(w, err)
+		return
+	}
+
+	// Extract Idempotency-Key strictly from header
+	idemKey := r.Header.Get("Idempotency-Key")
+	if idemKey == "" {
+		respondWithError(w, &domain.DomainError{
+			Code:    "VALIDATION_ERROR",
+			Message: "Idempotency-Key header is required",
+		})
+		return
 	}
 
 	if err := h.validate.Struct(req); err != nil {
@@ -44,7 +55,7 @@ func (h *PaymentHandler) HandleRefund(w http.ResponseWriter, r *http.Request) {
 		r.Context(),
 		paymentID,
 		req.Amount,
-		req.IdempotencyKey,
+		idemKey,
 	)
 	if err != nil {
 		respondWithError(w, err)

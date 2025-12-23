@@ -77,17 +77,17 @@ func TestHandleAuthorize_Success(t *testing.T) {
 	handler := NewPaymentHandler(mockAuth, nil, nil, nil, nil)
 
 	reqBody, _ := json.Marshal(AuthorizeRequest{
-		OrderID:        "order-123",
-		CustomerID:     "cust-456",
-		Amount:         1000,
-		CardNumber:     "1234567890123456",
-		CVV:            "123",
-		ExpiryMonth:    12,
-		ExpiryYear:     2026,
-		IdempotencyKey: "idem-key",
+		OrderID:     "order-123",
+		CustomerID:  "cust-456",
+		Amount:      1000,
+		CardNumber:  "1234567890123456",
+		CVV:         "123",
+		ExpiryMonth: 12,
+		ExpiryYear:  2026,
 	})
 
 	req := httptest.NewRequest(http.MethodPost, "/authorize", bytes.NewBuffer(reqBody))
+	req.Header.Set("Idempotency-Key", "idem-key")
 	rr := httptest.NewRecorder()
 
 	handler.HandleAuthorize(rr, req)
@@ -114,17 +114,17 @@ func TestHandleAuthorize_Error(t *testing.T) {
 	handler := NewPaymentHandler(mockAuth, nil, nil, nil, nil)
 
 	reqBody, _ := json.Marshal(AuthorizeRequest{
-		OrderID:        "order-123",
-		CustomerID:     "cust-456",
-		Amount:         -10,
-		CardNumber:     "1234567890123456",
-		CVV:            "123",
-		ExpiryMonth:    12,
-		ExpiryYear:     2026,
-		IdempotencyKey: "idem-key",
+		OrderID:     "order-123",
+		CustomerID:  "cust-456",
+		Amount:      -10,
+		CardNumber:  "1234567890123456",
+		CVV:         "123",
+		ExpiryMonth: 12,
+		ExpiryYear:  2026,
 	})
 
 	req := httptest.NewRequest(http.MethodPost, "/authorize", bytes.NewBuffer(reqBody))
+	req.Header.Set("Idempotency-Key", "idem-key")
 	rr := httptest.NewRecorder()
 
 	handler.HandleAuthorize(rr, req)
@@ -137,7 +137,6 @@ func TestHandleAuthorize_Error(t *testing.T) {
 func TestHandleAuthorize_IdempotencyHeader(t *testing.T) {
 	paymentID := uuid.New()
 	headerIdemKey := "header-idem-key"
-	bodyIdemKey := "body-idem-key"
 
 	mockAuth := &mockAuthService{
 		authorizeFn: func(ctx context.Context, orderID, customerID, idempotencyKey string, amount int64, cardNumber, cvv string, expiryMonth, expiryYear int) (*domain.Payment, error) {
@@ -155,14 +154,13 @@ func TestHandleAuthorize_IdempotencyHeader(t *testing.T) {
 	handler := NewPaymentHandler(mockAuth, nil, nil, nil, nil)
 
 	reqBody, _ := json.Marshal(AuthorizeRequest{
-		OrderID:        "order-123",
-		CustomerID:     "cust-456",
-		Amount:         1000,
-		CardNumber:     "1234567890123456",
-		CVV:            "123",
-		ExpiryMonth:    12,
-		ExpiryYear:     2026,
-		IdempotencyKey: bodyIdemKey,
+		OrderID:     "order-123",
+		CustomerID:  "cust-456",
+		Amount:      1000,
+		CardNumber:  "1234567890123456",
+		CVV:         "123",
+		ExpiryMonth: 12,
+		ExpiryYear:  2026,
 	})
 
 	req := httptest.NewRequest(http.MethodPost, "/authorize", bytes.NewBuffer(reqBody))
@@ -186,17 +184,17 @@ func TestHandleAuthorize_StillProcessing(t *testing.T) {
 	handler := NewPaymentHandler(mockAuth, nil, nil, nil, nil)
 
 	reqBody, _ := json.Marshal(AuthorizeRequest{
-		OrderID:        "order-123",
-		CustomerID:     "cust-456",
-		Amount:         1000,
-		CardNumber:     "1234567890123456",
-		CVV:            "123",
-		ExpiryMonth:    12,
-		ExpiryYear:     2026,
-		IdempotencyKey: "idem-key",
+		OrderID:     "order-123",
+		CustomerID:  "cust-456",
+		Amount:      1000,
+		CardNumber:  "1234567890123456",
+		CVV:         "123",
+		ExpiryMonth: 12,
+		ExpiryYear:  2026,
 	})
 
 	req := httptest.NewRequest(http.MethodPost, "/authorize", bytes.NewBuffer(reqBody))
+	req.Header.Set("Idempotency-Key", "idem-key")
 	rr := httptest.NewRecorder()
 
 	handler.HandleAuthorize(rr, req)
@@ -216,17 +214,17 @@ func TestHandleAuthorize_Timeout(t *testing.T) {
 	handler := NewPaymentHandler(mockAuth, nil, nil, nil, nil)
 
 	reqBody, _ := json.Marshal(AuthorizeRequest{
-		OrderID:        "order-123",
-		CustomerID:     "cust-456",
-		Amount:         1000,
-		CardNumber:     "1234567890123456",
-		CVV:            "123",
-		ExpiryMonth:    12,
-		ExpiryYear:     2026,
-		IdempotencyKey: "idem-key",
+		OrderID:     "order-123",
+		CustomerID:  "cust-456",
+		Amount:      1000,
+		CardNumber:  "1234567890123456",
+		CVV:         "123",
+		ExpiryMonth: 12,
+		ExpiryYear:  2026,
 	})
 
 	req := httptest.NewRequest(http.MethodPost, "/authorize", bytes.NewBuffer(reqBody))
+	req.Header.Set("Idempotency-Key", "idem-key")
 	rr := httptest.NewRecorder()
 
 	handler.HandleAuthorize(rr, req)
@@ -253,14 +251,37 @@ func TestHandleAuthorize_IdempotencyMismatch(t *testing.T) {
 	handler := NewPaymentHandler(mockAuth, nil, nil, nil, nil)
 
 	reqBody, _ := json.Marshal(AuthorizeRequest{
-		OrderID:        "order-123",
-		CustomerID:     "cust-456",
-		Amount:         1000,
-		CardNumber:     "1234567890123456",
-		CVV:            "123",
-		ExpiryMonth:    12,
-		ExpiryYear:     2026,
-		IdempotencyKey: "idem-key",
+		OrderID:     "order-123",
+		CustomerID:  "cust-456",
+		Amount:      1000,
+		CardNumber:  "1234567890123456",
+		CVV:         "123",
+		ExpiryMonth: 12,
+		ExpiryYear:  2026,
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/authorize", bytes.NewBuffer(reqBody))
+	req.Header.Set("Idempotency-Key", "idem-key")
+	rr := httptest.NewRecorder()
+
+	handler.HandleAuthorize(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400, got %d", rr.Code)
+	}
+}
+
+func TestHandleAuthorize_MissingIdempotencyHeader(t *testing.T) {
+	handler := NewPaymentHandler(nil, nil, nil, nil, nil)
+
+	reqBody, _ := json.Marshal(AuthorizeRequest{
+		OrderID:     "order-123",
+		CustomerID:  "cust-456",
+		Amount:      1000,
+		CardNumber:  "1234567890123456",
+		CVV:         "123",
+		ExpiryMonth: 12,
+		ExpiryYear:  2026,
 	})
 
 	req := httptest.NewRequest(http.MethodPost, "/authorize", bytes.NewBuffer(reqBody))
@@ -270,6 +291,12 @@ func TestHandleAuthorize_IdempotencyMismatch(t *testing.T) {
 
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf("expected status 400, got %d", rr.Code)
+	}
+
+	var resp APIResponse
+	json.Unmarshal(rr.Body.Bytes(), &resp)
+	if resp.Error.Code != "VALIDATION_ERROR" {
+		t.Errorf("expected VALIDATION_ERROR, got %s", resp.Error.Code)
 	}
 }
 
@@ -288,12 +315,12 @@ func TestHandleCapture_Success(t *testing.T) {
 	handler := NewPaymentHandler(nil, mockCapture, nil, nil, nil)
 
 	reqBody, _ := json.Marshal(CaptureRequest{
-		PaymentID:      paymentID.String(),
-		Amount:         1000,
-		IdempotencyKey: "idem-key",
+		PaymentID: paymentID.String(),
+		Amount:    1000,
 	})
 
 	req := httptest.NewRequest(http.MethodPost, "/capture", bytes.NewBuffer(reqBody))
+	req.Header.Set("Idempotency-Key", "idem-key")
 	rr := httptest.NewRecorder()
 
 	handler.HandleCapture(rr, req)
