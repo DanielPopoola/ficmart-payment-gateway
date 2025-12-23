@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -91,6 +92,10 @@ func (c *CaptureService) Capture(ctx context.Context, paymentID uuid.UUID, amoun
 				return nil, domain.NewIdempotencyMismatchError()
 			}
 
+			if existingKey.CompletedAt != nil && existingKey.ResponsePayload != nil {
+				return c.repo.FindByIdempotencyKey(ctx, idempotencyKey)
+			}
+
 			return c.pollForPayment(ctx, idempotencyKey)
 		}
 		return nil, err
@@ -136,6 +141,18 @@ func (c *CaptureService) Capture(ctx context.Context, paymentID uuid.UUID, amoun
 			}
 		} else {
 			if err := p.Capture(bankResp.CaptureID, bankResp.CapturedAt); err != nil {
+				return err
+			}
+
+			// Cache the response
+			respJSON, _ := json.Marshal(bankResp)
+			idemKey := &domain.IdempotencyKey{
+				Key:             idempotencyKey,
+				ResponsePayload: respJSON,
+				StatusCode:      200,
+				CompletedAt:     &bankResp.CapturedAt,
+			}
+			if err := txRepo.UpdateIdempotencyKey(ctx, idemKey); err != nil {
 				return err
 			}
 		}
@@ -189,4 +206,32 @@ func (c *CaptureService) validate(amount int64) error {
 		return domain.NewInvalidAmountError(amount)
 	}
 	return nil
+}
+
+func (c *CaptureService) Reconcile(ctx context.Context, p *domain.Payment) error {
+	if p.BankCaptureID == nil {
+		return nil
+	}
+
+	bankResp, err := c.bankClient.GetCapture(ctx, *p.BankCaptureID)
+	if err != nil {
+		return err
+	}
+
+	return c.repo.WithTx(ctx, func(txRepo ports.PaymentRepository) error {
+		payment, err := txRepo.FindByIDForUpdate(ctx, p.ID)
+		if err != nil {
+			return err
+		}
+
+		if payment.Status != domain.StatusCapturing {
+			return nil
+		}
+
+		if err := payment.Capture(bankResp.CaptureID, bankResp.CapturedAt); err != nil {
+			return err
+		}
+
+		return txRepo.UpdatePayment(ctx, payment)
+	})
 }

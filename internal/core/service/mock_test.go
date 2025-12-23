@@ -97,6 +97,11 @@ func (m *MockPaymentRepository) FindIdempotencyKeyRecord(ctx context.Context, ke
 	return nil, nil
 }
 
+func (m *MockPaymentRepository) UpdateIdempotencyKey(ctx context.Context, key *domain.IdempotencyKey) error {
+	m.idempotencyKeys[key.Key] = key
+	return nil
+}
+
 func (m *MockPaymentRepository) FindByOrderID(ctx context.Context, orderID string) (*domain.Payment, error) {
 	return nil, nil // Not used in current tests
 }
@@ -167,6 +172,31 @@ func (m *MockBankPort) Refund(ctx context.Context, req domain.BankRefundRequest,
 	return &domain.BankRefundResponse{
 		RefundID:   "ref-123",
 		CaptureID:  req.CaptureID,
+		Status:     "REFUNDED",
+		RefundedAt: time.Now(),
+	}, nil
+}
+
+func (m *MockBankPort) GetAuthorization(ctx context.Context, authID string) (*domain.BankAuthorizationResponse, error) {
+	return &domain.BankAuthorizationResponse{
+		AuthorizationID: authID,
+		Status:          "AUTHORIZED",
+		CreatedAt:       time.Now(),
+		ExpiresAt:       time.Now().Add(7 * 24 * time.Hour),
+	}, nil
+}
+
+func (m *MockBankPort) GetCapture(ctx context.Context, captureID string) (*domain.BankCaptureResponse, error) {
+	return &domain.BankCaptureResponse{
+		CaptureID:  captureID,
+		Status:     "CAPTURED",
+		CapturedAt: time.Now(),
+	}, nil
+}
+
+func (m *MockBankPort) GetRefund(ctx context.Context, refundID string) (*domain.BankRefundResponse, error) {
+	return &domain.BankRefundResponse{
+		RefundID:   refundID,
 		Status:     "REFUNDED",
 		RefundedAt: time.Now(),
 	}, nil

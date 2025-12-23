@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -84,6 +85,10 @@ func (v *VoidService) Void(ctx context.Context, paymentID uuid.UUID, idempotency
 				return nil, domain.NewIdempotencyMismatchError()
 			}
 
+			if existingKey.CompletedAt != nil && existingKey.ResponsePayload != nil {
+				return v.repo.FindByIdempotencyKey(ctx, idempotencyKey)
+			}
+
 			return v.pollForPayment(ctx, idempotencyKey)
 		}
 		return nil, err
@@ -136,6 +141,18 @@ func (v *VoidService) Void(ctx context.Context, paymentID uuid.UUID, idempotency
 			if err := p.Void(bankResp.VoidID, bankResp.VoidedAt); err != nil {
 				return err
 			}
+
+			// Cache the response
+			respJSON, _ := json.Marshal(bankResp)
+			idemKey := &domain.IdempotencyKey{
+				Key:             idempotencyKey,
+				ResponsePayload: respJSON,
+				StatusCode:      200,
+				CompletedAt:     &bankResp.VoidedAt,
+			}
+			if err := txRepo.UpdateIdempotencyKey(ctx, idemKey); err != nil {
+				return err
+			}
 		}
 		return txRepo.UpdatePayment(ctx, p)
 	})
@@ -179,4 +196,55 @@ func (v *VoidService) pollForPayment(ctx context.Context, key string) (*domain.P
 			}
 		}
 	}
+}
+
+func (v *VoidService) Reconcile(ctx context.Context, p *domain.Payment) error {
+	if p.BankAuthID == nil {
+		return nil
+	}
+
+	// Since there's no GET /voids endpoint, we rely on the bank's idempotency.
+	// We call Void again with the original Idempotency Key.
+	bankReq := &domain.BankVoidRequest{
+		AuthorizationID: *p.BankAuthID,
+	}
+
+	bankResp, bankErr := v.bankClient.Void(ctx, *bankReq, p.IdempotencyKey)
+
+	return v.repo.WithTx(ctx, func(txRepo ports.PaymentRepository) error {
+		payment, err := txRepo.FindByIDForUpdate(ctx, p.ID)
+		if err != nil {
+			return err
+		}
+
+		if payment.Status != domain.StatusVoiding {
+			return nil // Already resolved
+		}
+
+		if bankErr != nil {
+			// If it's a permanent failure now, we mark it. 
+			// Otherwise, let the next worker run try again.
+			if !isRetryable(bankErr) {
+				_ = payment.Fail(bankErr.Error())
+				return txRepo.UpdatePayment(ctx, payment)
+			}
+			return bankErr
+		}
+
+		if err := payment.Void(bankResp.VoidID, bankResp.VoidedAt); err != nil {
+			return err
+		}
+
+		return txRepo.UpdatePayment(ctx, payment)
+	})
+}
+
+// Helper to check retryable errors (mimicking adapter logic for service-level decision)
+func isRetryable(err error) bool {
+	// This should ideally be a shared utility or checked via domain.Retryable interface
+	var retryableErr domain.Retryable
+	if errors.As(err, &retryableErr) {
+		return retryableErr.IsRetryable()
+	}
+	return false
 }

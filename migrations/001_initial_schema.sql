@@ -1,7 +1,10 @@
 CREATE TABLE IF NOT EXISTS idempotency_keys (
     key TEXT PRIMARY KEY,
     request_hash TEXT NOT NULL,
+    response_payload JSONB,
+    status_code INT,
     locked_at TIMESTAMP WITH TIME ZONE NOT NULL
+    completed_at TIMESTAMP WITH TIME ZONE
 );
 
 CREATE TABLE IF NOT EXISTS payments (
@@ -33,4 +36,5 @@ CREATE TABLE IF NOT EXISTS payments (
 
 CREATE INDEX IF NOT EXISTS idx_payments_order_id ON payments(order_id);
 CREATE INDEX IF NOT EXISTS idx_payments_customer_id ON payments(customer_id);
-CREATE INDEX IF NOT EXISTS idx_payments_status_retry ON payments(status, next_retry_at) WHERE status IN ('PENDING', 'AUTHORIZED', 'CAPTURING', 'VOIDING');
+CREATE INDEX idx_payments_status_retry ON payments(status, next_retry_at) 
+WHERE status IN ('PENDING', 'AUTHORIZED', 'CAPTURING', 'VOIDING', 'REFUNDING');

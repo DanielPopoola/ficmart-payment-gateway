@@ -19,6 +19,12 @@ type Config struct {
 	BankClient BankConfig
 	Retry      RetryConfig
 	Logger     LoggerConfig
+	Worker     WorkerConfig
+}
+
+type WorkerConfig struct {
+	Interval  time.Duration `koanf:"interval" validate:"required"`
+	BatchSize int           `koanf:"batch_size" validate:"required"`
 }
 
 type Primary struct {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -89,6 +90,14 @@ func (s *AuthorizationService) Authorize(
 				return nil, domain.NewIdempotencyMismatchError()
 			}
 
+			if existingKey.CompletedAt != nil && existingKey.ResponsePayload != nil {
+				// If we have a cached response, the caller (handler) usually wants the object.
+				// Since our service returns *domain.Payment, we should ideally return the payment
+				// object but we could also return a special error or wrapper if we needed the raw bank JSON.
+				// For now, let's fetch the payment by idempotency key to return the latest system state.
+				return s.repo.FindByIdempotencyKey(ctx, idempotencyKey)
+			}
+
 			return s.pollForPayment(ctx, idempotencyKey)
 		}
 		return nil, err
@@ -137,6 +146,18 @@ func (s *AuthorizationService) Authorize(
 			}
 		} else {
 			if err := p.Authorize(bankResp.AuthorizationID, bankResp.CreatedAt, bankResp.ExpiresAt); err != nil {
+				return err
+			}
+
+			// Cache the response
+			respJSON, _ := json.Marshal(bankResp)
+			idemKey := &domain.IdempotencyKey{
+				Key:             idempotencyKey,
+				ResponsePayload: respJSON,
+				StatusCode:      201,
+				CompletedAt:     &bankResp.CreatedAt,
+			}
+			if err := txRepo.UpdateIdempotencyKey(ctx, idemKey); err != nil {
 				return err
 			}
 		}
@@ -200,4 +221,33 @@ func (s *AuthorizationService) validate(
 		return domain.NewInvalidAmountError(amount)
 	}
 	return nil
+}
+
+func (s *AuthorizationService) Reconcile(ctx context.Context, p *domain.Payment) error {
+	if p.BankAuthID == nil {
+		return nil
+	}
+
+	bankResp, err := s.bankClient.GetAuthorization(ctx, *p.BankAuthID)
+	if err != nil {
+		return err
+	}
+
+	return s.repo.WithTx(ctx, func(txRepo ports.PaymentRepository) error {
+		// Re-fetch to avoid race
+		payment, err := txRepo.FindByIDForUpdate(ctx, p.ID)
+		if err != nil {
+			return err
+		}
+
+		if payment.Status != domain.StatusPending {
+			return nil // Already resolved
+		}
+
+		if err := payment.Authorize(bankResp.AuthorizationID, bankResp.CreatedAt, bankResp.ExpiresAt); err != nil {
+			return err
+		}
+
+		return txRepo.UpdatePayment(ctx, payment)
+	})
 }

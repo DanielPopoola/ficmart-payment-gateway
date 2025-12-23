@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -86,6 +87,10 @@ func (r *RefundService) Refund(ctx context.Context, paymentID uuid.UUID, amount 
 				return nil, domain.NewIdempotencyMismatchError()
 			}
 
+			if existingKey.CompletedAt != nil && existingKey.ResponsePayload != nil {
+				return r.repo.FindByIdempotencyKey(ctx, idempotencyKey)
+			}
+
 			return r.pollForPayment(ctx, idempotencyKey)
 		}
 		return nil, err
@@ -131,6 +136,18 @@ func (r *RefundService) Refund(ctx context.Context, paymentID uuid.UUID, amount 
 			}
 		} else {
 			if err := p.Refund(bankResp.RefundID, bankResp.RefundedAt); err != nil {
+				return err
+			}
+
+			// Cache the response
+			respJSON, _ := json.Marshal(bankResp)
+			idemKey := &domain.IdempotencyKey{
+				Key:             idempotencyKey,
+				ResponsePayload: respJSON,
+				StatusCode:      200,
+				CompletedAt:     &bankResp.RefundedAt,
+			}
+			if err := txRepo.UpdateIdempotencyKey(ctx, idemKey); err != nil {
 				return err
 			}
 		}
@@ -183,4 +200,32 @@ func (r *RefundService) validate(amount int64) error {
 		return domain.NewInvalidAmountError(amount)
 	}
 	return nil
+}
+
+func (r *RefundService) Reconcile(ctx context.Context, p *domain.Payment) error {
+	if p.BankRefundID == nil {
+		return nil
+	}
+
+	bankResp, err := r.bankClient.GetRefund(ctx, *p.BankRefundID)
+	if err != nil {
+		return err
+	}
+
+	return r.repo.WithTx(ctx, func(txRepo ports.PaymentRepository) error {
+		payment, err := txRepo.FindByIDForUpdate(ctx, p.ID)
+		if err != nil {
+			return err
+		}
+
+		if payment.Status != domain.StatusRefunding {
+			return nil
+		}
+
+		if err := payment.Refund(bankResp.RefundID, bankResp.RefundedAt); err != nil {
+			return err
+		}
+
+		return txRepo.UpdatePayment(ctx, payment)
+	})
 }

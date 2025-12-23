@@ -29,31 +29,50 @@ func NewBankClient(cfg config.BankConfig) ports.BankPort {
 }
 
 func (c *HTTPBankClient) Authorize(ctx context.Context, req domain.BankAuthorizationRequest, idempotencyKey string) (*domain.BankAuthorizationResponse, error) {
+	fullURL := fmt.Sprintf("%s/api/v1/authorizations", c.baseURL)
 	return postJSON[domain.BankAuthorizationRequest, domain.BankAuthorizationResponse](
-		c, ctx, "/api/v1/authorizations", req, idempotencyKey,
+		c, ctx, fullURL, req, idempotencyKey,
 	)
 }
 
 func (c *HTTPBankClient) Capture(ctx context.Context, req domain.BankCaptureRequest, idempotencyKey string) (*domain.BankCaptureResponse, error) {
+	fullURL := fmt.Sprintf("%s/api/v1/captures", c.baseURL)
 	return postJSON[domain.BankCaptureRequest, domain.BankCaptureResponse](
-		c, ctx, "/api/v1/captures", req, idempotencyKey,
+		c, ctx, fullURL, req, idempotencyKey,
 	)
 }
 
 func (c *HTTPBankClient) Void(ctx context.Context, req domain.BankVoidRequest, idempotencyKey string) (*domain.BankVoidResponse, error) {
+	fullURL := fmt.Sprintf("%s/api/v1/voids", c.baseURL)
 	return postJSON[domain.BankVoidRequest, domain.BankVoidResponse](
-		c, ctx, "/api/v1/voids", req, idempotencyKey,
+		c, ctx, fullURL, req, idempotencyKey,
 	)
 }
 
 func (c *HTTPBankClient) Refund(ctx context.Context, req domain.BankRefundRequest, idempotencyKey string) (*domain.BankRefundResponse, error) {
+	fullURL := fmt.Sprintf("%s/api/v1/refunds", c.baseURL)
 	return postJSON[domain.BankRefundRequest, domain.BankRefundResponse](
-		c, ctx, "/api/v1/refunds", req, idempotencyKey,
+		c, ctx, fullURL, req, idempotencyKey,
 	)
 }
 
 func (c *HTTPBankClient) GetAuthorization(ctx context.Context, authID string) (*domain.BankAuthorizationResponse, error) {
 	fullURL := fmt.Sprintf("%s/api/v1/authorizations/%s", c.baseURL, authID)
+	return getJSON[domain.BankAuthorizationResponse](c, ctx, fullURL)
+}
+
+func (c *HTTPBankClient) GetCapture(ctx context.Context, captureID string) (*domain.BankCaptureResponse, error) {
+	fullURL := fmt.Sprintf("%s/api/v1/captures/%s", c.baseURL, captureID)
+	return getJSON[domain.BankCaptureResponse](c, ctx, fullURL)
+}
+
+func (c *HTTPBankClient) GetRefund(ctx context.Context, refundID string) (*domain.BankRefundResponse, error) {
+	fullURL := fmt.Sprintf("%s/api/v1/refunds/%s", c.baseURL, refundID)
+	return getJSON[domain.BankRefundResponse](c, ctx, fullURL)
+}
+
+// getJSON is a generic helper for making GET requests to the mock bank API
+func getJSON[Resp any](c *HTTPBankClient, ctx context.Context, fullURL string) (*Resp, error) {
 	httpReq, err := http.NewRequestWithContext(ctx, "GET", fullURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("error creating request: %w", err)
@@ -83,7 +102,7 @@ func (c *HTTPBankClient) GetAuthorization(ctx context.Context, authID string) (*
 		}
 	}
 
-	var bankResp domain.BankAuthorizationResponse
+	var bankResp Resp
 	if err := json.NewDecoder(resp.Body).Decode(&bankResp); err != nil {
 		return nil, fmt.Errorf("error decoding json response: %w", err)
 	}
@@ -92,13 +111,12 @@ func (c *HTTPBankClient) GetAuthorization(ctx context.Context, authID string) (*
 }
 
 // postJSON is a generic helper for making POST requests to the mock bank API
-func postJSON[Req any, Resp any](c *HTTPBankClient, ctx context.Context, path string, req Req, idempotencyKey string) (*Resp, error) {
+func postJSON[Req any, Resp any](c *HTTPBankClient, ctx context.Context, fullURL string, req Req, idempotencyKey string) (*Resp, error) {
 	jsonData, err := json.Marshal(req)
 	if err != nil {
 		return nil, fmt.Errorf("error marshalling json: %w", err)
 	}
 
-	fullURL := c.baseURL + path
 	httpReq, err := http.NewRequestWithContext(ctx, "POST", fullURL, bytes.NewReader(jsonData))
 	if err != nil {
 		return nil, fmt.Errorf("error creating request: %w", err)
