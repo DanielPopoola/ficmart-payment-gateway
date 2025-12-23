@@ -13,9 +13,11 @@ type PaymentStatus string
 const (
 	StatusPending    PaymentStatus = "PENDING"
 	StatusAuthorized PaymentStatus = "AUTHORIZED"
+	StatusCapturing  PaymentStatus = "CAPTURING"
 	StatusCaptured   PaymentStatus = "CAPTURED"
 	StatusFailed     PaymentStatus = "FAILED"
 	StatusRefunded   PaymentStatus = "REFUNDED"
+	StatusVoiding    PaymentStatus = "VOIDING"
 	StatusVoided     PaymentStatus = "VOIDED"
 	StatusExpired    PaymentStatus = "EXPIRED"
 )
@@ -49,11 +51,12 @@ type Payment struct {
 }
 
 type PendingPaymentCheck struct {
-	ID            uuid.UUID
-	BankAuthID    *string
-	BankCaptureID *string
-	Status        PaymentStatus
-	AttemptCount  int
+	ID             uuid.UUID
+	IdempotencyKey string
+	BankAuthID     *string
+	BankCaptureID  *string
+	Status         PaymentStatus
+	AttemptCount   int
 }
 
 // CanTransitionTo validates whether a payment can transition from its current status to the target status.

@@ -14,15 +14,11 @@ I'm storing payment state in my own database instead of always querying the bank
 
 ## State Management
 
-### Write-Ahead Pattern: Save PENDING Before Calling Bank
+
+### How I track payment states:
 
 I save the payment to the database with `status=PENDING` before calling the bank. This solves the critical crash scenario: if my system crashes before receiving the bank's response, I can retry with the same idempotency key. Without this, I'd have lost the bank's response forever and FicMart wouldn't be able to proceed with that payment. The PENDING record is my "intent log" that survives crashes.
-
-**Critical Implementation Detail:** I commit the PENDING state to the database *before* calling the bank, then release the database connection. The bank call happens outside any database transaction to avoid holding connections during long network operations. This creates a window where payments can be stuck in PENDING if the app crashes, which is why the reconciliation worker is essential.
-
-### Background Worker for Stuck Payments
-
-The background worker checks for stuck `PENDING` payments and reconciles them with the bank's state. This is necessary because data inconsistency between the bank and my gateway can occur during crashes or network failures. The bank and gateway should always agree, so when the gateway sees pending payments older than 1 minute, it verifies their actual state with the bank and updates accordingly. The worker uses `FOR UPDATE SKIP LOCKED` to prevent multiple worker instances from fighting over the same payment.
+I also used background workers for reonciling states. The background worker checks for stuck `PENDING` payments and reconciles them with the bank's state. The worker uses `FOR UPDATE SKIP LOCKED` to prevent multiple worker instances from fighting over the same payment.
 
 ### Lazy Expiration with Grace Period
 
@@ -32,37 +28,30 @@ I mark authorizations as `EXPIRED` after 7 days with a 1-hour grace period, but 
 
 ## Idempotency
 
-### UNIQUE Constraint + INSERT ON CONFLICT
+### How did I implement it?
 
-I use `INSERT ... ON CONFLICT DO NOTHING` with a UNIQUE constraint on the idempotency key. This prevents race conditions when two requests with the same idempotency key try to insert at the same time. The database atomically rejects the duplicate, and only one request proceeds to call the bank. This is enforced at the database level, not application level.
+I implemented it in a similar pattern to the bank API. Each request from FicMart must include an
+idempotency key header. Then I have an idempotency table in my db, the aim is to record that request attempt.
 
-### Polling for Duplicate Requests with Timeout
-
-When a duplicate request arrives (same idempotency key), Request B polls the database waiting for Request A's response. The polling implementation respects `ctx.Done()` so if the client disconnects, we stop polling immediately. There's a hard timeout of 5 seconds - if Request A hasn't completed by then, Request B returns a 503 Service Unavailable rather than hanging indefinitely. The polling interval is 200ms to balance responsiveness with database load.
+### Edge cases I considered:
+- Two requests, request A and B, reaching my gateway almost at the same time with the same credentials
+- When my gateway sends request to the bank api, and I didn't save the idempotency key from the Ficmart request, if the bank crashes or my gateway crashes before getting a response, I'd have lost the payment info
 
 
 ---
 
 ## Failure Handling
 
-### Network Timeouts: Aggressive Retry
+### Retry strategy:
 
-I retry aggressively for network timeouts to verify the bank's response and retrieve it. Timeouts are ambiguous - the bank might have successfully processed the request, but the response was lost. By retrying with the same idempotency key, I can safely get the cached response without risking double-capture or double-holding of funds. The idempotency key makes aggressive retries safe.
+For network timeouts, I retry aggressively to verify the bank's response and retrieve it.
 
-### Bank 5xx Errors: Backoff Strategy
+For 5xx errors, the bank explicitly told me "I failed, nothing happened." I use exponential backoff with jitter and stop after 3 attempts before marking the payment as FAILED.
 
-For 5xx errors, the bank explicitly told me "I failed, nothing happened." I use exponential backoff with jitter and stop after 3 attempts before marking the payment as FAILED. This is standard practice for transient failures - give the bank time to recover without overwhelming it.
-
-### No Retry on 4xx Errors
-
-I don't retry 4xx errors (like invalid card or insufficient funds) at all. These are permanent business logic errors that won't be fixed by retrying. Retrying would waste resources and isn't standard practice.
-
-### 24-Hour Worker Cutoff
-
-The worker stops retrying stuck payments after 24 hours. This is based on the bank's idempotency cache TTL. After the idempotency window closes, retrying risks creating a duplicate authorization if the bank doesn't remember the original request. Beyond this window, human intervention is safer than automated recovery.
+I don't retry 4xx errors (like invalid card or insufficient funds) at all since they're client errors
 
 
-### How I handled partial failures?
+### How I handled partial failures:
 
 I used an executor interface and a method (a closure really - it takes a function and executes it within a database transaction (WithTx in internal/adapters/postgres/repository.go).  This was to prevent situations like I'll save to my idempotency table but my db crashes before saving to the payments table, so they are wrapped in a transaction like Django's transaction.atomic() either both succeed or not
 ---
