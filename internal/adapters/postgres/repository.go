@@ -292,7 +292,7 @@ func (r *PaymentRepository) FindIdempotencyKeyRecord(ctx context.Context, key st
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, nil // Return nil if not found
+			return nil, nil
 		}
 		return nil, fmt.Errorf("failed to scan idempotency key: %w", err)
 	}

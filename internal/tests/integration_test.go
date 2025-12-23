@@ -27,13 +27,12 @@ import (
 )
 
 func setupIntegration(t *testing.T) (*postgres.DB, *handler.PaymentHandler, *config.Config, ports_collection) {
-	// Set env vars for config loader using double underscore for nesting
 	os.Setenv("GATEWAY_PRIMARY__ENV", "test")
 	os.Setenv("GATEWAY_SERVER__PORT", "8081")
 	os.Setenv("GATEWAY_SERVER__READ_TIMEOUT", "15s")
 	os.Setenv("GATEWAY_SERVER__WRITE_TIMEOUT", "15s")
 	os.Setenv("GATEWAY_SERVER__IDLE_TIMEOUT", "60s")
-	
+
 	os.Setenv("GATEWAY_DATABASE__HOST", "localhost")
 	os.Setenv("GATEWAY_DATABASE__PORT", "5432")
 	os.Setenv("GATEWAY_DATABASE__USER", "postgres")
@@ -44,13 +43,13 @@ func setupIntegration(t *testing.T) (*postgres.DB, *handler.PaymentHandler, *con
 	os.Setenv("GATEWAY_DATABASE__MAX_IDLE_CONNS", "5")
 	os.Setenv("GATEWAY_DATABASE__CONN_MAX_LIFETIME", "5m")
 	os.Setenv("GATEWAY_DATABASE__CONN_MAX_IDLE_TIME", "5m")
-	
+
 	os.Setenv("GATEWAY_BANK_CLIENT__BANK_BASE_URL", "http://localhost:8787")
 	os.Setenv("GATEWAY_BANK_CLIENT__BANK_CONN_TIMEOUT", "30s")
-	
+
 	os.Setenv("GATEWAY_RETRY__BASE_DELAY", "1")
 	os.Setenv("GATEWAY_RETRY__MAX_RETRIES", "3")
-	
+
 	os.Setenv("GATEWAY_WORKER__INTERVAL", "1s")
 	os.Setenv("GATEWAY_WORKER__BATCH_SIZE", "10")
 
@@ -115,7 +114,7 @@ func TestIntegration_FullFlow(t *testing.T) {
 		ExpiryMonth: 12,
 		ExpiryYear:  2030,
 	}
-	
+
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("POST", "/authorize", toJSON(authReq))
 	r.Header.Set("Idempotency-Key", idemKey)
@@ -150,7 +149,7 @@ func TestIntegration_FullFlow(t *testing.T) {
 	r = httptest.NewRequest("GET", "/payments/order/"+authReq.OrderID, nil)
 	r.SetPathValue("orderID", authReq.OrderID)
 	h.HandleGetPaymentByOrder(w, r)
-	
+
 	if w.Code != http.StatusOK {
 		t.Fatalf("GetPayment failed: %d %s", w.Code, w.Body.String())
 	}
@@ -239,7 +238,7 @@ func TestIntegration_CrashSimulationReconciliation(t *testing.T) {
 	orderID := "order-crash-" + uuid.New().String()
 	amount := int64(1000)
 	customerID := "cust-crash"
-	
+
 	// First, let's actually get a real BankAuthID from the bank to be sure reconciliation works
 	bankReq := domain.BankAuthorizationRequest{
 		Amount:      amount,
@@ -265,7 +264,7 @@ func TestIntegration_CrashSimulationReconciliation(t *testing.T) {
 		CreatedAt:      time.Now().Add(-2 * time.Minute),
 		UpdatedAt:      time.Now().Add(-2 * time.Minute),
 	}
-	
+
 	// Create request hash
 	hashInput := fmt.Sprintf("%s|%d|%s", orderID, amount, customerID)
 	hashBytes := sha256.Sum256([]byte(hashInput))
@@ -280,7 +279,7 @@ func TestIntegration_CrashSimulationReconciliation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to seed idempotency key: %v", err)
 	}
-	
+
 	err = pc.repo.CreatePayment(context.Background(), p)
 	if err != nil {
 		t.Fatalf("failed to seed payment: %v", err)

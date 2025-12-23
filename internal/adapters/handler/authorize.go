@@ -31,7 +31,6 @@ func (h *PaymentHandler) HandleAuthorize(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Extract Idempotency-Key strictly from header
 	idemKey := r.Header.Get("Idempotency-Key")
 	if idemKey == "" {
 		respondWithError(w, &domain.DomainError{

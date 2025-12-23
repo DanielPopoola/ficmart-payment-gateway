@@ -235,14 +235,13 @@ func (s *AuthorizationService) Reconcile(ctx context.Context, p *domain.Payment)
 	}
 
 	return s.repo.WithTx(ctx, func(txRepo ports.PaymentRepository) error {
-		// Re-fetch to avoid race
 		payment, err := txRepo.FindByIDForUpdate(ctx, p.ID)
 		if err != nil {
 			return err
 		}
 
 		if payment.Status != domain.StatusPending {
-			return nil // Already resolved
+			return nil
 		}
 
 		if err := payment.Authorize(bankResp.AuthorizationID, bankResp.CreatedAt, bankResp.ExpiresAt); err != nil {

@@ -19,18 +19,15 @@ import (
 )
 
 func main() {
-	// 1. Setup Logger
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	slog.SetDefault(logger)
 
-	// 2. Load Config
 	cfg, err := config.LoadConfig()
 	if err != nil {
 		logger.Error("failed to load config", "error", err)
 		os.Exit(1)
 	}
 
-	// 3. Connect to Database
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
@@ -41,21 +38,17 @@ func main() {
 	}
 	defer db.Close()
 
-	// 4. Initialize Repository
 	repo := postgres.NewPaymentRepository(db)
 
-	// 5. Initialize Bank Client
 	baseBankClient := bank.NewBankClient(cfg.BankClient)
 	bankClient := bank.NewRetryBankClient(baseBankClient, cfg.Retry)
 
-	// 6. Initialize Services
 	authService := service.NewAuthorizationService(repo, bankClient)
 	capService := service.NewCaptureService(repo, bankClient)
 	voidService := service.NewVoidService(repo, bankClient)
 	refService := service.NewRefundService(repo, bankClient)
 	queryService := service.NewPaymentQueryService(repo)
 
-	// 7. Initialize Reconciler Worker
 	reconciler := worker.NewReconciler(
 		repo,
 		bankClient,
@@ -68,10 +61,8 @@ func main() {
 		logger,
 	)
 
-	// 8. Start Reconciler
 	go reconciler.Start(ctx)
 
-	// 9. Initialize HTTP Handler
 	h := handler.NewPaymentHandler(
 		authService,
 		capService,
@@ -91,7 +82,6 @@ func main() {
 		IdleTimeout:  cfg.Server.IdleTimeout,
 	}
 
-	// 10. Start Server
 	go func() {
 		logger.Info("starting server", "port", cfg.Server.Port)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -100,7 +90,6 @@ func main() {
 		}
 	}()
 
-	// 11. Wait for Shutdown
 	<-ctx.Done()
 	logger.Info("shutting down gracefully")
 

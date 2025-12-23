@@ -61,16 +61,6 @@ type PendingPaymentCheck struct {
 }
 
 // CanTransitionTo validates whether a payment can transition from its current status to the target status.
-// It returns nil if the transition is allowed, otherwise returns an error describing why the transition is invalid.
-//
-// Terminal states (Voided, Refunded, Expired, Failed) do not allow any further transitions.
-//
-// Valid transitions are:
-//   - Pending → Authorized, Failed
-//   - Authorized → Captured, Voided, Expired, Failed
-//   - Captured → Refunded
-//
-// Any other transition will return an error.
 func (p *Payment) CanTransitionTo(target PaymentStatus) error {
 	switch p.Status {
 	case StatusVoided, StatusRefunded, StatusExpired, StatusFailed:

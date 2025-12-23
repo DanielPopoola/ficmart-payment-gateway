@@ -68,7 +68,6 @@ func respondWithError(w http.ResponseWriter, err error) {
 			status = http.StatusBadRequest
 		}
 	} else {
-		// Log non-domain errors (like DB errors or panics)
 		slog.Error("request failed with internal error", "error", err)
 	}
 
