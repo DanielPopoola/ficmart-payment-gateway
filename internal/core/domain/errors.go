@@ -31,6 +31,7 @@ const (
 	ErrCodePaymentNotFound         = "PAYMENT_NOT_FOUND"
 	ErrCodeInvalidAmount           = "INVALID_AMOUNT"
 	ErrCodeDuplicateIdempotencyKey = "DUPLICATE_IDEMPOTENCY_KEY"
+	ErrRequestProcessing           = "REQUEST_PROCESSING"
 )
 
 func NewInvalidAmountError(amount int64) *DomainError {
@@ -68,6 +69,13 @@ func NewPaymentExpiredError(id string) *DomainError {
 	}
 }
 
+func NewRequestProcessingError() *DomainError {
+	return &DomainError{
+		Code:    ErrRequestProcessing,
+		Message: "request is being processsed",
+	}
+}
+
 // IsErrorCode checks if an error is a DomainError with a specific code
 func IsErrorCode(err error, code string) bool {
 	var domainErr *DomainError
@@ -75,9 +83,4 @@ func IsErrorCode(err error, code string) bool {
 		return domainErr.Code == code
 	}
 	return false
-}
-
-// RetryableError is an interface that errors can implement to indicate if they are transient.
-type RetryableError interface {
-	IsRetryable() bool
 }

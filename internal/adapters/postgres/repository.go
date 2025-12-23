@@ -73,6 +73,22 @@ func (r *PaymentRepository) FindByID(ctx context.Context, id uuid.UUID) (*domain
 	return scanPayment(row)
 }
 
+// FindByIDForUpdate retrieves a payment by its unique system ID and locks the row
+func (r *PaymentRepository) FindByIDForUpdate(ctx context.Context, id uuid.UUID) (*domain.Payment, error) {
+	query := `
+			SELECT id, order_id, customer_id, amount_cents, currency, status, idempotency_key,
+				bank_auth_id, bank_capture_id, bank_void_id, bank_refund_id,
+				created_at, updated_at, authorized_at, captured_at, voided_at, refunded_at, expires_at,
+				attempt_count, next_retry_at, last_error_category
+			FROM payments
+			WHERE id = $1
+			FOR UPDATE
+			`
+
+	row := r.q.QueryRow(ctx, query, id)
+	return scanPayment(row)
+}
+
 // FindByIdempotencyKey retrieves a payment by the client's idempotency key.
 func (r *PaymentRepository) FindByIdempotencyKey(ctx context.Context, key string) (*domain.Payment, error) {
 	query := `
@@ -118,14 +134,46 @@ func (r *PaymentRepository) FindByCustomerID(ctx context.Context, customerID str
 	if err != nil {
 		return nil, fmt.Errorf("query payments by customer_id: %w", err)
 	}
-	return scanPayments(rows)
+	results, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (*domain.Payment, error) {
+		var p domain.Payment
+		err := row.Scan(
+			&p.ID,
+			&p.OrderID,
+			&p.CustomerID,
+			&p.AmountCents,
+			&p.Currency,
+			&p.Status,
+			&p.IdempotencyKey,
+			&p.BankAuthID,
+			&p.BankCaptureID,
+			&p.BankVoidID,
+			&p.BankRefundID,
+			&p.CreatedAt,
+			&p.UpdatedAt,
+			&p.AuthorizedAt,
+			&p.CapturedAt,
+			&p.VoidedAt,
+			&p.RefundedAt,
+			&p.ExpiresAt,
+			&p.AttemptCount,
+			&p.NextRetryAt,
+			&p.LastErrorCategory,
+		)
+		return &p, err
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("error occcured while scanning rows: %w", err)
+	}
+	return results, nil
+
 }
 
 func (r *PaymentRepository) FindPendingPayments(ctx context.Context, olderThan time.Duration, limit int) ([]*domain.PendingPaymentCheck, error) {
 	cutoff := time.Now().Add(-olderThan)
 
 	query := `
-        SELECT id, status, bank_auth_id, bank_capture_id, attempt_count
+        SELECT id, idempotency_key, status, bank_auth_id, bank_capture_id, attempt_count
         FROM payments
         WHERE status = 'PENDING'
             AND created_at < $1
@@ -143,6 +191,7 @@ func (r *PaymentRepository) FindPendingPayments(ctx context.Context, olderThan t
 		var p domain.PendingPaymentCheck
 		err := row.Scan(
 			&p.ID,
+			&p.IdempotencyKey,
 			&p.Status,
 			&p.BankAuthID,
 			&p.BankCaptureID,
@@ -195,16 +244,13 @@ func (r *PaymentRepository) UpdatePayment(ctx context.Context, p *domain.Payment
 }
 
 func (r *PaymentRepository) CreateIdempotencyKey(ctx context.Context, k *domain.IdempotencyKey) error {
-	query := `INSERT INTO idempotency_keys (key, request_payload, response_payload, status_code, locked_at, completed_at)
-			  VALUES ($1, $2, $3, $4, $5, $6)`
+	query := `INSERT INTO idempotency_keys (key, request_hash, locked_at)
+			  VALUES ($1, $2, $3)`
 
 	_, err := r.q.Exec(ctx, query,
 		k.Key,
-		k.RequestPayload,
-		k.ResponsePayload,
-		k.StatusCode,
+		k.RequestHash,
 		k.LockedAt,
-		k.CompletedAt,
 	)
 	if err != nil {
 		if IsUniqueViolation(err) {
@@ -215,25 +261,27 @@ func (r *PaymentRepository) CreateIdempotencyKey(ctx context.Context, k *domain.
 	return nil
 }
 
-func (r *PaymentRepository) UpdateIdempotencyKey(ctx context.Context, k *domain.IdempotencyKey) error {
-	query := `UPDATE idempotency_keys
-			  SET response_payload = $1, status_code = $2, completed_at = $3
-			  WHERE key = $4`
+func (r *PaymentRepository) FindIdempotencyKeyRecord(ctx context.Context, key string) (*domain.IdempotencyKey, error) {
+	query := `SELECT key, request_hash, locked_at
+			  FROM idempotency_keys
+			  WHERE key = $1`
 
-	cmdTag, err := r.q.Exec(ctx, query,
-		k.ResponsePayload,
-		k.StatusCode,
-		k.CompletedAt,
-		k.Key,
+	row := r.q.QueryRow(ctx, query, key)
+	var k domain.IdempotencyKey
+	err := row.Scan(
+		&k.Key,
+		&k.RequestHash,
+		&k.LockedAt,
 	)
+
 	if err != nil {
-		return fmt.Errorf("failed to update idempotency key: %w", err)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil // Return nil if not found
+		}
+		return nil, fmt.Errorf("failed to scan idempotency key: %w", err)
 	}
 
-	if cmdTag.RowsAffected() == 0 {
-		return fmt.Errorf("idempotency key not found: %s", k.Key)
-	}
-	return nil
+	return &k, nil
 }
 
 // WithTx executes a function within a database transaction
@@ -296,39 +344,4 @@ func scanPayment(row pgx.Row) (*domain.Payment, error) {
 		return nil, fmt.Errorf("failed to scan payment: %w", err)
 	}
 	return &p, nil
-}
-
-func scanPayments(rows pgx.Rows) ([]*domain.Payment, error) {
-	results, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (*domain.Payment, error) {
-		var p domain.Payment
-		err := row.Scan(
-			&p.ID,
-			&p.OrderID,
-			&p.CustomerID,
-			&p.AmountCents,
-			&p.Currency,
-			&p.Status,
-			&p.IdempotencyKey,
-			&p.BankAuthID,
-			&p.BankCaptureID,
-			&p.BankVoidID,
-			&p.BankRefundID,
-			&p.CreatedAt,
-			&p.UpdatedAt,
-			&p.AuthorizedAt,
-			&p.CapturedAt,
-			&p.VoidedAt,
-			&p.RefundedAt,
-			&p.ExpiresAt,
-			&p.AttemptCount,
-			&p.NextRetryAt,
-			&p.LastErrorCategory,
-		)
-		return &p, err
-	})
-
-	if err != nil {
-		return nil, fmt.Errorf("error occcured while scanning rows: %w", err)
-	}
-	return results, nil
 }
