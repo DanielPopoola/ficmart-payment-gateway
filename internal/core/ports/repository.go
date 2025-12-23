@@ -22,6 +22,7 @@ type PaymentRepository interface {
 	// Idempotency Key Management
 	CreateIdempotencyKey(ctx context.Context, key *domain.IdempotencyKey) error
 	FindIdempotencyKeyRecord(ctx context.Context, key string) (*domain.IdempotencyKey, error)
+	UpdateIdempotencyKey(ctx context.Context, key *domain.IdempotencyKey) error
 
 	// WithTx executes a function within a database transaction.
 	WithTx(ctx context.Context, fn func(PaymentRepository) error) error

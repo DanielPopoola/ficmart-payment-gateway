@@ -17,6 +17,7 @@ const (
 	StatusCaptured   PaymentStatus = "CAPTURED"
 	StatusFailed     PaymentStatus = "FAILED"
 	StatusRefunded   PaymentStatus = "REFUNDED"
+	StatusRefunding  PaymentStatus = "REFUNDING"
 	StatusVoiding    PaymentStatus = "VOIDING"
 	StatusVoided     PaymentStatus = "VOIDED"
 	StatusExpired    PaymentStatus = "EXPIRED"
@@ -96,7 +97,12 @@ func (p *Payment) CanTransitionTo(target PaymentStatus) error {
 		}
 
 	case StatusCaptured:
-		if target == StatusRefunded {
+		if target == StatusRefunded || target == StatusRefunding {
+			return nil
+		}
+
+	case StatusRefunding:
+		if target == StatusRefunded || target == StatusFailed {
 			return nil
 		}
 	}

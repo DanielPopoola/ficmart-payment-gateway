@@ -262,7 +262,7 @@ func (r *PaymentRepository) CreateIdempotencyKey(ctx context.Context, k *domain.
 }
 
 func (r *PaymentRepository) FindIdempotencyKeyRecord(ctx context.Context, key string) (*domain.IdempotencyKey, error) {
-	query := `SELECT key, request_hash, locked_at
+	query := `SELECT key, request_hash, locked_at, response_payload, status_code, completed_at
 			  FROM idempotency_keys
 			  WHERE key = $1`
 
@@ -272,6 +272,9 @@ func (r *PaymentRepository) FindIdempotencyKeyRecord(ctx context.Context, key st
 		&k.Key,
 		&k.RequestHash,
 		&k.LockedAt,
+		&k.ResponsePayload,
+		&k.StatusCode,
+		&k.CompletedAt,
 	)
 
 	if err != nil {
@@ -282,6 +285,22 @@ func (r *PaymentRepository) FindIdempotencyKeyRecord(ctx context.Context, key st
 	}
 
 	return &k, nil
+}
+
+func (r *PaymentRepository) UpdateIdempotencyKey(ctx context.Context, k *domain.IdempotencyKey) error {
+	query := `UPDATE idempotency_keys SET response_payload = $1, status_code = $2, completed_at = $3
+			  WHERE key = $4`
+
+	_, err := r.q.Exec(ctx, query,
+		k.ResponsePayload,
+		k.StatusCode,
+		k.CompletedAt,
+		k.Key,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to update idempotency key: %w", err)
+	}
+	return nil
 }
 
 // WithTx executes a function within a database transaction

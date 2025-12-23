@@ -12,4 +12,5 @@ type BankPort interface {
 	Capture(ctx context.Context, req domain.BankCaptureRequest, idempotencyKey string) (*domain.BankCaptureResponse, error)
 	Void(ctx context.Context, req domain.BankVoidRequest, idempotencyKey string) (*domain.BankVoidResponse, error)
 	Refund(ctx context.Context, req domain.BankRefundRequest, idempotencyKey string) (*domain.BankRefundResponse, error)
+	GetAuthorization(ctx context.Context, authID string) (*domain.BankAuthorizationResponse, error)
 }

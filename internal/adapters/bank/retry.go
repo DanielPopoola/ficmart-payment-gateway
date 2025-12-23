@@ -70,6 +70,16 @@ func (r *RetryBankClient) Refund(ctx context.Context, req domain.BankRefundReque
 	)
 }
 
+func (r *RetryBankClient) GetAuthorization(ctx context.Context, authID string) (*domain.BankAuthorizationResponse, error) {
+	return retry(
+		r,
+		ctx,
+		func(ctx context.Context) (*domain.BankAuthorizationResponse, error) {
+			return r.inner.GetAuthorization(ctx, authID)
+		},
+	)
+}
+
 // Generic retry helper
 func retry[T any](r *RetryBankClient, ctx context.Context, operation func(ctx context.Context) (*T, error)) (*T, error) {
 	var lastErr error

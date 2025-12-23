@@ -52,6 +52,45 @@ func (c *HTTPBankClient) Refund(ctx context.Context, req domain.BankRefundReques
 	)
 }
 
+func (c *HTTPBankClient) GetAuthorization(ctx context.Context, authID string) (*domain.BankAuthorizationResponse, error) {
+	fullURL := fmt.Sprintf("%s/api/v1/authorizations/%s", c.baseURL, authID)
+	httpReq, err := http.NewRequestWithContext(ctx, "GET", fullURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("error creating request: %w", err)
+	}
+
+	resp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("error making request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("bank returned status %d, failed to read body", resp.StatusCode)
+		}
+
+		var bankErrResp BankErrorResponse
+		if err := json.Unmarshal(body, &bankErrResp); err != nil {
+			return nil, fmt.Errorf("bank returned status %d: %s", resp.StatusCode, string(body))
+		}
+
+		return nil, &BankError{
+			Code:       bankErrResp.Err,
+			Message:    bankErrResp.Message,
+			StatusCode: resp.StatusCode,
+		}
+	}
+
+	var bankResp domain.BankAuthorizationResponse
+	if err := json.NewDecoder(resp.Body).Decode(&bankResp); err != nil {
+		return nil, fmt.Errorf("error decoding json response: %w", err)
+	}
+
+	return &bankResp, nil
+}
+
 // postJSON is a generic helper for making POST requests to the mock bank API
 func postJSON[Req any, Resp any](c *HTTPBankClient, ctx context.Context, path string, req Req, idempotencyKey string) (*Resp, error) {
 	jsonData, err := json.Marshal(req)
