@@ -1,309 +1,331 @@
-    # Payment Gateway
+# FicMart Payment Gateway
+
+A payment gateway service built in Go that handles authorization, capture, void, and refund operations for FicMart's e-commerce platform. This gateway integrates with a mock banking API and implements robust state management, idempotency, and failure recovery patterns.
+
+## Table of Contents
+
+- [Features](#features)
+- [Architecture](#architecture)
+- [Prerequisites](#prerequisites)
+- [Getting Started](#getting-started)
+- [API Documentation](#api-documentation)
+- [Project Structure](#project-structure)
+- [Configuration](#configuration)
+- [Testing](#testing)
+- [Design Decisions](#design-decisions)
+- [Contributing](#contributing)
+
+## Features
+
+- **Payment Operations**: Support for authorize, capture, void, and refund transactions
+- **State Machine**: Enforces valid payment state transitions
+- **Idempotency**: Prevents duplicate charges through idempotency key mechanism
+- **Failure Recovery**: Background reconciliation worker for stuck payments
+- **Concurrent Safety**: Database-level concurrency control with optimistic locking
+- **Query Support**: Retrieve payments by order ID or customer ID
+- **Comprehensive Logging**: Structured logging for debugging and monitoring
+
+## Architecture
+
+The gateway follows Clean Architecture principles with clear separation of concerns:
+
+```
+┌─────────────┐
+│   FicMart   │
+│  (Client)   │
+└──────┬──────┘
+       │
+       ▼
+┌─────────────────────────────────────┐
+│      Payment Gateway (This)         │
+│  ┌───────────────────────────────┐  │
+│  │  HTTP Handlers                │  │
+│  └───────────┬───────────────────┘  │
+│              │                       │
+│  ┌───────────▼───────────────────┐  │
+│  │  Service Layer                │  │
+│  │  (Business Logic)             │  │
+│  └───────────┬───────────────────┘  │
+│              │                       │
+│  ┌───────────▼───────────────────┐  │
+│  │  Repository (Data Access)     │  │
+│  └───────────┬───────────────────┘  │
+│              │                       │
+│  ┌───────────▼───────────────────┐  │
+│  │  PostgreSQL Database          │  │
+│  └───────────────────────────────┘  │
+│                                      │
+│  ┌───────────────────────────────┐  │
+│  │  Background Reconciler        │  │
+│  └───────────────────────────────┘  │
+└──────────────┬───────────────────────┘
+               │
+               ▼
+        ┌─────────────┐
+        │  Mock Bank  │
+        │     API     │
+        └─────────────┘
+```
+
+### Key Components
+
+- **HTTP Handlers**: REST API endpoints for payment operations
+- **Service Layer**: Business logic and state management
+- **Repository**: Data access abstraction over PostgreSQL
+- **Bank Client**: HTTP client with retry logic for bank API
+- **Reconciler**: Background worker for recovering stuck payments
+
+## Prerequisites
+
+- **Go**: 1.23 or higher
+- **Docker**: 20.10+ (with Docker Compose)
+- **PostgreSQL**: 16+ (provided via Docker)
+- **Mock Bank API**: Running on `localhost:8787`
+
+## Getting Started
+
+### 1. Clone the Repository
+
+```bash
+git clone <repository-url>
+cd ficmart-payment-gateway
+```
+
+### 2. Set Up Environment Variables
+
+Copy the example environment file and configure it:
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` to match your local setup. The defaults work for Docker Compose.
 
-    Part of the [Backend Engineer Path](https://github.com/benx421/backend-engineer-path).
+### 3. Start the Mock Bank API
 
-    This is a payment gateway for FicMart, a fictional e-commerce platform. You will integrate with a mock bank API that behaves like a real banking partner with random failures, latency, and strict state validation.
+The payment gateway requires the mock bank API to be running:
 
-    This project will teach you to handle the messiness of distributed systems. The bank will fail, but your gateway must not fail.
+```bash
+cd bank
+make up
+```
 
-    ## Prerequisites
+Verify the bank is running at `http://localhost:8787/docs`
 
-    | Requirement | Version | Notes |
-    |-------------|---------|-------|
-    | Docker | 20.10+ | [Install Docker](https://docs.docker.com/get-docker/) |
-    | Docker Compose | 2.0+ | Included with Docker Desktop |
-    | Make | Any | Optional. macOS/Linux only. Windows users use `docker compose` directly |
+### 4. Start the Payment Gateway
 
-    **Windows users**: Install [Docker Desktop](https://www.docker.com/products/docker-desktop/), which includes everything you need.
+#### Using Docker Compose (Recommended)
+
+```bash
+cd docker
+./dev.sh
+```
+
+This will:
+- Start PostgreSQL
+- Run database migrations
+- Start the payment gateway on port 8080
+
+#### Running Locally (Development)
+
+```bash
+# Install dependencies
+go mod download
+
+# Run migrations (requires PostgreSQL running)
+# See migrations/001_initial_schema.sql
+
+# Start the application
+go run cmd/gateway/main.go
+```
+
+### 5. Verify Installation
+
+Check the health endpoint:
 
-    **macOS users**: Install Docker Desktop, or use `brew install docker docker-compose`.
+```bash
+curl http://localhost:8080/health
+```
 
-    **Linux users**: Install Docker Engine and Docker Compose plugin via your package manager.
+View API documentation:
 
-    ## The Scenario
+```bash
+open http://localhost:8080/docs/index.html
+```
 
-    FicMart is an e-commerce platform selling physical goods. When a customer places an order:
+## API Documentation
 
-    1. **Order placed** → Authorize payment (reserve funds)
-    2. **Goods shipped** → Capture payment (charge the card)
-    3. **Order cancelled before shipping** → Void authorization (release hold)
-    4. **Return after delivery** → Refund payment (return money)
+### Swagger UI
 
-    Your gateway is between FicMart's order service and the bank. Every payment request includes an `order_id` and `customer_id` from FicMart. Your gateway must track these relationships and maintain payment receipts that FicMart can query later.
+Interactive API documentation is available at `http://localhost:8080/docs/index.html` when the service is running.
 
-    ## Simplifying Assumptions
+### Core Endpoints
 
-    To keep this project focused, some underlying assumptions are made:
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/authorize` | Reserve funds on a card |
+| POST | `/capture` | Charge previously authorized funds |
+| POST | `/void` | Cancel an authorization |
+| POST | `/refund` | Return money after capture |
+| GET | `/payments/order/{orderID}` | Get payment by order ID |
+| GET | `/payments/customer/{customerID}` | List payments by customer |
 
-    - **Single bank**: All customers have accounts at the same bank (the mock bank). No card network routing.
-    - **Bank = Card Network**: The mock bank handles both issuing (customer's bank) and acquiring (merchant's bank). In reality, Visa/Mastercard is between them.
-    - **USD only**: All transactions are in US dollars. No currency conversion.
-    - **Full capture/refund**: Capture the full authorized amount. Refund the full captured amount. No partial operations.
+### Example: Authorize a Payment
 
-    These simplifications let you focus on state management, idempotency, and failure handling.
+```bash
+curl -X POST http://localhost:8080/authorize \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: $(uuidgen)" \
+  -d '{
+    "order_id": "order-12345",
+    "customer_id": "cust-67890",
+    "amount": 5000,
+    "card_number": "4111111111111111",
+    "cvv": "123",
+    "expiry_month": 12,
+    "expiry_year": 2030
+  }'
+```
 
-    ## What You'll Learn
+### Test Cards
 
-    - **State machines**: Model payment lifecycles with strict transition rules
-    - **Idempotency**: Ensure duplicate requests don't create duplicate charges
-    - **Retry strategies**: Distinguish transient failures from permanent ones
-    - **Distributed transactions**: Coordinate state between your system and an external API
-    - **Reconciliation**: Detect and resolve inconsistencies between systems
-    - **Error handling**: Map external errors to meaningful client responses
+| Card Number | CVV | Expiry | Balance | Use Case |
+|-------------|-----|--------|---------|----------|
+| 4111111111111111 | 123 | 12/2030 | $10,000 | Happy path |
+| 4242424242424242 | 456 | 06/2030 | $500 | Limited balance |
+| 5555555555554444 | 789 | 09/2030 | $0 | Insufficient funds |
+| 5105105105105100 | 321 | 03/2020 | $5,000 | Expired card |
 
-    ## Core Task
+## Project Structure
 
-    Build a payment gateway that FicMart's order service can call to authorize, capture, void, and refund payments. Your gateway communicates with the mock bank API (provided) and must handle all its failure modes gracefully.
+```
+.
+├── cmd/
+│   └── gateway/
+│       └── main.go              # Application entry point
+├── internal/
+│   ├── adapters/
+│   │   ├── bank/                # Bank API client
+│   │   ├── handler/             # HTTP handlers
+│   │   └── postgres/            # PostgreSQL repository
+│   ├── config/                  # Configuration loading
+│   ├── core/
+│   │   ├── domain/              # Domain models and errors
+│   │   ├── ports/               # Interface definitions
+│   │   └── service/             # Business logic
+│   └── worker/                  # Background reconciliation
+├── migrations/                  # SQL migration files
+├── docker/                      # Docker configuration
+├── docs/                        # Swagger documentation
+├── tests/                       # Integration tests
+├── go.mod
+├── go.sum
+├── .env.example
+├── README.md
+└── TRADEOFFS.md                 # Design decisions document
+```
 
-    ## System Architecture
+## Configuration
 
-    ```mermaid
-    flowchart TB
-        OS((FicMart))
+Configuration is loaded from environment variables prefixed with `GATEWAY_`. See `.env.example` for all available options.
 
-        subgraph gateway["Your Payment Gateway"]
-            API[Gateway API]
-            SM[State Machine]
-            IK[Idempotency Layer]
-            BC[Bank Client]
-            GD[(Receipts DB)]
-            API --> SM
-            SM --> IK
-            IK --> BC
-            SM --> GD
-        end
+### Key Configuration Sections
 
-        subgraph bank["Mock Bank API (Provided)"]
-            BA[Bank API]
-            BD[(Bank DB)]
-            BA --> BD
-        end
+- **Server**: Port, timeouts
+- **Database**: Connection settings, pool configuration
+- **Bank Client**: Base URL, connection timeout
+- **Retry**: Base delay, max retries
+- **Worker**: Reconciliation interval, batch size
 
-        OS -.->|"order_id, customer_id, card, amount"| API
-        BC -->|HTTP + Idempotency-Key| BA
-    ```
+## Testing
 
-    FicMart is a hypothetical e-commerce client calling your gateway. You don't need to build it. Just imagine it already exists. The mock bank is provided and running. **You build everything in the "Your Payment Gateway" box.**
+### Run Unit Tests
 
-    ## Mock Bank API
+```bash
+go test ./internal/... -v
+```
 
-    Full API documentation: **<http://localhost:8787/docs>** (Swagger UI)
+### Run Integration Tests
 
-    ### Quick Reference
+Integration tests require PostgreSQL and the mock bank to be running:
 
-    | Operation | Endpoint | Purpose |
-    |-----------|----------|---------|
-    | Authorize | `POST /api/v1/authorizations` | Reserve funds on card |
-    | Capture | `POST /api/v1/captures` | Charge previously authorized funds |
-    | Void | `POST /api/v1/voids` | Cancel authorization before capture |
-    | Refund | `POST /api/v1/refunds` | Return money after capture |
+```bash
+# Start dependencies
+cd bank && make up
+cd docker && docker-compose up -d postgres
 
-    All POST endpoints require an `Idempotency-Key` header.
+# Run tests
+go test ./internal/tests -v
+```
 
-    ### Test Cards
+### Run Specific Test
 
-    | Card Number | CVV | Expiry | Balance | Use Case |
-    |-------------|-----|--------|---------|----------|
-    | 4111111111111111 | 123 | 12/2030 | $10,000 | Happy path testing |
-    | 4242424242424242 | 456 | 06/2030 | $500 | Limited balance |
-    | 5555555555554444 | 789 | 09/2030 | $0 | Insufficient funds |
-    | 5105105105105100 | 321 | 03/2020 | $5,000 | Expired card |
+```bash
+go test ./internal/core/service -run TestAuthorizeService_Authorize_Success -v
+```
 
-    ### Bank Behavior
+### Test Coverage
 
-    The mock bank simulates real-world conditions:
+```bash
+go test ./internal/... -coverprofile=coverage.out
+go tool cover -html=coverage.out
+```
 
-    - **Amounts in cents**: All monetary values are integers in cents (e.g., `5000` = $50.00)
-    - **Validation**: Luhn algorithm for card numbers, CVV matching, expiry checks
-    - **State enforcement**: Can't capture a voided auth, can't void after capture, etc.
-    - **Idempotency**: Same key + path returns cached response with `X-Idempotent-Replayed: true`
-    - **Chaos**: ~5% random 500 errors, 100-2000ms latency per request
-    - **Expiration**: Authorizations expire after 7 days
+## Design Decisions
 
-    The chaos behavior is configurable via environment variables if you need deterministic testing.
+For detailed information about architecture, state management, failure handling, and idempotency implementation, see [TRADEOFFS.md](TRADEOFFS.md).
 
-    ## Gateway Requirements
+### Key Design Choices
 
-    ### 1. Payment Operations
+1. **Write-Ahead Pattern**: Save payment intent before calling bank
+2. **Database-Level Concurrency**: Use PostgreSQL constraints instead of application locks
+3. **Background Reconciliation**: Worker process recovers stuck payments
+4. **Lazy Expiration**: Let bank be source of truth for expiration edge cases
+5. **Idempotency via Database**: Unique constraints prevent duplicate requests
 
-    Expose an interface (REST, gRPC, or function calls) supporting:
+## Development
 
-    - **Authorize**: Accept card details, amount, `order_id`, `customer_id`. Return payment reference.
-    - **Capture**: Accept payment reference. Return capture confirmation.
-    - **Void**: Accept payment reference. Return void confirmation.
-    - **Refund**: Accept payment reference. Return refund confirmation.
+### Hot Reload (Development Mode)
 
-    FicMart sends `order_id` and `customer_id` with every authorize request. Your gateway must store these and allow FicMart to query payment status by order.
-    You are free to design the API shape as you see fit. This is just a guideline.
+The project uses [Air](https://github.com/cosmtrek/air) for hot reloading during development:
 
-    ### 2. State Machine
+```bash
+air
+```
 
-    Enforce this payment lifecycle:
+Configuration is in `.air.toml`.
 
-    ```text
-    PENDING → AUTHORIZED → CAPTURED → REFUNDED
-                ↓
-            VOIDED
-    ```
+### Database Migrations
 
-    Reject invalid transitions. A voided payment cannot be captured. A captured payment cannot be voided. Your gateway enforces this regardless of what the bank might accept.
+Migrations are applied automatically on startup. To create a new migration:
 
-    ### 3. Idempotency
+1. Create a new SQL file in `migrations/` with a sequential number prefix
+2. Write forward migrations only (no rollback for this project)
+3. Restart the gateway to apply
 
-    Duplicate requests with the same idempotency key must return the original response. This applies to your gateway's interface, not just passthrough to the bank.
+### Adding a New Endpoint
 
-    ### 4. Failure Handling
+1. Define request/response types in `internal/adapters/handler/`
+2. Implement service logic in `internal/core/service/`
+3. Add handler in `internal/adapters/handler/`
+4. Register route in `RegisterRoutes()`
+5. Add Swagger annotations
+6. Regenerate docs: `swag init -g cmd/gateway/main.go`
 
-    - **Retry transient failures**: 500s, timeouts, network errors
-    - **Respect idempotency**: Safe to retry because the bank won't double-charge
-    - **Fail gracefully**: Return meaningful errors to clients, not stack traces
-    - **Know when to stop**: Don't retry permanent failures (invalid card, insufficient funds)
+## Contributing
 
-    What happens if your gateway crashes between calling the bank and saving the result? How do you recover?
+This is a portfolio/assessment project and is not accepting external contributions. However, feedback and suggestions are welcome via issues.
 
-    ### 5. Payment Receipts
+## License
 
-    Your gateway must maintain a **payment receipt** for every transaction. This is your source of truth, not the bank's records.
+This project is part of the [Backend Engineer Path](https://github.com/benx421/backend-engineer-path) by benx421.
 
-    Each receipt should capture:
+## Acknowledgments
 
-    - Payment reference (your ID, not the bank's)
-    - Order ID and Customer ID (from FicMart)
-    - Amount and currency
-    - Current state (authorized, captured, voided, refunded)
-    - Timestamps for each state transition
-    - Bank reference IDs (authorization_id, capture_id, etc.)
+- Mock Bank API provided as part of the project specification
+- Project specification by benx421
+- Built as part of the Backend Engineer Path assessment
 
-    FicMart needs to:
+---
 
-    - Get payment status by `order_id`
-    - Get payment history for a `customer_id`
-    - Verify a payment exists before shipping goods
-
-    Feel free to design the schema as you deem fit. Think about what queries you'll need and how you'll handle the case where your receipt says "authorized" but the bank says "expired".
-
-    ### 6. Persistence
-
-    Store enough data to:
-
-    - Track payment state across your system
-    - Reconcile with bank records
-    - Support idempotent replays
-    - Debug issues in production
-
-    Your receipts table is the minimum. You may need additional tables for idempotency keys, state history, or audit logs.
-
-    ## Running the Mock Bank
-
-    ### With Make (macOS/Linux)
-
-    Start the bank:
-
-    ```bash
-    cd bank && make up
-    ```
-
-    Stop the bank:
-
-    ```bash
-    make down
-    ```
-
-    Reset database (wipe all data):
-
-    ```bash
-    make reset
-    ```
-
-    Run tests:
-
-    ```bash
-    make test
-    ```
-
-    ### Without Make (Windows)
-
-    Start the bank:
-
-    ```bash
-    cd docker
-    docker compose up --build
-    ```
-
-    Stop the bank:
-
-    ```bash
-    docker compose down
-    ```
-
-    Reset database (wipe all data):
-
-    ```bash
-    docker compose down -v
-    docker compose up --build
-    ```
-
-    Run tests:
-
-    ```bash
-    docker compose exec bank-api go test ./...
-    ```
-
-    ### What's Running
-
-    - PostgreSQL on port 5432
-    - Bank API on port 8787
-    - Swagger docs at <http://localhost:8787/docs>
-
-    ## Deliverables
-
-    ### 1. Working Gateway
-
-    A gateway service that passes all the scenarios above. The implementation language, framework, and architecture are up to you.
-
-    ### 2. Tests
-
-    Meaningful test coverage. You don't need 100% coverage, but you need confidence that:
-
-    - Happy paths work
-    - Edge cases are handled
-    - Failure scenarios recover correctly
-
-    ### 3. TRADEOFFS.md
-
-    A document (max 1000 words) covering:
-
-    - **Architecture**: Why did you structure it this way?
-    - **State management**: How do you track payment state? Why?
-    - **Failure handling**: What's your retry strategy? How do you handle partial failures?
-    - **Idempotency**: How did you implement it? What edge cases did you consider?
-    - **What you'd do differently**: With more time or in production, what would change?
-
-    This matters more than perfect code. I want to see your thinking.
-
-    ## Resources
-
-    ### State Machines & Domain Modeling
-
-    - [Designing Data-Intensive Applications, Chapter. 9](https://dataintensive.net/): Martin Kleppmann on distributed transactions
-    - [Domain Modeling Made Functional](https://pragprog.com/titles/swdddf/domain-modeling-made-functional/): Scott Wlaschin
-
-    ### Idempotency
-
-    - [Implementing Stripe-like Idempotency Keys in Postgres](https://brandur.org/idempotency-keys): Brandur Leach
-
-    ### Error Handling & Resilience
-
-    - [Release It!](https://pragprog.com/titles/mnee2/release-it-second-edition/): Michael Nygard on stability patterns
-    - [Timeouts, retries, and backoff with jitter](https://aws.amazon.com/builders-library/timeouts-retries-and-backoff-with-jitter/): AWS Builders' Library
-
-    ## Submission
-
-    1. Create a **private** repository
-    2. Add `benx421` as a collaborator
-    3. Create a PR from your feature branch to main
-    4. Include a proper PR description
-
-    I prioritize reviews for Go, Java and Python implementations, but I'll review other languages as time permits.
-
-    **I can tell 100% AI generated code and won't review it. You cheat yourself by not completing the project by yourself. There's nothing at stake here, and I see no incentive to cheat. I will not give the benefit of doubt. When in doubt, I will defer to the conclusion that you did not author the code, and won't review it. Let's be respectful of each other's time. If there is any place you should not use AI assistance at all, it is in the Tradeoffs document. You should be able to explain your own reasoning in your own words.**
+**Note**: This is a learning project demonstrating payment gateway patterns. It is not intended for production use with real payment processing.

@@ -18,6 +18,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/joho/godotenv"
+
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/adapters/bank"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/adapters/handler"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/adapters/postgres"
@@ -34,6 +36,11 @@ import (
 // @host            localhost:8080
 // @BasePath        /
 func main() {
+	err := godotenv.Load()
+	if err != nil {
+		slog.Default().Error("error loading .env file", "error", err)
+	}
+
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	slog.SetDefault(logger)
 
