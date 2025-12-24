@@ -1,0 +1,613 @@
+openapi: 3.0.3
+info:
+  title: FicMart Payment Gateway API
+  description: |
+    Payment gateway API for processing card payments through a mock banking system.
+    
+    ## Payment Lifecycle
+    - PENDING → AUTHORIZED → CAPTURED → REFUNDED
+    - PENDING → AUTHORIZED → VOIDED
+    - PENDING → FAILED
+    
+    ## Idempotency
+    All mutation endpoints (POST) require an `Idempotency-Key` header to prevent duplicate operations.
+    Reusing the same key with the same request returns the cached response.
+    
+  version: 1.0.0
+  contact:
+    name: API Support
+
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+
+paths:
+  /authorize:
+    post:
+      summary: Authorize Payment
+      description: |
+        Reserves funds on a customer's card. Creates a payment in PENDING state, 
+        attempts authorization with the bank, and transitions to AUTHORIZED or FAILED.
+        
+        Authorization expires after 7 days if not captured.
+      operationId: authorizePayment
+      tags:
+        - Payments
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthorizeRequest'
+            examples:
+              basic:
+                summary: Basic authorization
+                value:
+                  order_id: "order-123"
+                  customer_id: "cust-456"
+                  amount: 5000
+                  card_number: "4111111111111111"
+                  cvv: "123"
+                  expiry_month: 12
+                  expiry_year: 2030
+      responses:
+        '201':
+          description: Payment authorized successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentResponse'
+              examples:
+                authorized:
+                  value:
+                    success: true
+                    data:
+                      id: "550e8400-e29b-41d4-a716-446655440000"
+                      order_id: "order-123"
+                      customer_id: "cust-456"
+                      amount_cents: 5000
+                      currency: "USD"
+                      status: "AUTHORIZED"
+                      idempotency_key: "idem-key-123"
+                      bank_auth_id: "auth-abc123"
+                      created_at: "2024-01-15T10:30:00Z"
+                      updated_at: "2024-01-15T10:30:01Z"
+                      authorized_at: "2024-01-15T10:30:01Z"
+                      expires_at: "2024-01-22T10:30:01Z"
+                      attempt_count: 0
+        '202':
+          description: Request is being processed (duplicate idempotency key, still processing)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '400':
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalid_amount:
+                  value:
+                    success: false
+                    error:
+                      code: "INVALID_AMOUNT"
+                      message: "invalid amount -100"
+                idempotency_mismatch:
+                  value:
+                    success: false
+                    error:
+                      code: "IDEMPOTENCY_MISMATCH"
+                      message: "idempotency key reused with different parameters"
+        '409':
+          description: Request timed out or still processing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /capture:
+    post:
+      summary: Capture Payment
+      description: |
+        Charges a previously authorized payment. The payment must be in AUTHORIZED state.
+        Once captured, the payment cannot be voided - only refunded.
+      operationId: capturePayment
+      tags:
+        - Payments
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CaptureRequest'
+            examples:
+              basic:
+                value:
+                  payment_id: "550e8400-e29b-41d4-a716-446655440000"
+                  amount: 5000
+      responses:
+        '200':
+          description: Payment captured successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentResponse'
+              examples:
+                captured:
+                  value:
+                    success: true
+                    data:
+                      id: "550e8400-e29b-41d4-a716-446655440000"
+                      status: "CAPTURED"
+                      bank_capture_id: "cap-xyz789"
+                      captured_at: "2024-01-15T14:20:00Z"
+        '400':
+          description: Invalid request or payment state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Payment not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Invalid state transition or conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /void:
+    post:
+      summary: Void Authorization
+      description: |
+        Cancels a previously authorized payment before capture. 
+        The payment must be in AUTHORIZED state. Cannot void after capture.
+      operationId: voidPayment
+      tags:
+        - Payments
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VoidRequest'
+            examples:
+              basic:
+                value:
+                  payment_id: "550e8400-e29b-41d4-a716-446655440000"
+      responses:
+        '200':
+          description: Payment voided successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Payment not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Payment cannot be voided in current state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /refund:
+    post:
+      summary: Refund Payment
+      description: |
+        Returns money for a previously captured payment. 
+        The payment must be in CAPTURED state.
+      operationId: refundPayment
+      tags:
+        - Payments
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefundRequest'
+            examples:
+              basic:
+                value:
+                  payment_id: "550e8400-e29b-41d4-a716-446655440000"
+                  amount: 5000
+      responses:
+        '200':
+          description: Payment refunded successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Payment not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Payment cannot be refunded in current state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /payments/order/{orderID}:
+    get:
+      summary: Get Payment by Order ID
+      description: Retrieves payment information for a specific order
+      operationId: getPaymentByOrder
+      tags:
+        - Queries
+      parameters:
+        - name: orderID
+          in: path
+          required: true
+          description: The order ID from FicMart
+          schema:
+            type: string
+          example: "order-123"
+      responses:
+        '200':
+          description: Payment found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentResponse'
+        '404':
+          description: Payment not found for this order
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /payments/customer/{customerID}:
+    get:
+      summary: List Customer Payments
+      description: Retrieves all payments for a specific customer with pagination
+      operationId: getPaymentsByCustomer
+      tags:
+        - Queries
+      parameters:
+        - name: customerID
+          in: path
+          required: true
+          description: The customer ID from FicMart
+          schema:
+            type: string
+          example: "cust-456"
+        - name: limit
+          in: query
+          description: Maximum number of payments to return
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+            maximum: 100
+        - name: offset
+          in: query
+          description: Number of payments to skip
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+      responses:
+        '200':
+          description: List of payments
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Payment'
+
+components:
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: |
+        Unique key to ensure request idempotency. Same key with same request 
+        returns cached response. Prevents duplicate charges.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 255
+      example: "idem-550e8400-e29b-41d4-a716-446655440000"
+
+  schemas:
+    AuthorizeRequest:
+      type: object
+      required:
+        - order_id
+        - customer_id
+        - amount
+        - card_number
+        - cvv
+        - expiry_month
+        - expiry_year
+      properties:
+        order_id:
+          type: string
+          description: Unique order identifier from FicMart
+          example: "order-123"
+        customer_id:
+          type: string
+          description: Customer identifier from FicMart
+          example: "cust-456"
+        amount:
+          type: integer
+          format: int64
+          description: Amount in cents (e.g., 5000 = $50.00)
+          minimum: 1
+          example: 5000
+        card_number:
+          type: string
+          description: Card number (13-19 digits)
+          pattern: '^\d{13,19}$'
+          example: "4111111111111111"
+        cvv:
+          type: string
+          description: Card verification value (3-4 digits)
+          pattern: '^\d{3,4}$'
+          example: "123"
+        expiry_month:
+          type: integer
+          description: Card expiry month (1-12)
+          minimum: 1
+          maximum: 12
+          example: 12
+        expiry_year:
+          type: integer
+          description: Card expiry year (YYYY)
+          minimum: 2024
+          example: 2030
+
+    CaptureRequest:
+      type: object
+      required:
+        - payment_id
+        - amount
+      properties:
+        payment_id:
+          type: string
+          format: uuid
+          description: The payment ID to capture
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        amount:
+          type: integer
+          format: int64
+          description: Amount to capture in cents (must match authorized amount)
+          minimum: 1
+          example: 5000
+
+    VoidRequest:
+      type: object
+      required:
+        - payment_id
+      properties:
+        payment_id:
+          type: string
+          format: uuid
+          description: The payment ID to void
+          example: "550e8400-e29b-41d4-a716-446655440000"
+
+    RefundRequest:
+      type: object
+      required:
+        - payment_id
+        - amount
+      properties:
+        payment_id:
+          type: string
+          format: uuid
+          description: The payment ID to refund
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        amount:
+          type: integer
+          format: int64
+          description: Amount to refund in cents (must match captured amount)
+          minimum: 1
+          example: 5000
+
+    Payment:
+      type: object
+      required:
+        - id
+        - order_id
+        - customer_id
+        - amount_cents
+        - currency
+        - status
+        - idempotency_key
+        - created_at
+        - updated_at
+        - attempt_count
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique payment identifier
+        order_id:
+          type: string
+          description: Order ID from FicMart
+        customer_id:
+          type: string
+          description: Customer ID from FicMart
+        amount_cents:
+          type: integer
+          format: int64
+          description: Amount in cents
+        currency:
+          type: string
+          description: Currency code
+          example: "USD"
+        status:
+          type: string
+          enum:
+            - PENDING
+            - AUTHORIZED
+            - CAPTURING
+            - CAPTURED
+            - FAILED
+            - REFUNDED
+            - REFUNDING
+            - VOIDING
+            - VOIDED
+            - EXPIRED
+          description: Current payment status
+        idempotency_key:
+          type: string
+          description: Idempotency key used for this payment
+        bank_auth_id:
+          type: string
+          nullable: true
+          description: Bank's authorization ID
+        bank_capture_id:
+          type: string
+          nullable: true
+          description: Bank's capture ID
+        bank_void_id:
+          type: string
+          nullable: true
+          description: Bank's void ID
+        bank_refund_id:
+          type: string
+          nullable: true
+          description: Bank's refund ID
+        created_at:
+          type: string
+          format: date-time
+          description: When payment was created
+        updated_at:
+          type: string
+          format: date-time
+          description: When payment was last updated
+        authorized_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: When payment was authorized
+        captured_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: When payment was captured
+        voided_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: When payment was voided
+        refunded_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: When payment was refunded
+        expires_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: When authorization expires (7 days from authorization)
+        attempt_count:
+          type: integer
+          description: Number of retry attempts
+        next_retry_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: When next retry is scheduled
+        last_error_category:
+          type: string
+          nullable: true
+          description: Category of last error encountered
+
+    PaymentResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          description: Whether the request succeeded
+        data:
+          $ref: '#/components/schemas/Payment'
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              description: Machine-readable error code
+              enum:
+                - INVALID_TRANSITION
+                - PAYMENT_EXPIRED
+                - PAYMENT_NOT_FOUND
+                - INVALID_AMOUNT
+                - DUPLICATE_IDEMPOTENCY_KEY
+                - REQUEST_PROCESSING
+                - MISSING_REQUIRED_FIELD
+                - INVALID_STATE
+                - AMOUNT_MISMATCH
+                - MISSING_DEPENDENCY
+                - IDEMPOTENCY_MISMATCH
+                - TIMEOUT
+                - VALIDATION_ERROR
+                - INTERNAL_ERROR
+            message:
+              type: string
+              description: Human-readable error message
+          required:
+            - code
+            - message
+
+tags:
+  - name: Payments
+    description: Operations for creating and managing payments
+  - name: Queries
+    description: Operations for retrieving payment information
