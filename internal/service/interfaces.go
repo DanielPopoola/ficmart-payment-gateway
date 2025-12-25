@@ -35,10 +35,16 @@ type Refunder interface {
 	Reconcile(ctx context.Context, p *domain.Payment) error
 }
 
+type PaymentQuery interface {
+	GetPaymentByOrderID(ctx context.Context, orderID string) (*domain.Payment, error)
+	GetPaymentsByCustomerID(ctx context.Context, customerID string, limit, offset int) ([]*domain.Payment, error)
+}
+
 // Ensure concrete types implement interfaces
 var (
-	_ Authorizer = (*AuthorizationService)(nil)
-	_ Capturer   = (*CaptureService)(nil)
-	_ Voider     = (*VoidService)(nil)
-	_ Refunder   = (*RefundService)(nil)
+	_ Authorizer   = (*AuthorizationService)(nil)
+	_ Capturer     = (*CaptureService)(nil)
+	_ Voider       = (*VoidService)(nil)
+	_ Refunder     = (*RefundService)(nil)
+	_ PaymentQuery = (*PaymentQueryService)(nil)
 )

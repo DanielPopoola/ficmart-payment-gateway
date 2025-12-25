@@ -193,7 +193,7 @@ func (s *AuthorizationService) pollForPayment(ctx context.Context, key string) (
 		case <-ticker.C:
 			p, err := s.repo.FindByIdempotencyKey(ctx, key)
 			if err != nil {
-				if domain.IsErrorCode(err, domain.ErrCodePaymentNotFound) {
+				if errors.Is(err, domain.ErrPaymentNotFound) {
 					continue
 				}
 				return nil, fmt.Errorf("error checking payment status: %w", err)

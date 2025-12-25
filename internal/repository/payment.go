@@ -14,6 +14,11 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+var (
+	ErrPaymentNotFound         = errors.New("payment not found")
+	ErrDuplicateIdempotencyKey = errors.New("duplicate idempotency key")
+)
+
 type PaymentRepository interface {
 	CreatePayment(ctx context.Context, payment *domain.Payment) error
 	FindByID(ctx context.Context, id uuid.UUID) (*domain.Payment, error)
@@ -80,7 +85,7 @@ func (r *paymentRepository) CreatePayment(ctx context.Context, p *domain.Payment
 			var pgErr *pgconn.PgError
 			if errors.As(err, &pgErr) {
 				if pgErr.ConstraintName == "payments_idempotency_key_key" {
-					return domain.NewDuplicateKeyError(p.IdempotencyKey)
+					return ErrDuplicateIdempotencyKey
 				}
 			}
 		}
@@ -269,7 +274,7 @@ func (r *paymentRepository) UpdatePayment(ctx context.Context, p *domain.Payment
 	}
 
 	if cmdTag.RowsAffected() == 0 {
-		return domain.NewPaymentNotFoundError(p.ID.String())
+		return ErrPaymentNotFound
 	}
 	return nil
 }
@@ -328,7 +333,7 @@ func scanPayment(row pgx.Row) (*domain.Payment, error) {
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, domain.NewPaymentNotFoundError(p.ID.String())
+			return nil, ErrPaymentNotFound
 		}
 		return nil, fmt.Errorf("failed to scan payment: %w", err)
 	}
@@ -346,7 +351,7 @@ func (r *paymentRepository) CreateIdempotencyKey(ctx context.Context, k *domain.
 	)
 	if err != nil {
 		if db.IsUniqueViolation(err) {
-			return domain.NewDuplicateKeyError(k.Key)
+			return ErrDuplicateIdempotencyKey
 		}
 		return fmt.Errorf("failed to create idempotency key: %w", err)
 	}
