@@ -1,7 +1,9 @@
+// Package domain encodes a payment entity and it's attributes
 package domain
 
 import (
 	"errors"
+	"slices"
 	"time"
 )
 
@@ -22,23 +24,29 @@ const (
 )
 
 type Payment struct {
-	id         PaymentID
-	orderID    OrderID
-	customerID CustomerID
+	id         string
+	orderID    string
+	customerID string
 	amount     Money
 	status     PaymentStatus
 
-	bankAuthID *string
+	bankAuthID    *string
+	bankCaptureID *string
+	bankVoidID    *string
+	bankRefundID  *string
 
 	createdAt    time.Time
 	authorizedAt *time.Time
+	capturedAt   *time.Time
+	voidedAt     *time.Time
+	refundedAt   *time.Time
 	expiresAt    *time.Time
 }
 
 func NewPayment(
-	id PaymentID,
-	orderID OrderID,
-	customerID CustomerID,
+	id string,
+	orderID string,
+	customerID string,
 	amount Money,
 ) (*Payment, error) {
 	if id == "" {
@@ -61,49 +69,149 @@ func NewPayment(
 	}, nil
 }
 
-func (p *Payment) ID() PaymentID          { return p.id }
-func (p *Payment) OrderID() OrderID       { return p.orderID }
-func (p *Payment) CustomerID() CustomerID { return p.customerID }
-func (p *Payment) Amount() Money          { return p.amount }
-func (p *Payment) Status() PaymentStatus  { return p.status }
-func (p *Payment) BankAuthID() *string    { return p.bankAuthID }
-func (p *Payment) ExpiresAt() *time.Time  { return p.expiresAt }
+// Getters
+func (p *Payment) ID() string               { return p.id }
+func (p *Payment) OrderID() string          { return p.orderID }
+func (p *Payment) CustomerID() string       { return p.customerID }
+func (p *Payment) Amount() Money            { return p.amount }
+func (p *Payment) Status() PaymentStatus    { return p.status }
+func (p *Payment) BankAuthID() *string      { return p.bankAuthID }
+func (p *Payment) BankCaptureID() *string   { return p.bankCaptureID }
+func (p *Payment) BankVoidID() *string      { return p.bankVoidID }
+func (p *Payment) BankRefundID() *string    { return p.bankRefundID }
+func (p *Payment) CreatedAt() time.Time     { return p.createdAt }
+func (p *Payment) AuthorizedAt() *time.Time { return p.authorizedAt }
+func (p *Payment) CapturedAt() *time.Time   { return p.capturedAt }
+func (p *Payment) VoidedAt() *time.Time     { return p.voidedAt }
+func (p *Payment) RefundedAt() *time.Time   { return p.refundedAt }
+func (p *Payment) ExpiresAt() *time.Time    { return p.expiresAt }
 
-func (p *Payment) Authorize(bankAuthID string, authorizedAt, expiresAt time.Time) error {
-	if p.status != StatusPending {
-		return ErrInvalidState
+func (p *Payment) MarkCapturing() error {
+	return p.transition(StatusCapturing)
+}
+
+func (p *Payment) MarkVoiding() error {
+	return p.transition(StatusVoiding)
+}
+
+func (p *Payment) MarkRefunding() error {
+	return p.transition(StatusRefunding)
+}
+
+func (p *Payment) Fail() error {
+	return p.transition(StatusFailed)
+}
+
+func (p *Payment) transition(target PaymentStatus) error {
+	if err := p.canTransitionTo(target); err != nil {
+		return err
 	}
-
-	// State change
-	p.status = StatusAuthorized
-	p.bankAuthID = &bankAuthID
-	p.authorizedAt = &authorizedAt
-	p.expiresAt = &expiresAt
-
+	p.status = target
 	return nil
 }
 
-func (p *Payment) CanAuthorize() bool {
-	return p.status == StatusPending
+// defines various payment statuses that can be transitioned to
+func (p *Payment) canTransitionTo(target PaymentStatus) error {
+	switch p.status {
+	case StatusPending:
+		return p.allow(target, StatusAuthorized, StatusFailed)
+	case StatusAuthorized:
+		return p.allow(target, StatusCapturing, StatusVoiding, StatusExpired, StatusFailed)
+	case StatusCapturing:
+		return p.allow(target, StatusCaptured, StatusFailed)
+	case StatusCaptured:
+		return p.allow(target, StatusRefunding, StatusFailed)
+	case StatusRefunding:
+		return p.allow(target, StatusRefunded, StatusFailed)
+	case StatusVoiding:
+		return p.allow(target, StatusVoided, StatusFailed)
+	}
+	return ErrInvalidTransition
+}
+
+// Helper to check allowed state transitions
+func (p *Payment) allow(target PaymentStatus, allowed ...PaymentStatus) error {
+	if slices.Contains(allowed, target) {
+		return nil
+	}
+	return ErrInvalidTransition
+}
+
+// Authorize sets the payment status to authorized and records the bank authorization details.
+func (p *Payment) Authorize(bankAuthID string, authorizedAt, expiresAt time.Time) error {
+	if err := p.transition(StatusAuthorized); err != nil {
+		return err
+	}
+	p.bankAuthID = &bankAuthID
+	p.authorizedAt = &authorizedAt
+	p.expiresAt = &expiresAt
+	return nil
+}
+
+// Capture transitions the payment to captured status and records the bank capture details.
+func (p *Payment) Capture(bankCaptureID string, capturedAt time.Time) error {
+	if err := p.transition(StatusCaptured); err != nil {
+		return err
+	}
+	p.bankCaptureID = &bankCaptureID
+	p.capturedAt = &capturedAt
+	return nil
+}
+
+// Void transitions the payment to voided status an records the bank void details.
+func (p *Payment) Void(bankVoidID string, voidedAt time.Time) error {
+	if err := p.transition(StatusVoided); err != nil {
+		return err
+	}
+	p.bankVoidID = &bankVoidID
+	p.voidedAt = &voidedAt
+	return nil
+}
+
+// Refund transitions the payment to refunded status and records the bank refund details
+func (p *Payment) Refund(bankRefundID string, refundedAt time.Time) error {
+	if err := p.transition(StatusRefunded); err != nil {
+		return err
+	}
+	p.bankRefundID = &bankRefundID
+	p.refundedAt = &refundedAt
+	return nil
+}
+
+// helper to identify payment statuses that are terminal
+func (p *Payment) IsTerminal() bool {
+	switch p.status {
+	case StatusVoided, StatusRefunded, StatusExpired, StatusFailed:
+		return true
+	default:
+		return false
+	}
 }
 
 // Reconstitute - Special constructor for loading from DB
 func Reconstitute(
-	id, orderID, customerID string,
+	id string, orderID string, customerID string,
 	amount int64, currency string,
 	status PaymentStatus,
-	bankAuthID *string,
-	createdAt time.Time, authorizedAt, expiresAt *time.Time,
+	bankAuthID, bankCaptureID, bankVoidID, bankRefundID *string,
+	createdAt time.Time,
+	authorizedAt, capturedAt, voidedAt, refundedAt, expiresAt *time.Time,
 ) *Payment {
 	return &Payment{
-		id:           PaymentID(id),
-		orderID:      OrderID(orderID),
-		customerID:   CustomerID(customerID),
-		amount:       Money{Amount: amount, Currency: currency},
-		status:       status,
-		bankAuthID:   (*BankAuthorizationID)(bankAuthID),
-		createdAt:    createdAt,
-		authorizedAt: authorizedAt,
-		expiresAt:    expiresAt,
+		id:            id,
+		orderID:       orderID,
+		customerID:    customerID,
+		amount:        Money{Amount: amount, Currency: currency},
+		status:        status,
+		bankAuthID:    bankAuthID,
+		bankCaptureID: bankCaptureID,
+		bankVoidID:    bankVoidID,
+		bankRefundID:  bankRefundID,
+		createdAt:     createdAt,
+		authorizedAt:  authorizedAt,
+		capturedAt:    capturedAt,
+		voidedAt:      voidedAt,
+		refundedAt:    refundedAt,
+		expiresAt:     expiresAt,
 	}
 }

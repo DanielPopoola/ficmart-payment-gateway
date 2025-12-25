@@ -4,8 +4,6 @@ import (
 	"errors"
 )
 
-type PaymentID string
-
 type Money struct {
 	Amount   int64
 	Currency string
@@ -20,12 +18,3 @@ func NewMoney(amount int64, currency string) (Money, error) {
 	}
 	return Money{Amount: amount, Currency: currency}, nil
 }
-
-// OrderID is the external identifier from FicMart
-type OrderID string
-
-// CustomerID is the external identifier for customers
-type CustomerID string
-
-// BankAuthorizationID is what the bank gives us
-type BankAuthorizationID string

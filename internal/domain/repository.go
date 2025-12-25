@@ -3,19 +3,21 @@ package domain
 import "context"
 
 type Repository interface {
-	// Save persists a payment
-	SaveWithIdempotency(ctx context.Context, payment *Payment, idempotencyKey string) error
+	// Create persists a payment with idempotency
+	Create(ctx context.Context, payment *Payment, idempotencyKey string, requestHash string) error
 
 	// FindbyID retrieves a payment
-	FindByID(ctx context.Context, id PaymentID) (*Payment, error)
+	FindByID(ctx context.Context, id string) (*Payment, error)
 
 	// FindByOrderID retrieves a payment by order
-	FindByOrderID(ctx context.Context, orderID OrderID) (*Payment, error)
+	FindByOrderID(ctx context.Context, orderID string) (*Payment, error)
 
-	FindByIdempotencyKey(ctx context.Context, idempotencyKey string) (*Payment, error)
+	// FindByIdempotencyKey retrieve payment info using an idempotency key
+	FindByIdempotencyKey(ctx context.Context, key string) (*Payment, error)
 
 	// FindByCustomerID retrieves a payment for a customer
-	FindByCustomerID(ctx context.Context, customerID CustomerID, limit, offset int) ([]*Payment, error)
+	FindByCustomerID(ctx context.Context, customerID string, limit, offset int) ([]*Payment, error)
 
-	UpdatePayment(ctx context.Context, payment *Payment, idempotencyKey string) error
+	// Update payment with idempotency
+	Update(ctx context.Context, payment *Payment, idempotencyKey string, ResponsePayload []byte, statusCode int, recoveryPoint string) error
 }
