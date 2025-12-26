@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/DanielPopoola/ficmart-payment-gateway/internal/application"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/domain"
 	"github.com/jackc/pgx/v5"
 )
@@ -14,10 +15,11 @@ type postgresRepository struct {
 	db *DB
 }
 
-func NewPaymentRepository(db *DB) domain.Repository {
+func NewPaymentRepository(db *DB) application.PaymentRepository {
 	return &postgresRepository{db: db}
 }
 
+// Create persists a payment with idempotency
 func (r *postgresRepository) Create(ctx context.Context, payment *domain.Payment, idempotencyKey string, requestHash string) error {
 	p := toDBModel(payment)
 
@@ -83,6 +85,7 @@ func (r *postgresRepository) Create(ctx context.Context, payment *domain.Payment
 	return tx.Commit(ctx)
 }
 
+// FindbyID retrieves a payment
 func (r *postgresRepository) FindByID(ctx context.Context, id string) (*domain.Payment, error) {
 	query := `
 		SELECT id, order_id, customer_id, amount_cents, currency, status,
@@ -95,6 +98,7 @@ func (r *postgresRepository) FindByID(ctx context.Context, id string) (*domain.P
 	return scanPayment(row)
 }
 
+// FindByOrderID retrieves a payment by order
 func (r *postgresRepository) FindByOrderID(ctx context.Context, orderID string) (*domain.Payment, error) {
 	query := `
 		SELECT id, order_id, customer_id, amount_cents, currency, status,
@@ -108,6 +112,7 @@ func (r *postgresRepository) FindByOrderID(ctx context.Context, orderID string) 
 
 }
 
+// FindByIdempotencyKey retrieve payment info using an idempotency key
 func (r *postgresRepository) FindByIdempotencyKey(ctx context.Context, key string) (*domain.Payment, error) {
 	query := `
 		SELECT p.id, p.order_id, p.customer_id, p.amount_cents, p.currency, p.status,
@@ -122,6 +127,7 @@ func (r *postgresRepository) FindByIdempotencyKey(ctx context.Context, key strin
 	return scanPayment(row)
 }
 
+// FindByCustomerID retrieves a payment for a customer
 func (r *postgresRepository) FindByCustomerID(ctx context.Context, customerID string, limit, offset int) ([]*domain.Payment, error) {
 	query := `
 		SELECT id, order_id, customer_id, amount_cents, currency, status,
@@ -151,6 +157,7 @@ func (r *postgresRepository) FindByCustomerID(ctx context.Context, customerID st
 	return results, nil
 }
 
+// Update payment with idempotency
 func (r *postgresRepository) Update(ctx context.Context, payment *domain.Payment, idempotencyKey string, responsePayload []byte, statusCode int, recoveryPoint string) error {
 	p := toDBModel(payment)
 

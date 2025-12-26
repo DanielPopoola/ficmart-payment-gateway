@@ -1,12 +1,4 @@
-CREATE TABLE IF NOT EXISTS idempotency_keys (
-    key TEXT PRIMARY KEY,
-    request_hash TEXT NOT NULL,
-    response_payload JSONB,
-    status_code INT,
-    locked_at TIMESTAMP WITH TIME ZONE NOT NULL,
-    completed_at TIMESTAMP WITH TIME ZONE
-);
-
+-- 1. Create payments table
 CREATE TABLE IF NOT EXISTS payments (
     id UUID PRIMARY KEY,
     order_id TEXT NOT NULL,
@@ -14,7 +6,6 @@ CREATE TABLE IF NOT EXISTS payments (
     amount_cents BIGINT NOT NULL,
     currency TEXT NOT NULL DEFAULT 'USD',
     status TEXT NOT NULL,
-    idempotency_key TEXT UNIQUE REFERENCES idempotency_keys(key),
     
     bank_auth_id TEXT,
     bank_capture_id TEXT,
@@ -34,7 +25,21 @@ CREATE TABLE IF NOT EXISTS payments (
     last_error_category TEXT
 );
 
+-- 2. Create idempotency table
+CREATE TABLE IF NOT EXISTS idempotency_keys (
+    key TEXT PRIMARY KEY,
+    payment_id UUID REFERENCES payments(id) ON DELETE CASCADE,
+    request_hash TEXT NOT NULL,
+    response_payload JSONB,
+    status_code INT,
+    locked_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    recovery_point TEXT -- Removed trailing comma
+);
+
+-- 3. Create indexes for performance optimization
 CREATE INDEX IF NOT EXISTS idx_payments_order_id ON payments(order_id);
 CREATE INDEX IF NOT EXISTS idx_payments_customer_id ON payments(customer_id);
-CREATE INDEX idx_payments_status_retry ON payments(status, next_retry_at) 
-WHERE status IN ('PENDING', 'AUTHORIZED', 'CAPTURING', 'VOIDING', 'REFUNDING');
+
+
+CREATE INDEX IF NOT EXISTS idx_payments_retry_worker ON payments(next_retry_at) 
+WHERE status IN ('CAPTURING', 'VOIDING', 'REFUNDING');
