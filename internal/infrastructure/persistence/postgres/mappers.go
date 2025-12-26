@@ -1,4 +1,4 @@
-package persistence
+package postgres
 
 import (
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/domain"
