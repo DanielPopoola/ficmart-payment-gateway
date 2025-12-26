@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/DanielPopoola/ficmart-payment-gateway/internal/application"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/config"
 )
 
@@ -17,7 +18,7 @@ type HTTPBankClient struct {
 	httpClient *http.Client
 }
 
-func NewBankClient(cfg config.BankConfig) BankPort {
+func NewBankClient(cfg config.BankConfig) application.BankClient {
 	return &HTTPBankClient{
 		baseURL: cfg.BankBaseURL,
 		httpClient: &http.Client{
@@ -26,39 +27,39 @@ func NewBankClient(cfg config.BankConfig) BankPort {
 	}
 }
 
-func (c *HTTPBankClient) Authorize(ctx context.Context, req AuthorizationRequest, idempotencyKey string) (*AuthorizationResponse, error) {
+func (c *HTTPBankClient) Authorize(ctx context.Context, req application.AuthorizationRequest, idempotencyKey string) (*application.AuthorizationResponse, error) {
 	url := fmt.Sprintf("%s/api/v1/authorizations", c.baseURL)
-	return sendRequest[AuthorizationRequest, AuthorizationResponse](c, ctx, http.MethodPost, url, &req, idempotencyKey)
+	return sendRequest[application.AuthorizationRequest, application.AuthorizationResponse](c, ctx, http.MethodPost, url, &req, idempotencyKey)
 }
 
-func (c *HTTPBankClient) Capture(ctx context.Context, req CaptureRequest, idempotencyKey string) (*CaptureResponse, error) {
+func (c *HTTPBankClient) Capture(ctx context.Context, req application.CaptureRequest, idempotencyKey string) (*application.CaptureResponse, error) {
 	url := fmt.Sprintf("%s/api/v1/captures", c.baseURL)
-	return sendRequest[CaptureRequest, CaptureResponse](c, ctx, http.MethodPost, url, &req, idempotencyKey)
+	return sendRequest[application.CaptureRequest, application.CaptureResponse](c, ctx, http.MethodPost, url, &req, idempotencyKey)
 }
 
-func (c *HTTPBankClient) Void(ctx context.Context, req VoidRequest, idempotencyKey string) (*VoidResponse, error) {
+func (c *HTTPBankClient) Void(ctx context.Context, req application.VoidRequest, idempotencyKey string) (*application.VoidResponse, error) {
 	url := fmt.Sprintf("%s/api/v1/voids", c.baseURL)
-	return sendRequest[VoidRequest, VoidResponse](c, ctx, http.MethodPost, url, &req, idempotencyKey)
+	return sendRequest[application.VoidRequest, application.VoidResponse](c, ctx, http.MethodPost, url, &req, idempotencyKey)
 }
 
-func (c *HTTPBankClient) Refund(ctx context.Context, req RefundRequest, idempotencyKey string) (*RefundResponse, error) {
+func (c *HTTPBankClient) Refund(ctx context.Context, req application.RefundRequest, idempotencyKey string) (*application.RefundResponse, error) {
 	url := fmt.Sprintf("%s/api/v1/refunds", c.baseURL)
-	return sendRequest[RefundRequest, RefundResponse](c, ctx, http.MethodPost, url, &req, idempotencyKey)
+	return sendRequest[application.RefundRequest, application.RefundResponse](c, ctx, http.MethodPost, url, &req, idempotencyKey)
 }
 
-func (c *HTTPBankClient) GetAuthorization(ctx context.Context, authID string) (*AuthorizationResponse, error) {
+func (c *HTTPBankClient) GetAuthorization(ctx context.Context, authID string) (*application.AuthorizationResponse, error) {
 	url := fmt.Sprintf("%s/api/v1/authorizations/%s", c.baseURL, authID)
-	return sendRequest[any, AuthorizationResponse](c, ctx, http.MethodGet, url, nil, "")
+	return sendRequest[any, application.AuthorizationResponse](c, ctx, http.MethodGet, url, nil, "")
 }
 
-func (c *HTTPBankClient) GetCapture(ctx context.Context, captureID string) (*CaptureResponse, error) {
+func (c *HTTPBankClient) GetCapture(ctx context.Context, captureID string) (*application.CaptureResponse, error) {
 	url := fmt.Sprintf("%s/api/v1/captures/%s", c.baseURL, captureID)
-	return sendRequest[any, CaptureResponse](c, ctx, http.MethodGet, url, nil, "")
+	return sendRequest[any, application.CaptureResponse](c, ctx, http.MethodGet, url, nil, "")
 }
 
-func (c *HTTPBankClient) GetRefund(ctx context.Context, refundID string) (*RefundResponse, error) {
+func (c *HTTPBankClient) GetRefund(ctx context.Context, refundID string) (*application.RefundResponse, error) {
 	url := fmt.Sprintf("%s/api/v1/refunds/%s", c.baseURL, refundID)
-	return sendRequest[any, RefundResponse](c, ctx, http.MethodGet, url, nil, "")
+	return sendRequest[any, application.RefundResponse](c, ctx, http.MethodGet, url, nil, "")
 }
 
 func sendRequest[Req any, Resp any](c *HTTPBankClient, ctx context.Context, method, url string, reqBody *Req, idempotencyKey string) (*Resp, error) {

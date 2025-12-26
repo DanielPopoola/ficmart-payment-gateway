@@ -4,7 +4,8 @@
 
 ### Why did I structure it this way?
 
-From my FastAPI experience, I try to ensure clean separation of concerns and I looked at other codebases for examples. For the adapter it's tailored to PostgreSQL because of the driver I used(pgx), then for the handler, I made the http layer own its request types - because it matches Go convention.
+Since the project is domain-driven, I researched DDD architecture in Go and this is the standard template across board with clean separation of concerns. It's readable and easy to follow
+
 
 ### Gateway-Owned State
 
@@ -31,11 +32,11 @@ I mark authorizations as `EXPIRED` after 7 days with a 1-hour grace period, but 
 ### How did I implement it?
 
 I implemented it in a similar pattern to the bank API. Each request from FicMart must include an
-idempotency key header. Then I have an idempotency table in my db, the aim is to record that request attempt.
+idempotency key header. Then I have an idempotency table in my db with fields: key, requestHash, response_payload, status_code, locked_at, recovery_point. The requestHash, ,response_payload and status_code help with returning the results for duplicate keys faster instead of going to the payments table
 
 ### Edge cases I considered:
 - Two requests, request A and B, reaching my gateway almost at the same time with the same credentials
-- When my gateway sends request to the bank api, and I didn't save the idempotency key from the Ficmart request, if the bank crashes or my gateway crashes before getting a response, I'd have lost the payment info
+- When my gateway sends request to the bank api, and I didn't save the idempotency key from the Ficmart request, if the bank crashes or my gateway crashes before getting a response, I'd have lost the payment info which is could lead to customer's being double charged and nobody wants that.
 
 
 ---
@@ -53,7 +54,7 @@ I don't retry 4xx errors (like invalid card or insufficient funds) at all since 
 
 ### How I handled partial failures:
 
-I used an executor interface and a method (a closure really - it takes a function and executes it within a database transaction (WithTx in internal/adapters/postgres/repository.go).  This was to prevent situations like I'll save to my idempotency table but my db crashes before saving to the payments table, so they are wrapped in a transaction like Django's transaction.atomic() either both succeed or not
+
 ---
 
 ## What I'd Do Differently

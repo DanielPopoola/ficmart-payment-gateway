@@ -7,16 +7,17 @@ import (
 	"math/rand"
 	"time"
 
+	"github.com/DanielPopoola/ficmart-payment-gateway/internal/application"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/config"
 )
 
 type RetryBankClient struct {
-	inner      BankPort
+	inner      application.BankClient
 	baseDelay  time.Duration
 	maxRetries int
 }
 
-func NewRetryBankClient(inner BankPort, cfg config.RetryConfig) BankPort {
+func NewRetryBankClient(inner application.BankClient, cfg config.RetryConfig) application.BankClient {
 	return &RetryBankClient{
 		inner:      inner,
 		baseDelay:  time.Duration(cfg.BaseDelay) * time.Second,
@@ -25,74 +26,74 @@ func NewRetryBankClient(inner BankPort, cfg config.RetryConfig) BankPort {
 }
 
 // Authorize with retry logic
-func (r *RetryBankClient) Authorize(ctx context.Context, req AuthorizationRequest, idempotencyKey string) (*AuthorizationResponse, error) {
+func (r *RetryBankClient) Authorize(ctx context.Context, req application.AuthorizationRequest, idempotencyKey string) (*application.AuthorizationResponse, error) {
 	return retry(
 		r,
 		ctx,
-		func(ctx context.Context) (*AuthorizationResponse, error) {
+		func(ctx context.Context) (*application.AuthorizationResponse, error) {
 			return r.inner.Authorize(ctx, req, idempotencyKey)
 		},
 	)
 }
 
 // Capture with retry logic
-func (r *RetryBankClient) Capture(ctx context.Context, req CaptureRequest, idempotencyKey string) (*CaptureResponse, error) {
+func (r *RetryBankClient) Capture(ctx context.Context, req application.CaptureRequest, idempotencyKey string) (*application.CaptureResponse, error) {
 	return retry(
 		r,
 		ctx,
-		func(ctx context.Context) (*CaptureResponse, error) {
+		func(ctx context.Context) (*application.CaptureResponse, error) {
 			return r.inner.Capture(ctx, req, idempotencyKey)
 		},
 	)
 }
 
 // Void with retry logic
-func (r *RetryBankClient) Void(ctx context.Context, req VoidRequest, idempotencyKey string) (*VoidResponse, error) {
+func (r *RetryBankClient) Void(ctx context.Context, req application.VoidRequest, idempotencyKey string) (*application.VoidResponse, error) {
 	return retry(
 		r,
 		ctx,
-		func(ctx context.Context) (*VoidResponse, error) {
+		func(ctx context.Context) (*application.VoidResponse, error) {
 			return r.inner.Void(ctx, req, idempotencyKey)
 		},
 	)
 }
 
 // Refund with retry logic
-func (r *RetryBankClient) Refund(ctx context.Context, req RefundRequest, idempotencyKey string) (*RefundResponse, error) {
+func (r *RetryBankClient) Refund(ctx context.Context, req application.RefundRequest, idempotencyKey string) (*application.RefundResponse, error) {
 	return retry(
 		r,
 		ctx,
-		func(ctx context.Context) (*RefundResponse, error) {
+		func(ctx context.Context) (*application.RefundResponse, error) {
 			return r.inner.Refund(ctx, req, idempotencyKey)
 		},
 	)
 }
 
-func (r *RetryBankClient) GetAuthorization(ctx context.Context, authID string) (*AuthorizationResponse, error) {
+func (r *RetryBankClient) GetAuthorization(ctx context.Context, authID string) (*application.AuthorizationResponse, error) {
 	return retry(
 		r,
 		ctx,
-		func(ctx context.Context) (*AuthorizationResponse, error) {
+		func(ctx context.Context) (*application.AuthorizationResponse, error) {
 			return r.inner.GetAuthorization(ctx, authID)
 		},
 	)
 }
 
-func (r *RetryBankClient) GetCapture(ctx context.Context, captureID string) (*CaptureResponse, error) {
+func (r *RetryBankClient) GetCapture(ctx context.Context, captureID string) (*application.CaptureResponse, error) {
 	return retry(
 		r,
 		ctx,
-		func(ctx context.Context) (*CaptureResponse, error) {
+		func(ctx context.Context) (*application.CaptureResponse, error) {
 			return r.inner.GetCapture(ctx, captureID)
 		},
 	)
 }
 
-func (r *RetryBankClient) GetRefund(ctx context.Context, refundID string) (*RefundResponse, error) {
+func (r *RetryBankClient) GetRefund(ctx context.Context, refundID string) (*application.RefundResponse, error) {
 	return retry(
 		r,
 		ctx,
-		func(ctx context.Context) (*RefundResponse, error) {
+		func(ctx context.Context) (*application.RefundResponse, error) {
 			return r.inner.GetRefund(ctx, refundID)
 		},
 	)
