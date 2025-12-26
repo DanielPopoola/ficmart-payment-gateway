@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"time"
 
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/domain"
 )
@@ -26,12 +27,24 @@ type PaymentRepository interface {
 	FindByOrderID(ctx context.Context, orderID string) (*domain.Payment, error)
 	FindByCustomerID(ctx context.Context, customerID string, limit, offset int) ([]*domain.Payment, error)
 	Update(ctx context.Context, payment *domain.Payment) error
+	WithTx(ctx context.Context, fn func(PaymentRepository) error) error
+}
+
+type IdempotencyKeyInfo struct {
+	Key             string
+	PaymentID       string
+	RequestHash     string
+	LockedAt        *time.Time
+	ResponsePayload []byte
+	StatusCode      int
+	RecoveryPoint   string
 }
 
 // IdempotencyRepository - Infrastructure concern
 type IdempotencyRepository interface {
 	AcquireLock(ctx context.Context, key string, paymentID string, requestHash string) error
-	FindByKey(ctx context.Context, key string) (*domain.Payment, error)
+	FindByKey(ctx context.Context, key string) (*IdempotencyKeyInfo, error)
 	StoreResponse(ctx context.Context, key string, responsePayload []byte, statusCode int) error
+	UpdateRecoveryPoint(ctx context.Context, key string, recovery_point string)
 	ReleaseLock(ctx context.Context, key string) error
 }

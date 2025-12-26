@@ -6,9 +6,18 @@ import (
 	"log/slog"
 
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/config"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+// Executor defines the common interface for pgxpool.Pool and pgx.Tx.
+// This allows repositories to work seamlessly with both standalone connections and transactions.
+type Executor interface {
+	Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error)
+	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+}
 
 type DB struct {
 	Pool   *pgxpool.Pool

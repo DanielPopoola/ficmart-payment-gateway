@@ -2,11 +2,13 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/application"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/domain"
+	"github.com/jackc/pgx/v5"
 )
 
 type idempotencyRepository struct {
@@ -46,18 +48,31 @@ func (r *idempotencyRepository) AcquireLock(ctx context.Context, key string, pay
 	return nil
 }
 
-func (r *idempotencyRepository) FindByKey(ctx context.Context, key string) (*domain.Payment, error) {
+func (r *idempotencyRepository) FindByKey(ctx context.Context, key string) (*application.IdempotencyKeyInfo, error) {
 	query := `
-        SELECT p.id, p.order_id, p.customer_id, p.amount_cents, p.currency, p.status,
-               p.bank_auth_id, p.bank_capture_id, p.bank_void_id, p.bank_refund_id,
-               p.created_at, p.authorized_at, p.captured_at, p.voided_at, p.refunded_at, p.expires_at
-        FROM payments p
-        JOIN idempotency_keys i ON p.id = i.payment_id
-        WHERE i.key = $1
+        SELECT key, payment_id, request_hash, locked_at, response_payload, status_code, recovery_point
+        FROM idempotency_keys
+        WHERE key = $1
     `
+	var i application.IdempotencyKeyInfo
 
-	row := r.db.Pool.QueryRow(ctx, query, key)
-	return scanPayment(row)
+	err := r.db.Pool.QueryRow(ctx, query, key).Scan(
+		&i.Key,
+		&i.PaymentID,
+		&i.RequestHash,
+		&i.LockedAt,
+		&i.ResponsePayload,
+		&i.StatusCode,
+		&i.RecoveryPoint,
+	)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, fmt.Errorf("no key found: %w", err)
+		}
+	}
+
+	return &i, nil
 }
 
 func (r *idempotencyRepository) StoreResponse(ctx context.Context, key string, responsePayload []byte, statusCode int) error {
@@ -73,6 +88,12 @@ func (r *idempotencyRepository) StoreResponse(ctx context.Context, key string, r
 	}
 
 	return nil
+}
+
+func (r *idempotencyRepository) UpdateRecoveryPoint(ctx context.Context, key string, point string) error {
+	query := `UPDATE idempotency_keys SET recovery_point = $1 WHERE key = $2`
+	_, err := r.db.Pool.Exec(ctx, query, point, key)
+	return err
 }
 
 func (r *idempotencyRepository) ReleaseLock(ctx context.Context, key string) error {

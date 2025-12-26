@@ -8,14 +8,19 @@ import (
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/application"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/domain"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type paymentRepository struct {
-	db *DB
+	pool *pgxpool.Pool
+	q    Executor
 }
 
 func NewPaymentRepository(db *DB) application.PaymentRepository {
-	return &paymentRepository{db: db}
+	return &paymentRepository{
+		pool: db.Pool,
+		q:    db.Pool,
+	}
 }
 
 func (r *paymentRepository) Create(ctx context.Context, payment *domain.Payment) error {
@@ -24,12 +29,11 @@ func (r *paymentRepository) Create(ctx context.Context, payment *domain.Payment)
             id, order_id, customer_id, amount_cents, currency, status,
             bank_auth_id, bank_capture_id, bank_void_id, bank_refund_id,
             created_at, authorized_at, captured_at, voided_at, refunded_at, expires_at,
-            attempt_count, next_retry_at, last_error_category
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
 	`
 
 	p := toDBModel(payment)
-	_, err := r.db.Pool.Exec(ctx, query,
+	_, err := r.q.Exec(ctx, query,
 		p.ID,
 		p.OrderID,
 		p.CustomerID,
@@ -46,9 +50,6 @@ func (r *paymentRepository) Create(ctx context.Context, payment *domain.Payment)
 		p.VoidedAt,
 		p.RefundedAt,
 		p.ExpiresAt,
-		p.AttemptCount,
-		p.NextRetryAt,
-		p.LastErrorCategory,
 	)
 
 	if err != nil {
@@ -67,7 +68,7 @@ func (r *paymentRepository) FindByID(ctx context.Context, id string) (*domain.Pa
 		FROM payments WHERE id = $1
 	`
 
-	row := r.db.Pool.QueryRow(ctx, query, id)
+	row := r.q.QueryRow(ctx, query, id)
 	return scanPayment(row)
 }
 
@@ -81,7 +82,7 @@ func (r *paymentRepository) FindByIDForUpdate(ctx context.Context, id string) (*
 		FOR UPDATE
 	`
 
-	row := r.db.Pool.QueryRow(ctx, query, id)
+	row := r.q.QueryRow(ctx, query, id)
 	return scanPayment(row)
 }
 
@@ -94,7 +95,7 @@ func (r *paymentRepository) FindByOrderID(ctx context.Context, orderID string) (
 		FROM payments WHERE order_id = $1
 	`
 
-	row := r.db.Pool.QueryRow(ctx, query, orderID)
+	row := r.q.QueryRow(ctx, query, orderID)
 	return scanPayment(row)
 
 }
@@ -109,7 +110,7 @@ func (r *paymentRepository) FindByCustomerID(ctx context.Context, customerID str
 		LIMIT $2 OFFSET $3
 	`
 
-	rows, err := r.db.Pool.Query(ctx, query, customerID, limit, offset)
+	rows, err := r.q.Query(ctx, query, customerID, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("query payments by customer_id: %w", err)
 	}
@@ -139,7 +140,7 @@ func (r *paymentRepository) Update(ctx context.Context, payment *domain.Payment)
 	`
 
 	p := toDBModel(payment)
-	results, err := r.db.Pool.Exec(ctx, query,
+	results, err := r.q.Exec(ctx, query,
 		p.Status,
 		p.BankAuthID,
 		p.BankCaptureID,
@@ -182,4 +183,29 @@ func scanPayment(row pgx.Row) (*domain.Payment, error) {
 		return nil, fmt.Errorf("failed to scan payment: %w", err)
 	}
 	return toDomainModel(m), nil
+}
+
+// Wraps an operation in a transaction
+func (r *paymentRepository) WithTx(ctx context.Context, fn func(application.PaymentRepository) error) error {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+
+	defer tx.Rollback(ctx)
+
+	repoWithTx := &paymentRepository{
+		pool: r.pool,
+		q:    tx,
+	}
+
+	if err := fn(repoWithTx); err != nil {
+		return err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return nil
 }
