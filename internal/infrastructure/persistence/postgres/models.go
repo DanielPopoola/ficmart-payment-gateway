@@ -10,9 +10,9 @@ type IdempotencyKey struct {
 	PaymentID       string
 	RequestHash     string
 	LockedAt        *time.Time
-	ResponsePayload []byte
+	ResponsePayload *[]byte
 	StatusCode      *int
-	RecoveryPoint   string
+	RecoveryPoint   *string
 }
 
 // Payment represents db model for domain entity
