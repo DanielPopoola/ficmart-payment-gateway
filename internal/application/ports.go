@@ -45,6 +45,6 @@ type IdempotencyRepository interface {
 	AcquireLock(ctx context.Context, key string, paymentID string, requestHash string) error
 	FindByKey(ctx context.Context, key string) (*IdempotencyKeyInfo, error)
 	StoreResponse(ctx context.Context, key string, responsePayload []byte, statusCode int) error
-	UpdateRecoveryPoint(ctx context.Context, key string, recovery_point string)
+	UpdateRecoveryPoint(ctx context.Context, key string, recovery_point string) error
 	ReleaseLock(ctx context.Context, key string) error
 }
