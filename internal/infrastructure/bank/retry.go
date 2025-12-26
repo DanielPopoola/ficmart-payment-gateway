@@ -26,74 +26,74 @@ func NewRetryBankClient(inner application.BankClient, cfg config.RetryConfig) ap
 }
 
 // Authorize with retry logic
-func (r *RetryBankClient) Authorize(ctx context.Context, req application.AuthorizationRequest, idempotencyKey string) (*application.AuthorizationResponse, error) {
+func (r *RetryBankClient) Authorize(ctx context.Context, req application.BankAuthorizationRequest, idempotencyKey string) (*application.BankAuthorizationResponse, error) {
 	return retry(
 		r,
 		ctx,
-		func(ctx context.Context) (*application.AuthorizationResponse, error) {
+		func(ctx context.Context) (*application.BankAuthorizationResponse, error) {
 			return r.inner.Authorize(ctx, req, idempotencyKey)
 		},
 	)
 }
 
 // Capture with retry logic
-func (r *RetryBankClient) Capture(ctx context.Context, req application.CaptureRequest, idempotencyKey string) (*application.CaptureResponse, error) {
+func (r *RetryBankClient) Capture(ctx context.Context, req application.BankCaptureRequest, idempotencyKey string) (*application.BankCaptureResponse, error) {
 	return retry(
 		r,
 		ctx,
-		func(ctx context.Context) (*application.CaptureResponse, error) {
+		func(ctx context.Context) (*application.BankCaptureResponse, error) {
 			return r.inner.Capture(ctx, req, idempotencyKey)
 		},
 	)
 }
 
 // Void with retry logic
-func (r *RetryBankClient) Void(ctx context.Context, req application.VoidRequest, idempotencyKey string) (*application.VoidResponse, error) {
+func (r *RetryBankClient) Void(ctx context.Context, req application.BankVoidRequest, idempotencyKey string) (*application.BankVoidResponse, error) {
 	return retry(
 		r,
 		ctx,
-		func(ctx context.Context) (*application.VoidResponse, error) {
+		func(ctx context.Context) (*application.BankVoidResponse, error) {
 			return r.inner.Void(ctx, req, idempotencyKey)
 		},
 	)
 }
 
 // Refund with retry logic
-func (r *RetryBankClient) Refund(ctx context.Context, req application.RefundRequest, idempotencyKey string) (*application.RefundResponse, error) {
+func (r *RetryBankClient) Refund(ctx context.Context, req application.BankRefundRequest, idempotencyKey string) (*application.BankRefundResponse, error) {
 	return retry(
 		r,
 		ctx,
-		func(ctx context.Context) (*application.RefundResponse, error) {
+		func(ctx context.Context) (*application.BankRefundResponse, error) {
 			return r.inner.Refund(ctx, req, idempotencyKey)
 		},
 	)
 }
 
-func (r *RetryBankClient) GetAuthorization(ctx context.Context, authID string) (*application.AuthorizationResponse, error) {
+func (r *RetryBankClient) GetAuthorization(ctx context.Context, authID string) (*application.BankAuthorizationResponse, error) {
 	return retry(
 		r,
 		ctx,
-		func(ctx context.Context) (*application.AuthorizationResponse, error) {
+		func(ctx context.Context) (*application.BankAuthorizationResponse, error) {
 			return r.inner.GetAuthorization(ctx, authID)
 		},
 	)
 }
 
-func (r *RetryBankClient) GetCapture(ctx context.Context, captureID string) (*application.CaptureResponse, error) {
+func (r *RetryBankClient) GetCapture(ctx context.Context, captureID string) (*application.BankCaptureResponse, error) {
 	return retry(
 		r,
 		ctx,
-		func(ctx context.Context) (*application.CaptureResponse, error) {
+		func(ctx context.Context) (*application.BankCaptureResponse, error) {
 			return r.inner.GetCapture(ctx, captureID)
 		},
 	)
 }
 
-func (r *RetryBankClient) GetRefund(ctx context.Context, refundID string) (*application.RefundResponse, error) {
+func (r *RetryBankClient) GetRefund(ctx context.Context, refundID string) (*application.BankRefundResponse, error) {
 	return retry(
 		r,
 		ctx,
-		func(ctx context.Context) (*application.RefundResponse, error) {
+		func(ctx context.Context) (*application.BankRefundResponse, error) {
 			return r.inner.GetRefund(ctx, refundID)
 		},
 	)
@@ -131,7 +131,7 @@ func retry[T any](r *RetryBankClient, ctx context.Context, operation func(ctx co
 
 // Helper: to check retryable errors
 func isRetryable(err error) bool {
-	var bankErr *BankError
+	var bankErr *application.BankError
 	if errors.As(err, &bankErr) {
 		if bankErr.StatusCode >= 500 {
 			return true

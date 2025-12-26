@@ -9,7 +9,7 @@ type IdempotencyKey struct {
 	Key             string
 	PaymentID       string
 	RequestHash     string
-	LockedAt        time.Time
+	LockedAt        *time.Time
 	ResponsePayload []byte
 	StatusCode      *int
 	RecoveryPoint   string

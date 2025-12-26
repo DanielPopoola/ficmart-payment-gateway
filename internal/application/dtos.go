@@ -2,7 +2,7 @@ package application
 
 import "time"
 
-type AuthorizationRequest struct {
+type BankAuthorizationRequest struct {
 	Amount      int64  `json:"amount"`
 	CardNumber  string `json:"card_number"`
 	Cvv         string `json:"cvv"`
@@ -10,7 +10,7 @@ type AuthorizationRequest struct {
 	ExpiryYear  int    `json:"expiry_year"`
 }
 
-type AuthorizationResponse struct {
+type BankAuthorizationResponse struct {
 	Amount          int64     `json:"amount"`
 	Currency        string    `json:"currency"`
 	Status          string    `json:"status"`
@@ -19,12 +19,12 @@ type AuthorizationResponse struct {
 	ExpiresAt       time.Time `json:"expires_at"`
 }
 
-type CaptureRequest struct {
+type BankCaptureRequest struct {
 	Amount          int64  `json:"amount"`
 	AuthorizationID string `json:"authorization_id"`
 }
 
-type CaptureResponse struct {
+type BankCaptureResponse struct {
 	Amount          int64     `json:"amount"`
 	Currency        string    `json:"currency"`
 	AuthorizationID string    `json:"authorization_id"`
@@ -33,23 +33,23 @@ type CaptureResponse struct {
 	CapturedAt      time.Time `json:"captured_at"`
 }
 
-type VoidRequest struct {
+type BankVoidRequest struct {
 	AuthorizationID string `json:"authorization_id"`
 }
 
-type VoidResponse struct {
+type BankVoidResponse struct {
 	AuthorizationID string    `json:"authorization_id"`
 	Status          string    `json:"status"`
 	VoidID          string    `json:"void_id"`
 	VoidedAt        time.Time `json:"voided_at"`
 }
 
-type RefundRequest struct {
+type BankRefundRequest struct {
 	Amount    int64  `json:"amount"`
 	CaptureID string `json:"capture_id"`
 }
 
-type RefundResponse struct {
+type BankRefundResponse struct {
 	Amount     int64     `json:"amount"`
 	Currency   string    `json:"currency"`
 	Status     string    `json:"status"`

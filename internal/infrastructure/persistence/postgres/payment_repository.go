@@ -5,25 +5,24 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/DanielPopoola/ficmart-payment-gateway/internal/application"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/domain"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type paymentRepository struct {
+type PaymentRepository struct {
 	pool *pgxpool.Pool
 	q    Executor
 }
 
-func NewPaymentRepository(db *DB) application.PaymentRepository {
-	return &paymentRepository{
+func NewPaymentRepository(db *DB) *PaymentRepository {
+	return &PaymentRepository{
 		pool: db.Pool,
 		q:    db.Pool,
 	}
 }
 
-func (r *paymentRepository) Create(ctx context.Context, payment *domain.Payment) error {
+func (r *PaymentRepository) Create(ctx context.Context, payment *domain.Payment) error {
 	query := `
 		INSERT INTO payments (
             id, order_id, customer_id, amount_cents, currency, status,
@@ -60,7 +59,7 @@ func (r *paymentRepository) Create(ctx context.Context, payment *domain.Payment)
 }
 
 // FindbyID retrieves a payment
-func (r *paymentRepository) FindByID(ctx context.Context, id string) (*domain.Payment, error) {
+func (r *PaymentRepository) FindByID(ctx context.Context, id string) (*domain.Payment, error) {
 	query := `
 		SELECT id, order_id, customer_id, amount_cents, currency, status,
 		       bank_auth_id, bank_capture_id, bank_void_id, bank_refund_id,
@@ -73,7 +72,7 @@ func (r *paymentRepository) FindByID(ctx context.Context, id string) (*domain.Pa
 }
 
 // FindbyIDByForUpdate retrieves a payment with row-level lock
-func (r *paymentRepository) FindByIDForUpdate(ctx context.Context, id string) (*domain.Payment, error) {
+func (r *PaymentRepository) FindByIDForUpdate(ctx context.Context, id string) (*domain.Payment, error) {
 	query := `
 		SELECT id, order_id, customer_id, amount_cents, currency, status,
 		       bank_auth_id, bank_capture_id, bank_void_id, bank_refund_id,
@@ -87,7 +86,7 @@ func (r *paymentRepository) FindByIDForUpdate(ctx context.Context, id string) (*
 }
 
 // FindByOrderID retrieves a payment by order
-func (r *paymentRepository) FindByOrderID(ctx context.Context, orderID string) (*domain.Payment, error) {
+func (r *PaymentRepository) FindByOrderID(ctx context.Context, orderID string) (*domain.Payment, error) {
 	query := `
 		SELECT id, order_id, customer_id, amount_cents, currency, status,
 		       bank_auth_id, bank_capture_id, bank_void_id, bank_refund_id,
@@ -101,7 +100,7 @@ func (r *paymentRepository) FindByOrderID(ctx context.Context, orderID string) (
 }
 
 // FindByCustomerID retrieves a payment for a customer
-func (r *paymentRepository) FindByCustomerID(ctx context.Context, customerID string, limit, offset int) ([]*domain.Payment, error) {
+func (r *PaymentRepository) FindByCustomerID(ctx context.Context, customerID string, limit, offset int) ([]*domain.Payment, error) {
 	query := `
 		SELECT id, order_id, customer_id, amount_cents, currency, status,
 		       bank_auth_id, bank_capture_id, bank_void_id, bank_refund_id,
@@ -130,7 +129,7 @@ func (r *paymentRepository) FindByCustomerID(ctx context.Context, customerID str
 	return results, nil
 }
 
-func (r *paymentRepository) Update(ctx context.Context, payment *domain.Payment) error {
+func (r *PaymentRepository) Update(ctx context.Context, payment *domain.Payment) error {
 	query := `
 		UPDATE payments
 		SET status = $1,
@@ -186,7 +185,7 @@ func scanPayment(row pgx.Row) (*domain.Payment, error) {
 }
 
 // Wraps an operation in a transaction
-func (r *paymentRepository) WithTx(ctx context.Context, fn func(application.PaymentRepository) error) error {
+func (r *PaymentRepository) WithTx(ctx context.Context, fn func(PaymentRepository) error) error {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
@@ -194,12 +193,12 @@ func (r *paymentRepository) WithTx(ctx context.Context, fn func(application.Paym
 
 	defer tx.Rollback(ctx)
 
-	repoWithTx := &paymentRepository{
+	repoWithTx := &PaymentRepository{
 		pool: r.pool,
 		q:    tx,
 	}
 
-	if err := fn(repoWithTx); err != nil {
+	if err := fn(*repoWithTx); err != nil {
 		return err
 	}
 

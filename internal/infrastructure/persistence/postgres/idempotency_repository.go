@@ -6,20 +6,19 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DanielPopoola/ficmart-payment-gateway/internal/application"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/domain"
 	"github.com/jackc/pgx/v5"
 )
 
-type idempotencyRepository struct {
+type IdempotencyRepository struct {
 	db *DB
 }
 
-func NewIdempotencyRepository(db *DB) application.IdempotencyRepository {
-	return &idempotencyRepository{db: db}
+func NewIdempotencyRepository(db *DB) *IdempotencyRepository {
+	return &IdempotencyRepository{db: db}
 }
 
-func (r *idempotencyRepository) AcquireLock(ctx context.Context, key string, paymentID string, requestHash string) error {
+func (r *IdempotencyRepository) AcquireLock(ctx context.Context, key string, paymentID string, requestHash string) error {
 	query := `
 		INSERT INTO idempotency_keys (key, payment_id, request_hash, locked_at)
 		VALUES ($1, $2, $3, $4)
@@ -48,13 +47,13 @@ func (r *idempotencyRepository) AcquireLock(ctx context.Context, key string, pay
 	return nil
 }
 
-func (r *idempotencyRepository) FindByKey(ctx context.Context, key string) (*application.IdempotencyKeyInfo, error) {
+func (r *IdempotencyRepository) FindByKey(ctx context.Context, key string) (*IdempotencyKey, error) {
 	query := `
         SELECT key, payment_id, request_hash, locked_at, response_payload, status_code, recovery_point
         FROM idempotency_keys
         WHERE key = $1
     `
-	var i application.IdempotencyKeyInfo
+	var i IdempotencyKey
 
 	err := r.db.Pool.QueryRow(ctx, query, key).Scan(
 		&i.Key,
@@ -75,7 +74,7 @@ func (r *idempotencyRepository) FindByKey(ctx context.Context, key string) (*app
 	return &i, nil
 }
 
-func (r *idempotencyRepository) StoreResponse(ctx context.Context, key string, responsePayload []byte, statusCode int) error {
+func (r *IdempotencyRepository) StoreResponse(ctx context.Context, key string, responsePayload []byte, statusCode int) error {
 	query := `
 		UPDATE idempotency_keys
 		SET response_payload = $1, status_code = $2
@@ -90,13 +89,13 @@ func (r *idempotencyRepository) StoreResponse(ctx context.Context, key string, r
 	return nil
 }
 
-func (r *idempotencyRepository) UpdateRecoveryPoint(ctx context.Context, key string, point string) error {
+func (r *IdempotencyRepository) UpdateRecoveryPoint(ctx context.Context, key string, point string) error {
 	query := `UPDATE idempotency_keys SET recovery_point = $1 WHERE key = $2`
 	_, err := r.db.Pool.Exec(ctx, query, point, key)
 	return err
 }
 
-func (r *idempotencyRepository) ReleaseLock(ctx context.Context, key string) error {
+func (r *IdempotencyRepository) ReleaseLock(ctx context.Context, key string) error {
 	query := `
         UPDATE idempotency_keys
         SET locked_at = NULL, recovery_point = 'completed'
