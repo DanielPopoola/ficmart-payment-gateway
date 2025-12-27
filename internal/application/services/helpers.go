@@ -10,6 +10,7 @@ import (
 
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/application"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/domain"
+	"github.com/DanielPopoola/ficmart-payment-gateway/internal/infrastructure/persistence/postgres"
 )
 
 // withIdempotency handles the boilerplate for idempotent operations
@@ -20,6 +21,9 @@ func (s *PaymentService) withIdempotency(
 	cmd any,
 	fn func() (*domain.Payment, any, error),
 ) (*domain.Payment, error) {
+	requestHash := s.computeRequestHash(cmd)
+
+	// Check 1: Same idempotency key
 	existingKey, err := s.idempotencyRepo.FindByKey(ctx, idempotencyKey)
 	if err == nil {
 		if existingKey.ResponsePayload != nil {
@@ -33,12 +37,25 @@ func (s *PaymentService) withIdempotency(
 		return s.waitForCompletion(ctx, idempotencyKey, existingKey.PaymentID)
 	}
 
-	requestHash := s.computeRequestHash(cmd)
+	// Check 2: Same business request, different key (client bug detection)
+	existingHash, err := s.idempotencyRepo.FindByRequestHash(ctx, requestHash)
+	if err == nil && existingHash.Key != idempotencyKey {
+		payment, _ := s.paymentRepo.FindByID(ctx, existingHash.PaymentID)
+		if payment.Status() != domain.StatusPending {
+			return nil, application.NewDuplicateBusinessRequestError(
+				existingHash.PaymentID, existingHash.Key,
+			)
+		}
+		s.logger.Warn("duplicate_business_request_after_failure",
+			"original_key", existingHash.Key,
+			"new_key", idempotencyKey)
+	}
+
 	if err := s.idempotencyRepo.AcquireLock(ctx, idempotencyKey, paymentID, requestHash); err != nil {
-		if errors.Is(err, domain.ErrDuplicateIdempotencyKey) {
+		if errors.Is(err, postgres.ErrDuplicateIdempotencyKey) {
 			return s.waitForCompletion(ctx, idempotencyKey, paymentID)
 		}
-		return nil, err
+		return nil, application.NewInternalError(err)
 	}
 
 	payment, bankResp, err := fn()
@@ -56,9 +73,13 @@ func (s *PaymentService) withIdempotency(
 		return payment, nil
 	}
 
-	if isRetryableError(err) {
+	category := application.CategorizeError(err)
+
+	if category == application.CategoryTransient || category == application.CategoryInfrastructure {
+		// Retryable error - keep lock
 		s.logger.Info("retryable error, keeping lock",
 			"payment_id", paymentID,
+			"category", category,
 			"error", err)
 		return payment, err
 	}
@@ -70,8 +91,13 @@ func (s *PaymentService) withIdempotency(
 		}
 	}
 
-	errorPayload, _ := json.Marshal(map[string]string{"error": err.Error()})
+	errorPayload, _ := json.Marshal(map[string]string{
+		"error":    application.ToErrorCode(err),
+		"message":  err.Error(),
+		"category": string(category),
+	})
 	s.idempotencyRepo.StoreResponse(ctx, idempotencyKey, errorPayload, 400)
+	s.idempotencyRepo.UpdateRecoveryPoint(ctx, idempotencyKey, "completed")
 	s.idempotencyRepo.ReleaseLock(ctx, idempotencyKey)
 
 	return payment, err
@@ -88,11 +114,11 @@ func (s *PaymentService) waitForCompletion(ctx context.Context, idempotencyKey s
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		case <-timeout:
-			return nil, fmt.Errorf("timeout waiting for idempotent request to complete")
+			return nil, application.NewTimeoutError(paymentID)
 		case <-ticker.C:
 			key, err := s.idempotencyRepo.FindByKey(ctx, idempotencyKey)
 			if err != nil {
-				return nil, err
+				return nil, application.NewInternalError(err)
 			}
 			if key.LockedAt == nil {
 				payment, err := s.paymentRepo.FindByID(ctx, paymentID)

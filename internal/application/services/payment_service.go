@@ -2,7 +2,6 @@ package services
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/application"
@@ -33,21 +32,21 @@ func NewPaymentService(
 }
 
 // Authorize creates a new payment and reserves funds
-func (s *PaymentService) Authorize(ctx context.Context, cmd AuthorizeCommand) (*domain.Payment, error) {
+func (s *PaymentService) Authorize(ctx context.Context, cmd AuthorizeCommand, idempotencyKey string) (*domain.Payment, error) {
 	paymentID := uuid.New().String()
-	return s.withIdempotency(ctx, cmd.IdempotencyKey, paymentID, cmd, func() (*domain.Payment, any, error) {
+	return s.withIdempotency(ctx, idempotencyKey, paymentID, cmd, func() (*domain.Payment, any, error) {
 		money, err := domain.NewMoney(cmd.Amount, cmd.Currency)
 		if err != nil {
-			return nil, nil, fmt.Errorf("invalid amount: %w", err)
+			return nil, nil, err
 		}
 
 		payment, err := domain.NewPayment(paymentID, cmd.OrderID, cmd.CustomerID, money)
 		if err != nil {
-			return nil, nil, fmt.Errorf("invalid payment: %w", err)
+			return nil, nil, err
 		}
 
 		if err := s.paymentRepo.Create(ctx, payment); err != nil {
-			return nil, nil, fmt.Errorf("failed to save payment: %w", err)
+			return nil, nil, application.NewInternalError(err)
 		}
 
 		bankReq := application.BankAuthorizationRequest{
@@ -58,19 +57,19 @@ func (s *PaymentService) Authorize(ctx context.Context, cmd AuthorizeCommand) (*
 			ExpiryYear:  cmd.ExpiryYear,
 		}
 
-		s.idempotencyRepo.UpdateRecoveryPoint(ctx, cmd.IdempotencyKey, "CALLING_BANK")
-		bankResp, err := s.bankClient.Authorize(ctx, bankReq, cmd.IdempotencyKey)
+		s.idempotencyRepo.UpdateRecoveryPoint(ctx, idempotencyKey, "CALLING_BANK")
+		bankResp, err := s.bankClient.Authorize(ctx, bankReq, idempotencyKey)
 		if err != nil {
-			return payment, nil, fmt.Errorf("error on bank authorization: %w", err)
+			return payment, nil, err
 		}
 
-		s.idempotencyRepo.UpdateRecoveryPoint(ctx, cmd.IdempotencyKey, "BANK_RESPONDED")
+		s.idempotencyRepo.UpdateRecoveryPoint(ctx, idempotencyKey, "BANK_RESPONDED")
 		if err := payment.Authorize(bankResp.AuthorizationID, bankResp.CreatedAt, bankResp.ExpiresAt); err != nil {
-			return nil, nil, fmt.Errorf("invalid state transition: %w", err)
+			return nil, nil, err
 		}
 
 		if err := s.paymentRepo.Update(ctx, payment); err != nil {
-			return nil, nil, fmt.Errorf("failed to save authorized payment: %w", err)
+			return nil, nil, application.NewInternalError(err)
 		}
 
 		return payment, bankResp, nil
@@ -78,8 +77,8 @@ func (s *PaymentService) Authorize(ctx context.Context, cmd AuthorizeCommand) (*
 }
 
 // Capture charges a previously authorized payment
-func (s *PaymentService) Capture(ctx context.Context, cmd CaptureCommand) (*domain.Payment, error) {
-	return s.withIdempotency(ctx, cmd.IdempotencyKey, cmd.PaymentID, cmd, func() (*domain.Payment, any, error) {
+func (s *PaymentService) Capture(ctx context.Context, cmd CaptureCommand, idempotencyKey string) (*domain.Payment, error) {
+	return s.withIdempotency(ctx, idempotencyKey, cmd.PaymentID, cmd, func() (*domain.Payment, any, error) {
 		var payment *domain.Payment
 		err := s.paymentRepo.WithTx(ctx, func(txRepo postgres.PaymentRepository) error {
 			var txErr error
@@ -102,27 +101,28 @@ func (s *PaymentService) Capture(ctx context.Context, cmd CaptureCommand) (*doma
 			AuthorizationID: *payment.BankAuthID(),
 		}
 
-		s.idempotencyRepo.UpdateRecoveryPoint(ctx, cmd.IdempotencyKey, "CALLING_BANK")
-		bankResp, err := s.bankClient.Capture(ctx, bankReq, cmd.IdempotencyKey)
+		s.idempotencyRepo.UpdateRecoveryPoint(ctx, idempotencyKey, "CALLING_BANK")
+		bankResp, err := s.bankClient.Capture(ctx, bankReq, idempotencyKey)
 		if err != nil {
 			return payment, nil, err
 		}
 
-		s.idempotencyRepo.UpdateRecoveryPoint(ctx, cmd.IdempotencyKey, "BANK_RESPONDED")
-		err = s.paymentRepo.WithTx(ctx, func(txRepo postgres.PaymentRepository) error {
-			if err := payment.Capture(bankResp.CaptureID, bankResp.CapturedAt); err != nil {
-				return err
-			}
-			return txRepo.Update(ctx, payment)
-		})
+		s.idempotencyRepo.UpdateRecoveryPoint(ctx, idempotencyKey, "BANK_RESPONDED")
+		if err := payment.Capture(bankResp.CaptureID, bankResp.CapturedAt); err != nil {
+			return nil, nil, err
+		}
+
+		if err := s.paymentRepo.Update(ctx, payment); err != nil {
+			return nil, nil, application.NewInternalError(err)
+		}
 
 		return payment, bankResp, err
 	})
 }
 
 // Void cancels an authorization
-func (s *PaymentService) Void(ctx context.Context, cmd VoidCommand) (*domain.Payment, error) {
-	return s.withIdempotency(ctx, cmd.IdempotencyKey, cmd.PaymentID, cmd, func() (*domain.Payment, any, error) {
+func (s *PaymentService) Void(ctx context.Context, cmd VoidCommand, idempotencyKey string) (*domain.Payment, error) {
+	return s.withIdempotency(ctx, idempotencyKey, cmd.PaymentID, cmd, func() (*domain.Payment, any, error) {
 		var payment *domain.Payment
 		err := s.paymentRepo.WithTx(ctx, func(txRepo postgres.PaymentRepository) error {
 			var txErr error
@@ -144,26 +144,27 @@ func (s *PaymentService) Void(ctx context.Context, cmd VoidCommand) (*domain.Pay
 			AuthorizationID: *payment.BankAuthID(),
 		}
 
-		s.idempotencyRepo.UpdateRecoveryPoint(ctx, cmd.IdempotencyKey, "CALLING_BANK")
-		bankResp, err := s.bankClient.Void(ctx, bankReq, cmd.IdempotencyKey)
+		s.idempotencyRepo.UpdateRecoveryPoint(ctx, idempotencyKey, "CALLING_BANK")
+		bankResp, err := s.bankClient.Void(ctx, bankReq, idempotencyKey)
 		if err != nil {
 			return payment, nil, err
 		}
 
-		s.idempotencyRepo.UpdateRecoveryPoint(ctx, cmd.IdempotencyKey, "BANK_RESPONDED")
-		err = s.paymentRepo.WithTx(ctx, func(txRepo postgres.PaymentRepository) error {
-			if err := payment.Void(bankResp.VoidID, bankResp.VoidedAt); err != nil {
-				return err
-			}
-			return txRepo.Update(ctx, payment)
-		})
+		s.idempotencyRepo.UpdateRecoveryPoint(ctx, idempotencyKey, "BANK_RESPONDED")
+		if err := payment.Void(bankResp.VoidID, bankResp.VoidedAt); err != nil {
+			return nil, nil, err
+		}
+
+		if err := s.paymentRepo.Update(ctx, payment); err != nil {
+			return nil, nil, application.NewInternalError(err)
+		}
 		return payment, bankResp, err
 	})
 }
 
 // Refund returns funds after capture
-func (s *PaymentService) Refund(ctx context.Context, cmd RefundCommand) (*domain.Payment, error) {
-	return s.withIdempotency(ctx, cmd.IdempotencyKey, cmd.PaymentID, cmd, func() (*domain.Payment, any, error) {
+func (s *PaymentService) Refund(ctx context.Context, cmd RefundCommand, idempotencyKey string) (*domain.Payment, error) {
+	return s.withIdempotency(ctx, idempotencyKey, cmd.PaymentID, cmd, func() (*domain.Payment, any, error) {
 		var payment *domain.Payment
 		err := s.paymentRepo.WithTx(ctx, func(txRepo postgres.PaymentRepository) error {
 			var txErr error
@@ -186,19 +187,20 @@ func (s *PaymentService) Refund(ctx context.Context, cmd RefundCommand) (*domain
 			CaptureID: *payment.BankCaptureID(),
 		}
 
-		s.idempotencyRepo.UpdateRecoveryPoint(ctx, cmd.IdempotencyKey, "CALLING_BANK")
-		bankResp, err := s.bankClient.Refund(ctx, bankReq, cmd.IdempotencyKey)
+		s.idempotencyRepo.UpdateRecoveryPoint(ctx, idempotencyKey, "CALLING_BANK")
+		bankResp, err := s.bankClient.Refund(ctx, bankReq, idempotencyKey)
 		if err != nil {
 			return payment, nil, err
 		}
 
-		s.idempotencyRepo.UpdateRecoveryPoint(ctx, cmd.IdempotencyKey, "BANK_RESPONDED")
-		err = s.paymentRepo.WithTx(ctx, func(txRepo postgres.PaymentRepository) error {
-			if err := payment.Refund(bankResp.RefundID, bankResp.RefundedAt); err != nil {
-				return err
-			}
-			return txRepo.Update(ctx, payment)
-		})
+		s.idempotencyRepo.UpdateRecoveryPoint(ctx, idempotencyKey, "BANK_RESPONDED")
+		if err := payment.Refund(bankResp.RefundID, bankResp.RefundedAt); err != nil {
+			return nil, nil, err
+		}
+
+		if err := s.paymentRepo.Update(ctx, payment); err != nil {
+			return nil, nil, application.NewInternalError(err)
+		}
 		return payment, bankResp, err
 	})
 }

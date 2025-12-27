@@ -1,3 +1,4 @@
+// Concrete implementation client of the bank client interface
 package bank
 
 import (
@@ -95,7 +96,11 @@ func sendRequest[Req any, Resp any](c *HTTPBankClient, ctx context.Context, meth
 		body, _ := io.ReadAll(resp.Body)
 		var bankErrResp application.BankErrorResponse
 		if err := json.Unmarshal(body, &bankErrResp); err != nil {
-			return nil, fmt.Errorf("bank returned status %d: %s", resp.StatusCode, string(body))
+			return nil, &application.BankError{
+				Code:       "UNKNOWN",
+				Message:    string(body),
+				StatusCode: resp.StatusCode,
+			}
 		}
 		return nil, &application.BankError{
 			Code:       bankErrResp.Err,

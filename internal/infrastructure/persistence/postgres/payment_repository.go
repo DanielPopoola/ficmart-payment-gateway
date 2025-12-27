@@ -10,6 +10,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+var ErrPaymentNotFound = errors.New("payment not found")
+
 type PaymentRepository struct {
 	pool *pgxpool.Pool
 	q    Executor
@@ -177,7 +179,7 @@ func scanPayment(row pgx.Row) (*domain.Payment, error) {
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, domain.ErrPaymentNotFound
+			return nil, ErrPaymentNotFound
 		}
 		return nil, fmt.Errorf("failed to scan payment: %w", err)
 	}

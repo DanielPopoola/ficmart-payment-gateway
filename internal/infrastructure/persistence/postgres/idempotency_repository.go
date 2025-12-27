@@ -6,9 +6,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DanielPopoola/ficmart-payment-gateway/internal/domain"
 	"github.com/jackc/pgx/v5"
 )
+
+var ErrDuplicateIdempotencyKey = errors.New("duplicate transaction")
 
 type IdempotencyRepository struct {
 	db *DB
@@ -36,7 +37,7 @@ func (r *IdempotencyRepository) AcquireLock(ctx context.Context, key string, pay
 			}
 
 			if existingHash != requestHash {
-				return domain.ErrDuplicateIdempotencyKey
+				return ErrDuplicateIdempotencyKey
 			}
 
 			return nil
@@ -69,6 +70,36 @@ func (r *IdempotencyRepository) FindByKey(ctx context.Context, key string) (*Ide
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, fmt.Errorf("no key found: %w", err)
 		}
+	}
+
+	return &i, nil
+}
+
+func (r *IdempotencyRepository) FindByRequestHash(ctx context.Context, requestHash string) (*IdempotencyKey, error) {
+	query := `
+        SELECT key, payment_id, request_hash, locked_at, response_payload, status_code, recovery_point
+        FROM idempotency_keys
+        WHERE request_hash = $1
+          AND recovery_point = 'completed'
+        LIMIT 1
+    `
+
+	var i IdempotencyKey
+	err := r.db.Pool.QueryRow(ctx, query, requestHash).Scan(
+		&i.Key,
+		&i.PaymentID,
+		&i.RequestHash,
+		&i.LockedAt,
+		&i.ResponsePayload,
+		&i.StatusCode,
+		&i.RecoveryPoint,
+	)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, fmt.Errorf("no completed request found for hash: %w", err)
+		}
+		return nil, err
 	}
 
 	return &i, nil
