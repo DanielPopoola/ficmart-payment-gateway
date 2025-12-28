@@ -3,5 +3,7 @@ with-expecter: true
 dir: "internal/mocks"
 packages:
   github.com/DanielPopoola/ficmart-payment-gateway/internal/application:
+    config:
+      outpkg: mocks
     interfaces:
       BankClient:

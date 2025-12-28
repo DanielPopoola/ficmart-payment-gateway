@@ -16,7 +16,7 @@ import (
 )
 
 func TestRetryBankClient_Authorize_Success(t *testing.T) {
-	mockClient := mocks.NewBankClient(t)
+	mockClient := mocks.NewMockBankClient(t)
 	retryClient := bank.NewRetryBankClient(mockClient, config.RetryConfig{
 		BaseDelay:  1,
 		MaxRetries: 3,
@@ -51,7 +51,7 @@ func TestRetryBankClient_Authorize_Success(t *testing.T) {
 }
 
 func TestRetryBankClient_Authorize_RetriesOn5xx(t *testing.T) {
-	mockClient := mocks.NewBankClient(t)
+	mockClient := mocks.NewMockBankClient(t)
 	retryClient := bank.NewRetryBankClient(mockClient, config.RetryConfig{
 		BaseDelay:  1,
 		MaxRetries: 3,
@@ -92,7 +92,7 @@ func TestRetryBankClient_Authorize_RetriesOn5xx(t *testing.T) {
 }
 
 func TestRetryBankClient_Authorize_DoesNotRetryOn4xx(t *testing.T) {
-	mockClient := mocks.NewBankClient(t)
+	mockClient := mocks.NewMockBankClient(t)
 	retryClient := bank.NewRetryBankClient(mockClient, config.RetryConfig{
 		BaseDelay:  1,
 		MaxRetries: 3,
@@ -129,7 +129,7 @@ func TestRetryBankClient_Authorize_DoesNotRetryOn4xx(t *testing.T) {
 }
 
 func TestRetryBankClient_Authorize_ExhaustsRetries(t *testing.T) {
-	mockClient := mocks.NewBankClient(t)
+	mockClient := mocks.NewMockBankClient(t)
 	retryClient := bank.NewRetryBankClient(mockClient, config.RetryConfig{
 		BaseDelay:  1,
 		MaxRetries: 3,
@@ -163,7 +163,7 @@ func TestRetryBankClient_Authorize_ExhaustsRetries(t *testing.T) {
 }
 
 func TestRetryBankClient_Capture_Success(t *testing.T) {
-	mockClient := mocks.NewBankClient(t)
+	mockClient := mocks.NewMockBankClient(t)
 	retryClient := bank.NewRetryBankClient(mockClient, config.RetryConfig{
 		BaseDelay:  1,
 		MaxRetries: 3,
@@ -195,7 +195,7 @@ func TestRetryBankClient_Capture_Success(t *testing.T) {
 }
 
 func TestRetryBankClient_Void_Success(t *testing.T) {
-	mockClient := mocks.NewBankClient(t)
+	mockClient := mocks.NewMockBankClient(t)
 	retryClient := bank.NewRetryBankClient(mockClient, config.RetryConfig{
 		BaseDelay:  1,
 		MaxRetries: 3,
@@ -224,7 +224,7 @@ func TestRetryBankClient_Void_Success(t *testing.T) {
 }
 
 func TestRetryBankClient_Refund_Success(t *testing.T) {
-	mockClient := mocks.NewBankClient(t)
+	mockClient := mocks.NewMockBankClient(t)
 	retryClient := bank.NewRetryBankClient(mockClient, config.RetryConfig{
 		BaseDelay:  1,
 		MaxRetries: 3,
@@ -256,7 +256,7 @@ func TestRetryBankClient_Refund_Success(t *testing.T) {
 }
 
 func TestRetryBankClient_RespectsContextCancellation(t *testing.T) {
-	mockClient := mocks.NewBankClient(t)
+	mockClient := mocks.NewMockBankClient(t)
 	retryClient := bank.NewRetryBankClient(mockClient, config.RetryConfig{
 		BaseDelay:  1,
 		MaxRetries: 10, // High retry count
