@@ -144,7 +144,6 @@ func (w *RetryWorker) timeoutPendingPayments(ctx context.Context) error {
 		payment.Fail()
 		w.paymentRepo.Update(ctx, payment)
 
-		// CRITICAL ALERT
 		w.logger.Error("ORPHANED_AUTHORIZATION_RISK",
 			"payment_id", id,
 			"order_id", orderID,
@@ -197,13 +196,11 @@ func (w *RetryWorker) resumeCapture(ctx context.Context, payment *domain.Payment
 		return w.scheduleRetry(ctx, payment, err)
 	}
 
-	err = w.paymentRepo.WithTx(ctx, func(txRepo postgres.PaymentRepository) error {
-		if err := payment.Capture(resp.CaptureID, resp.CapturedAt); err != nil {
-			return err
-		}
-		return txRepo.Update(ctx, payment)
-	})
-	return err
+	if err = payment.Capture(resp.CaptureID, resp.CapturedAt); err != nil {
+		return err
+	}
+
+	return w.paymentRepo.Update(ctx, payment)
 }
 
 func (w *RetryWorker) resumeVoid(ctx context.Context, payment *domain.Payment, idempotencyKey string) error {
@@ -227,13 +224,11 @@ func (w *RetryWorker) resumeVoid(ctx context.Context, payment *domain.Payment, i
 		return w.scheduleRetry(ctx, payment, err)
 	}
 
-	err = w.paymentRepo.WithTx(ctx, func(txRepo postgres.PaymentRepository) error {
-		if err := payment.Void(resp.VoidID, resp.VoidedAt); err != nil {
-			return err
-		}
-		return txRepo.Update(ctx, payment)
-	})
-	return err
+	if err = payment.Capture(resp.VoidID, resp.VoidedAt); err != nil {
+		return err
+	}
+
+	return w.paymentRepo.Update(ctx, payment)
 }
 
 func (w *RetryWorker) resumeRefund(ctx context.Context, payment *domain.Payment, idempotencyKey string) error {
@@ -258,13 +253,11 @@ func (w *RetryWorker) resumeRefund(ctx context.Context, payment *domain.Payment,
 		return w.scheduleRetry(ctx, payment, err)
 	}
 
-	err = w.paymentRepo.WithTx(ctx, func(txRepo postgres.PaymentRepository) error {
-		if err := payment.Refund(resp.RefundID, resp.RefundedAt); err != nil {
-			return err
-		}
-		return txRepo.Update(ctx, payment)
-	})
-	return err
+	if err = payment.Capture(resp.RefundID, resp.RefundedAt); err != nil {
+		return err
+	}
+
+	return w.paymentRepo.Update(ctx, payment)
 }
 
 func (w *RetryWorker) scheduleRetry(ctx context.Context, payment *domain.Payment, lastErr error) error {
