@@ -10,6 +10,7 @@ import (
 )
 
 var ErrDuplicateIdempotencyKey = errors.New("duplicate transaction")
+var ErrIdempotencyMismatch = errors.New("idempotency key mismatch")
 
 type IdempotencyRepository struct {
 	q Executor
@@ -30,19 +31,7 @@ func (r *IdempotencyRepository) AcquireLock(ctx context.Context, key string, pay
 	_, err := r.q.Exec(ctx, query, key, paymentID, requestHash, time.Now())
 	if err != nil {
 		if IsUniqueViolation(err) {
-			// Key exists - check if request hash matches
-			var existingHash string
-			checkQuery := `SELECT request_hash FROM idempotency_keys WHERE key = $1`
-			err = r.q.QueryRow(ctx, checkQuery, key).Scan(&existingHash)
-			if err != nil {
-				return fmt.Errorf("failed to check idempotency key: %w", err)
-			}
-
-			if existingHash != requestHash {
-				return ErrDuplicateIdempotencyKey
-			}
-
-			return nil
+			return ErrDuplicateIdempotencyKey
 		}
 		return fmt.Errorf("failed to acquire idempotency lock: %w", err)
 	}
