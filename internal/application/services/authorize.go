@@ -104,6 +104,11 @@ func (s *AuthorizeService) Authorize(ctx context.Context, cmd AuthorizeCommand, 
 	s.idempotencyRepo.UpdateRecoveryPoint(ctx, idempotencyKey, "CALLING_BANK")
 	bankResp, err := s.bankClient.Authorize(ctx, bankReq, idempotencyKey)
 	if err != nil {
+		s.idempotencyRepo.UpdateRecoveryPoint(ctx, idempotencyKey, "BANK_FAILED")
+
+		if err := s.idempotencyRepo.ReleaseLock(ctx, idempotencyKey); err != nil {
+			return payment, err
+		}
 		return payment, err
 	}
 
@@ -119,7 +124,7 @@ func (s *AuthorizeService) Authorize(ctx context.Context, cmd AuthorizeCommand, 
 		}
 
 		responsePayload, _ := json.Marshal(bankResp)
-		if err = txIdempotencyRepo.StoreResponse(ctx, idempotencyKey, responsePayload, 200); err != nil {
+		if err = txIdempotencyRepo.StoreResponse(ctx, idempotencyKey, responsePayload); err != nil {
 			return err
 		}
 

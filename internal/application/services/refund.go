@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log/slog"
 	"time"
 
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/application"
@@ -19,7 +18,6 @@ type RefundService struct {
 	idempotencyRepo *postgres.IdempotencyRepository
 	coordinator     *postgres.TransactionCoordinator
 	bankClient      application.BankClient
-	logger          *slog.Logger
 }
 
 func NewRefundService(
@@ -27,14 +25,12 @@ func NewRefundService(
 	idempotencyRepo *postgres.IdempotencyRepository,
 	coordinator *postgres.TransactionCoordinator,
 	bankClient application.BankClient,
-	logger *slog.Logger,
 ) *RefundService {
 	return &RefundService{
 		paymentRepo:     paymentRepo,
 		idempotencyRepo: idempotencyRepo,
 		coordinator:     coordinator,
 		bankClient:      bankClient,
-		logger:          logger,
 	}
 }
 
@@ -98,7 +94,13 @@ func (s *RefundService) Refund(ctx context.Context, cmd RefundCommand, idempoten
 
 	s.idempotencyRepo.UpdateRecoveryPoint(ctx, idempotencyKey, "CALLING_BANK")
 	bankResp, err := s.bankClient.Refund(ctx, bankReq, idempotencyKey)
+
 	if err != nil {
+		s.idempotencyRepo.UpdateRecoveryPoint(ctx, idempotencyKey, "BANK_FAILED")
+
+		if err := s.idempotencyRepo.ReleaseLock(ctx, idempotencyKey); err != nil {
+			return payment, err
+		}
 		return payment, err
 	}
 
@@ -114,7 +116,7 @@ func (s *RefundService) Refund(ctx context.Context, cmd RefundCommand, idempoten
 		}
 
 		responsePayload, _ := json.Marshal(bankResp)
-		if err := txIdempotencyRepo.StoreResponse(ctx, idempotencyKey, responsePayload, 200); err != nil {
+		if err := txIdempotencyRepo.StoreResponse(ctx, idempotencyKey, responsePayload); err != nil {
 			return err
 		}
 

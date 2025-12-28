@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log/slog"
 	"time"
 
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/application"
@@ -19,7 +18,6 @@ type CaptureService struct {
 	idempotencyRepo *postgres.IdempotencyRepository
 	coordinator     *postgres.TransactionCoordinator
 	bankClient      application.BankClient
-	logger          *slog.Logger
 }
 
 func NewCaptureService(
@@ -27,14 +25,12 @@ func NewCaptureService(
 	idempotencyRepo *postgres.IdempotencyRepository,
 	coordinator *postgres.TransactionCoordinator,
 	bankClient application.BankClient,
-	logger *slog.Logger,
 ) *CaptureService {
 	return &CaptureService{
 		paymentRepo:     paymentRepo,
 		idempotencyRepo: idempotencyRepo,
 		coordinator:     coordinator,
 		bankClient:      bankClient,
-		logger:          logger,
 	}
 }
 
@@ -102,7 +98,13 @@ func (s *CaptureService) Capture(ctx context.Context, cmd CaptureCommand, idempo
 
 	s.idempotencyRepo.UpdateRecoveryPoint(ctx, idempotencyKey, "CALLING_BANK")
 	bankResp, err := s.bankClient.Capture(ctx, bankReq, idempotencyKey)
+
 	if err != nil {
+		s.idempotencyRepo.UpdateRecoveryPoint(ctx, idempotencyKey, "BANK_FAILED")
+
+		if err := s.idempotencyRepo.ReleaseLock(ctx, idempotencyKey); err != nil {
+			return payment, err
+		}
 		return payment, err
 	}
 
@@ -118,7 +120,7 @@ func (s *CaptureService) Capture(ctx context.Context, cmd CaptureCommand, idempo
 		}
 
 		responsePayload, _ := json.Marshal(bankResp)
-		if err := txIdempotencyRepo.StoreResponse(ctx, idempotencyKey, responsePayload, 200); err != nil {
+		if err := txIdempotencyRepo.StoreResponse(ctx, idempotencyKey, responsePayload); err != nil {
 			return err
 		}
 

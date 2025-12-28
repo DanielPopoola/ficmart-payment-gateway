@@ -96,14 +96,14 @@ func (r *IdempotencyRepository) FindByRequestHash(ctx context.Context, requestHa
 	return &i, nil
 }
 
-func (r *IdempotencyRepository) StoreResponse(ctx context.Context, key string, responsePayload []byte, statusCode int) error {
+func (r *IdempotencyRepository) StoreResponse(ctx context.Context, key string, responsePayload []byte) error {
 	query := `
 		UPDATE idempotency_keys
-		SET response_payload = $1, status_code = $2
+		SET response_payload = $1
 		WHERE key = $3
 	`
 
-	_, err := r.q.Exec(ctx, query, responsePayload, statusCode, key)
+	_, err := r.q.Exec(ctx, query, responsePayload, key)
 	if err != nil {
 		return fmt.Errorf("failed to store idempotency response: %w", err)
 	}
