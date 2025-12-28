@@ -12,11 +12,13 @@ import (
 var ErrDuplicateIdempotencyKey = errors.New("duplicate transaction")
 
 type IdempotencyRepository struct {
-	db *DB
+	q Executor
 }
 
 func NewIdempotencyRepository(db *DB) *IdempotencyRepository {
-	return &IdempotencyRepository{db: db}
+	return &IdempotencyRepository{
+		q: db.Pool,
+	}
 }
 
 func (r *IdempotencyRepository) AcquireLock(ctx context.Context, key string, paymentID string, requestHash string) error {
@@ -25,13 +27,13 @@ func (r *IdempotencyRepository) AcquireLock(ctx context.Context, key string, pay
 		VALUES ($1, $2, $3, $4)
 	`
 
-	_, err := r.db.Pool.Exec(ctx, query, key, paymentID, requestHash, time.Now())
+	_, err := r.q.Exec(ctx, query, key, paymentID, requestHash, time.Now())
 	if err != nil {
 		if IsUniqueViolation(err) {
 			// Key exists - check if request hash matches
 			var existingHash string
 			checkQuery := `SELECT request_hash FROM idempotency_keys WHERE key = $1`
-			err = r.db.Pool.QueryRow(ctx, checkQuery, key).Scan(&existingHash)
+			err = r.q.QueryRow(ctx, checkQuery, key).Scan(&existingHash)
 			if err != nil {
 				return fmt.Errorf("failed to check idempotency key: %w", err)
 			}
@@ -56,7 +58,7 @@ func (r *IdempotencyRepository) FindByKey(ctx context.Context, key string) (*Ide
     `
 	var i IdempotencyKey
 
-	err := r.db.Pool.QueryRow(ctx, query, key).Scan(
+	err := r.q.QueryRow(ctx, query, key).Scan(
 		&i.Key,
 		&i.PaymentID,
 		&i.RequestHash,
@@ -85,7 +87,7 @@ func (r *IdempotencyRepository) FindByRequestHash(ctx context.Context, requestHa
     `
 
 	var i IdempotencyKey
-	err := r.db.Pool.QueryRow(ctx, query, requestHash).Scan(
+	err := r.q.QueryRow(ctx, query, requestHash).Scan(
 		&i.Key,
 		&i.PaymentID,
 		&i.RequestHash,
@@ -112,7 +114,7 @@ func (r *IdempotencyRepository) StoreResponse(ctx context.Context, key string, r
 		WHERE key = $3
 	`
 
-	_, err := r.db.Pool.Exec(ctx, query, responsePayload, statusCode, key)
+	_, err := r.q.Exec(ctx, query, responsePayload, statusCode, key)
 	if err != nil {
 		return fmt.Errorf("failed to store idempotency response: %w", err)
 	}
@@ -122,7 +124,7 @@ func (r *IdempotencyRepository) StoreResponse(ctx context.Context, key string, r
 
 func (r *IdempotencyRepository) UpdateRecoveryPoint(ctx context.Context, key string, point string) error {
 	query := `UPDATE idempotency_keys SET recovery_point = $1 WHERE key = $2`
-	_, err := r.db.Pool.Exec(ctx, query, point, key)
+	_, err := r.q.Exec(ctx, query, point, key)
 	return err
 }
 
@@ -133,7 +135,7 @@ func (r *IdempotencyRepository) ReleaseLock(ctx context.Context, key string) err
         WHERE key = $1
     `
 
-	_, err := r.db.Pool.Exec(ctx, query, key)
+	_, err := r.q.Exec(ctx, query, key)
 	if err != nil {
 		return fmt.Errorf("failed to release idempotency lock: %w", err)
 	}

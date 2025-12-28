@@ -13,14 +13,14 @@ import (
 var ErrPaymentNotFound = errors.New("payment not found")
 
 type PaymentRepository struct {
-	pool *pgxpool.Pool
-	q    Executor
+	db *pgxpool.Pool
+	q  Executor
 }
 
-func NewPaymentRepository(db *DB) *PaymentRepository {
+func NewPaymentRepository(db *pgxpool.Pool) *PaymentRepository {
 	return &PaymentRepository{
-		pool: db.Pool,
-		q:    db.Pool,
+		db: db,
+		q:  db,
 	}
 }
 
@@ -184,29 +184,4 @@ func scanPayment(row pgx.Row) (*domain.Payment, error) {
 		return nil, fmt.Errorf("failed to scan payment: %w", err)
 	}
 	return toDomainModel(m), nil
-}
-
-// Wraps an operation in a transaction
-func (r *PaymentRepository) WithTx(ctx context.Context, fn func(PaymentRepository) error) error {
-	tx, err := r.pool.Begin(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
-	}
-
-	defer tx.Rollback(ctx)
-
-	repoWithTx := &PaymentRepository{
-		pool: r.pool,
-		q:    tx,
-	}
-
-	if err := fn(*repoWithTx); err != nil {
-		return err
-	}
-
-	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("failed to commit transaction: %w", err)
-	}
-
-	return nil
 }
