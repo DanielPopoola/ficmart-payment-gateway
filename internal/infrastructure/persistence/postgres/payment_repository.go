@@ -29,7 +29,7 @@ func (r *PaymentRepository) Create(ctx context.Context, payment *domain.Payment)
 		INSERT INTO payments (
             id, order_id, customer_id, amount_cents, currency, status,
             bank_auth_id, bank_capture_id, bank_void_id, bank_refund_id,
-            created_at, authorized_at, captured_at, voided_at, refunded_at, expires_at,
+            created_at, authorized_at, captured_at, voided_at, refunded_at, expires_at
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
 	`
 

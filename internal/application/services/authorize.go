@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log/slog"
 	"time"
 
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/application"
@@ -20,7 +19,6 @@ type AuthorizeService struct {
 	idempotencyRepo *postgres.IdempotencyRepository
 	coordinator     *postgres.TransactionCoordinator
 	bankClient      application.BankClient
-	logger          *slog.Logger
 }
 
 func NewAuthorizeService(
@@ -28,14 +26,12 @@ func NewAuthorizeService(
 	idempotencyRepo *postgres.IdempotencyRepository,
 	coordinator *postgres.TransactionCoordinator,
 	bankClient application.BankClient,
-	logger *slog.Logger,
 ) *AuthorizeService {
 	return &AuthorizeService{
 		paymentRepo:     paymentRepo,
 		idempotencyRepo: idempotencyRepo,
 		coordinator:     coordinator,
 		bankClient:      bankClient,
-		logger:          logger,
 	}
 }
 
@@ -44,11 +40,15 @@ func (s *AuthorizeService) Authorize(ctx context.Context, cmd AuthorizeCommand, 
 
 	existingKey, err := s.idempotencyRepo.FindByKey(ctx, idempotencyKey)
 	if err == nil {
+		if existingKey.RequestHash != requestHash {
+			return nil, application.NewIdempotencyMismatchError()
+		}
+
 		if existingKey.ResponsePayload != nil {
 			payment, _ := s.paymentRepo.FindByID(ctx, existingKey.PaymentID)
 			return payment, nil
 		}
-		return s.waitForCompletion(ctx, idempotencyKey, existingKey.PaymentID)
+		return s.waitForCompletion(ctx, idempotencyKey, cmd)
 	}
 
 	existingHash, err := s.idempotencyRepo.FindByRequestHash(ctx, requestHash)
@@ -57,28 +57,18 @@ func (s *AuthorizeService) Authorize(ctx context.Context, cmd AuthorizeCommand, 
 		if payment != nil && payment.Status() != domain.StatusPending {
 			return nil, application.NewDuplicateBusinessRequestError(existingHash.PaymentID, existingHash.Key)
 		}
-		s.logger.Warn("duplicate_business_request_after_failure",
-			"original_key", existingHash.Key,
-			"new_key", idempotencyKey)
 	}
 
 	paymentID := uuid.New().String()
 	var payment *domain.Payment
 
 	err = s.coordinator.WithTransaction(ctx, func(ctx context.Context, txPaymentRepo *postgres.PaymentRepository, txIdempotencyRepo *postgres.IdempotencyRepository) error {
-		if err := txIdempotencyRepo.AcquireLock(ctx, idempotencyKey, paymentID, requestHash); err != nil {
-			if errors.Is(err, postgres.ErrDuplicateIdempotencyKey) {
-				return err
-			}
-			return err
-		}
-
 		money, err := domain.NewMoney(cmd.Amount, cmd.Currency)
 		if err != nil {
 			return err
 		}
 
-		payment, err := domain.NewPayment(paymentID, cmd.OrderID, cmd.CustomerID, money)
+		payment, err = domain.NewPayment(paymentID, cmd.OrderID, cmd.CustomerID, money)
 		if err != nil {
 			return err
 		}
@@ -86,12 +76,19 @@ func (s *AuthorizeService) Authorize(ctx context.Context, cmd AuthorizeCommand, 
 		if err := txPaymentRepo.Create(ctx, payment); err != nil {
 			return err
 		}
+
+		if err := txIdempotencyRepo.AcquireLock(ctx, idempotencyKey, paymentID, requestHash); err != nil {
+			return err
+		}
 		return nil
 	})
 
 	if err != nil {
+		if errors.Is(err, postgres.ErrIdempotencyMismatch) {
+			return nil, application.NewIdempotencyMismatchError()
+		}
 		if errors.Is(err, postgres.ErrDuplicateIdempotencyKey) {
-			return s.waitForCompletion(ctx, idempotencyKey, paymentID)
+			return s.waitForCompletion(ctx, idempotencyKey, cmd)
 		}
 		return nil, application.NewInternalError(err)
 	}
@@ -140,7 +137,8 @@ func (s *AuthorizeService) Authorize(ctx context.Context, cmd AuthorizeCommand, 
 	return payment, nil
 }
 
-func (s *AuthorizeService) waitForCompletion(ctx context.Context, idempotencyKey string, paymentID string) (*domain.Payment, error) {
+func (s *AuthorizeService) waitForCompletion(ctx context.Context, idempotencyKey string, cmd AuthorizeCommand) (*domain.Payment, error) {
+	requestHash := s.computeRequestHash(cmd)
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 	timeout := time.After(30 * time.Second)
@@ -150,15 +148,19 @@ func (s *AuthorizeService) waitForCompletion(ctx context.Context, idempotencyKey
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		case <-timeout:
-			return nil, application.NewTimeoutError(paymentID)
+			return nil, application.NewTimeoutError("")
 		case <-ticker.C:
 			key, err := s.idempotencyRepo.FindByKey(ctx, idempotencyKey)
 			if err != nil {
 				return nil, application.NewInternalError(err)
 			}
 
+			if key.RequestHash != requestHash {
+				return nil, application.NewIdempotencyMismatchError()
+			}
+
 			if key.LockedAt == nil {
-				payment, err := s.paymentRepo.FindByID(ctx, paymentID)
+				payment, err := s.paymentRepo.FindByID(ctx, key.PaymentID)
 				if err != nil {
 					return nil, err
 				}
@@ -166,7 +168,6 @@ func (s *AuthorizeService) waitForCompletion(ctx context.Context, idempotencyKey
 			}
 
 			if time.Since(*key.LockedAt) > 5*time.Minute {
-				s.logger.Warn("stale lock detected", "payment_id", paymentID)
 				return nil, application.NewRequestProcessingError()
 			}
 		}

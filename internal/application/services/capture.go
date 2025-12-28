@@ -43,6 +43,10 @@ func (s *CaptureService) Capture(ctx context.Context, cmd CaptureCommand, idempo
 
 	existingKey, err := s.idempotencyRepo.FindByKey(ctx, idempotencyKey)
 	if err == nil {
+		if existingKey.RequestHash != requestHash {
+			return nil, application.NewIdempotencyMismatchError()
+		}
+
 		if existingKey.ResponsePayload != nil {
 			payment, _ := s.paymentRepo.FindByID(ctx, existingKey.PaymentID)
 			return payment, nil
@@ -61,9 +65,6 @@ func (s *CaptureService) Capture(ctx context.Context, cmd CaptureCommand, idempo
 	var payment *domain.Payment
 	err = s.coordinator.WithTransaction(ctx, func(ctx context.Context, txPaymentRepo *postgres.PaymentRepository, txIdempotencyRepo *postgres.IdempotencyRepository) error {
 		if err := txIdempotencyRepo.AcquireLock(ctx, idempotencyKey, cmd.PaymentID, requestHash); err != nil {
-			if errors.Is(err, postgres.ErrDuplicateIdempotencyKey) {
-				return err
-			}
 			return err
 		}
 
@@ -85,6 +86,9 @@ func (s *CaptureService) Capture(ctx context.Context, cmd CaptureCommand, idempo
 	})
 
 	if err != nil {
+		if errors.Is(err, postgres.ErrIdempotencyMismatch) {
+			return nil, application.NewIdempotencyMismatchError()
+		}
 		if errors.Is(err, postgres.ErrDuplicateIdempotencyKey) {
 			return s.waitForCompletion(ctx, idempotencyKey, cmd.PaymentID)
 		}
@@ -150,7 +154,7 @@ func (s *CaptureService) waitForCompletion(ctx context.Context, idempotencyKey s
 			}
 
 			if key.LockedAt == nil {
-				payment, err := s.paymentRepo.FindByID(ctx, paymentID)
+				payment, err := s.paymentRepo.FindByID(ctx, key.PaymentID)
 				if err != nil {
 					return nil, err
 				}
