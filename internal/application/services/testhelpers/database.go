@@ -88,11 +88,9 @@ func (td *TestDatabase) Cleanup(t *testing.T) {
 func (td *TestDatabase) CleanTables(t *testing.T) {
 	ctx := context.Background()
 
-	_, err := td.DB.Pool.Exec(ctx, "DELETE FROM idempotency_keys")
+	_, err := td.DB.Pool.Exec(ctx, "TRUNCATE TABLE idempotency_keys, payments RESTART IDENTITY CASCADE;")
 	require.NoError(t, err)
 
-	_, err = td.DB.Pool.Exec(ctx, "DELETE FROM payments")
-	require.NoError(t, err)
 }
 
 func runMigrations(ctx context.Context, db *postgres.DB) error {

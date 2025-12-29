@@ -33,7 +33,7 @@ func CreateAuthorizedPayment(
 		ExpiryYear:  2030,
 	}
 
-	idempotencyKey := "idem-" + uuid.New().String()
+	idempotencyKey := "idem-auth-" + uuid.New().String()
 
 	authResp := &application.BankAuthorizationResponse{
 		Amount:          100,
@@ -70,7 +70,7 @@ func CreateCapturedPayment(
 		PaymentID: payment.ID(),
 		Amount:    payment.Amount().Amount,
 	}
-	idempotencyKey := "idem-" + uuid.New().String()
+	idempotencyKey := "idem-capt" + uuid.New().String()
 
 	captureResp := &application.BankCaptureResponse{
 		Amount:          payment.Amount().Amount,
@@ -104,7 +104,7 @@ func CreateVoidedPayment(
 	cmd := services.VoidCommand{
 		PaymentID: payment.ID(),
 	}
-	idempotencyKey := "idem-" + uuid.New().String()
+	idempotencyKey := "idem-void" + uuid.New().String()
 
 	voidResp := &application.BankVoidResponse{
 		AuthorizationID: *payment.BankAuthID(),
@@ -124,7 +124,7 @@ func CreateVoidedPayment(
 	return voidPayment
 }
 
-func CreateRefunedPayment(
+func CreateRefundedPayment(
 	t *testing.T,
 	ctx context.Context,
 	authService *services.AuthorizeService,
@@ -138,7 +138,7 @@ func CreateRefunedPayment(
 		PaymentID: payment.ID(),
 		Amount:    payment.Amount().Amount,
 	}
-	idempotencyKey := "idem-" + uuid.New().String()
+	idempotencyKey := "idem-refund" + uuid.New().String()
 
 	refundResp := &application.BankRefundResponse{
 		Amount:     payment.Amount().Amount,

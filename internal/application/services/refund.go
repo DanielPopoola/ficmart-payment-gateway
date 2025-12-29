@@ -35,21 +35,27 @@ func NewRefundService(
 }
 
 func (s *RefundService) Refund(ctx context.Context, cmd RefundCommand, idempotencyKey string) (*domain.Payment, error) {
+	fmt.Printf("🟢 START Refund with key=%s\n", idempotencyKey)
 	requestHash := s.computeRequestHash(cmd)
+	fmt.Printf("  📝 Computed hash=%s\n", requestHash)
 
 	existingKey, err := s.idempotencyRepo.FindByKey(ctx, idempotencyKey)
 	if err == nil {
+		if existingKey.RequestHash != requestHash {
+			return nil, application.NewIdempotencyMismatchError()
+		}
+
 		if existingKey.ResponsePayload != nil {
 			payment, _ := s.paymentRepo.FindByID(ctx, existingKey.PaymentID)
 			return payment, nil
 		}
-		return s.waitForCompletion(ctx, idempotencyKey, existingKey.PaymentID)
+		return s.waitForCompletion(ctx, idempotencyKey, cmd)
 	}
 
 	existingHash, err := s.idempotencyRepo.FindByRequestHash(ctx, requestHash)
 	if err == nil && existingHash.Key != idempotencyKey {
 		payment, _ := s.paymentRepo.FindByID(ctx, existingHash.PaymentID)
-		if payment != nil && payment.Status() != domain.StatusPending {
+		if payment != nil && payment.Status() != domain.StatusRefunded {
 			return nil, application.NewDuplicateBusinessRequestError(existingHash.PaymentID, existingHash.Key)
 		}
 	}
@@ -82,9 +88,9 @@ func (s *RefundService) Refund(ctx context.Context, cmd RefundCommand, idempoten
 
 	if err != nil {
 		if errors.Is(err, postgres.ErrDuplicateIdempotencyKey) {
-			return s.waitForCompletion(ctx, idempotencyKey, cmd.PaymentID)
+			return s.waitForCompletion(ctx, idempotencyKey, cmd)
 		}
-		return nil, application.NewInternalError(err)
+		return payment, application.NewInternalError(err)
 	}
 
 	bankReq := application.BankRefundRequest{
@@ -134,7 +140,8 @@ func (s *RefundService) Refund(ctx context.Context, cmd RefundCommand, idempoten
 	return payment, nil
 }
 
-func (s *RefundService) waitForCompletion(ctx context.Context, idempotencyKey string, paymentID string) (*domain.Payment, error) {
+func (s *RefundService) waitForCompletion(ctx context.Context, idempotencyKey string, cmd RefundCommand) (*domain.Payment, error) {
+	requestHash := s.computeRequestHash(cmd)
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 	timeout := time.After(30 * time.Second)
@@ -144,15 +151,19 @@ func (s *RefundService) waitForCompletion(ctx context.Context, idempotencyKey st
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		case <-timeout:
-			return nil, application.NewTimeoutError(paymentID)
+			return nil, application.NewTimeoutError("")
 		case <-ticker.C:
 			key, err := s.idempotencyRepo.FindByKey(ctx, idempotencyKey)
 			if err != nil {
 				return nil, application.NewInternalError(err)
 			}
 
+			if key.RequestHash != requestHash {
+				return nil, application.NewIdempotencyMismatchError()
+			}
+
 			if key.LockedAt == nil {
-				payment, err := s.paymentRepo.FindByID(ctx, paymentID)
+				payment, err := s.paymentRepo.FindByID(ctx, key.PaymentID)
 				if err != nil {
 					return nil, err
 				}

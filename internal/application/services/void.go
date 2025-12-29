@@ -49,7 +49,7 @@ func (s *VoidService) Void(ctx context.Context, cmd VoidCommand, idempotencyKey 
 	existingHash, err := s.idempotencyRepo.FindByRequestHash(ctx, requestHash)
 	if err == nil && existingHash.Key != idempotencyKey {
 		payment, _ := s.paymentRepo.FindByID(ctx, existingHash.PaymentID)
-		if payment != nil && payment.Status() != domain.StatusPending {
+		if payment != nil && payment.Status() != domain.StatusAuthorized {
 			return nil, application.NewDuplicateBusinessRequestError(existingHash.PaymentID, existingHash.Key)
 		}
 	}
@@ -100,6 +100,7 @@ func (s *VoidService) Void(ctx context.Context, cmd VoidCommand, idempotencyKey 
 		if err := s.idempotencyRepo.ReleaseLock(ctx, idempotencyKey); err != nil {
 			return payment, err
 		}
+
 		return payment, err
 	}
 

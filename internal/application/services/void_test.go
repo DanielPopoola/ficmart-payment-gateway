@@ -84,14 +84,14 @@ func (suite *voidServiceTestSuite) Test_Void_Success() {
 	require.NotNil(suite.T(), voidedPayment)
 
 	assert.Equal(suite.T(), domain.StatusVoided, voidedPayment.Status())
-	assert.Equal(suite.T(), "cap-123", *voidedPayment.BankVoidID())
+	assert.Equal(suite.T(), "void-123", *voidedPayment.BankVoidID())
 	assert.NotNil(suite.T(), voidedPayment.VoidedAt())
 
 	// Verify database state
 	savedPayment, err := suite.paymentRepo.FindByID(ctx, voidedPayment.ID())
 	require.NoError(suite.T(), err)
 	assert.Equal(suite.T(), domain.StatusVoided, savedPayment.Status())
-	assert.Equal(suite.T(), "cap-123", *savedPayment.BankVoidID())
+	assert.Equal(suite.T(), "void-123", *savedPayment.BankVoidID())
 }
 
 // ============================================================================

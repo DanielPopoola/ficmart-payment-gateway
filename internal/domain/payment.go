@@ -109,6 +109,10 @@ func (p *Payment) Fail() error {
 	return p.transition(StatusFailed)
 }
 
+func (p *Payment) MarkExpired() error {
+	return p.transition(StatusExpired)
+}
+
 func (p *Payment) transition(target PaymentStatus) error {
 	if err := p.canTransitionTo(target); err != nil {
 		return err

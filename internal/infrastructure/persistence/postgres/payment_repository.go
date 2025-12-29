@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/domain"
 	"github.com/jackc/pgx/v5"
@@ -128,6 +129,43 @@ func (r *PaymentRepository) FindByCustomerID(ctx context.Context, customerID str
 	if err != nil {
 		return nil, fmt.Errorf("error occcured while scanning rows: %w", err)
 	}
+	return results, nil
+}
+
+// FindExpiredAuthorizations finds AUTHORIZED payments older than the cutoff time
+func (r *PaymentRepository) FindExpiredAuthorizations(ctx context.Context, cutoffTime time.Time, limit int) ([]*domain.Payment, error) {
+	query := `
+		SELECT id, order_id, customer_id, amount_cents, currency, status,
+		       bank_auth_id, bank_capture_id, bank_void_id, bank_refund_id,
+		       created_at, authorized_at, captured_at, voided_at, refunded_at, expires_at,
+		       attempt_count, next_retry_at, last_error_category
+		FROM payments
+		WHERE status = 'AUTHORIZED'
+		  AND authorized_at < $1
+		ORDER BY authorized_at ASC
+		LIMIT $2
+	`
+
+	rows, err := r.q.Query(ctx, query, cutoffTime, limit)
+	if err != nil {
+		return nil, fmt.Errorf("query expired authorizations: %w", err)
+	}
+
+	results, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (*domain.Payment, error) {
+		var m PaymentModel
+		err := row.Scan(
+			&m.ID, &m.OrderID, &m.CustomerID, &m.AmountCents, &m.Currency, &m.Status,
+			&m.BankAuthID, &m.BankCaptureID, &m.BankVoidID, &m.BankRefundID,
+			&m.CreatedAt, &m.AuthorizedAt, &m.CapturedAt, &m.VoidedAt, &m.RefundedAt, &m.ExpiresAt,
+			&m.AttemptCount, &m.NextRetryAt, &m.LastErrorCategory,
+		)
+		return toDomainModel(m), err
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("scan expired authorizations: %w", err)
+	}
+
 	return results, nil
 }
 
