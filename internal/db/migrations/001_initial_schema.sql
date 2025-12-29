@@ -31,8 +31,7 @@ CREATE TABLE IF NOT EXISTS idempotency_keys (
     payment_id UUID REFERENCES payments(id) ON DELETE CASCADE,
     request_hash TEXT NOT NULL,
     response_payload JSONB,
-    locked_at TIMESTAMP WITH TIME ZONE,
-    recovery_point TEXT -- Removed trailing comma
+    locked_at TIMESTAMP WITH TIME ZONE
 );
 
 -- 3. Create indexes for performance optimization

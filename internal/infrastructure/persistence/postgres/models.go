@@ -12,7 +12,6 @@ type IdempotencyKey struct {
 	LockedAt        *time.Time
 	ResponsePayload *[]byte
 	StatusCode      *int
-	RecoveryPoint   *string
 }
 
 // Payment represents db model for domain entity

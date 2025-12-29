@@ -64,12 +64,11 @@ type stuckPayment struct {
 	id             string
 	status         string
 	idempotencyKey string
-	recoveryPoint  string
 }
 
 func (w *RetryWorker) processRetries(ctx context.Context) error {
 	query := `
-		SELECT p.id, p.status, i.key, i.recovery_point
+		SELECT p.id, p.status, i.key
 		FROM payments p
 		JOIN idempotency_keys i on p.id = i.payment_id
 		WHERE
@@ -92,7 +91,7 @@ func (w *RetryWorker) processRetries(ctx context.Context) error {
 	var processed int
 	for rows.Next() {
 		var sp stuckPayment
-		if err := rows.Scan(&sp.id, &sp.status, &sp.idempotencyKey, &sp.recoveryPoint); err != nil {
+		if err := rows.Scan(&sp.id, &sp.status, &sp.idempotencyKey); err != nil {
 			w.logger.Error("scan failed", "error", err)
 			continue
 		}
@@ -116,7 +115,7 @@ func (w *RetryWorker) processRetries(ctx context.Context) error {
 
 func (w *RetryWorker) timeoutPendingPayments(ctx context.Context) error {
 	query := `
-        SELECT p.id, p.order_id, i.key, i.recovery_point, p.created_at
+        SELECT p.id, p.order_id, i.key, p.created_at
         FROM payments p
         JOIN idempotency_keys i ON p.id = i.payment_id
         WHERE 
@@ -132,9 +131,9 @@ func (w *RetryWorker) timeoutPendingPayments(ctx context.Context) error {
 	defer rows.Close()
 
 	for rows.Next() {
-		var id, orderID, key, recoveryPoint string
+		var id, orderID, key string
 		var createdAt time.Time
-		rows.Scan(&id, &orderID, &key, &recoveryPoint, &createdAt)
+		rows.Scan(&id, &orderID, &key, &createdAt)
 
 		payment, err := w.paymentRepo.FindByID(ctx, id)
 		if err != nil {
@@ -147,7 +146,6 @@ func (w *RetryWorker) timeoutPendingPayments(ctx context.Context) error {
 		w.logger.Error("ORPHANED_AUTHORIZATION_RISK",
 			"payment_id", id,
 			"order_id", orderID,
-			"recovery_point", recoveryPoint,
 			"age_minutes", time.Since(createdAt).Minutes(),
 			"action", "MANUAL_RECONCILIATION_REQUIRED")
 

@@ -96,16 +96,11 @@ func (s *RefundService) Refund(ctx context.Context, cmd RefundCommand, idempoten
 		CaptureID: *payment.BankCaptureID(),
 	}
 
-	s.idempotencyRepo.UpdateRecoveryPoint(ctx, idempotencyKey, "CALLING_BANK")
 	bankResp, err := s.bankClient.Refund(ctx, bankReq, idempotencyKey)
 
 	if err != nil {
-		s.idempotencyRepo.UpdateRecoveryPoint(ctx, idempotencyKey, "BANK_FAILED")
-
 		return payment, err
 	}
-
-	s.idempotencyRepo.UpdateRecoveryPoint(ctx, idempotencyKey, "BANK_RESPONDED")
 
 	err = s.coordinator.WithTransaction(ctx, func(ctx context.Context, txPaymentRepo *postgres.PaymentRepository, txIdempotencyRepo *postgres.IdempotencyRepository) error {
 		if err := payment.Refund(bankResp.RefundID, bankResp.RefundedAt); err != nil {

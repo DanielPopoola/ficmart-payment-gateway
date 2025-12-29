@@ -41,7 +41,7 @@ func (r *IdempotencyRepository) AcquireLock(ctx context.Context, key string, pay
 
 func (r *IdempotencyRepository) FindByKey(ctx context.Context, key string) (*IdempotencyKey, error) {
 	query := `
-        SELECT key, payment_id, request_hash, locked_at, response_payload, recovery_point
+        SELECT key, payment_id, request_hash, locked_at, response_payload
         FROM idempotency_keys
         WHERE key = $1
     `
@@ -53,7 +53,6 @@ func (r *IdempotencyRepository) FindByKey(ctx context.Context, key string) (*Ide
 		&i.RequestHash,
 		&i.LockedAt,
 		&i.ResponsePayload,
-		&i.RecoveryPoint,
 	)
 
 	if err != nil {
@@ -68,10 +67,9 @@ func (r *IdempotencyRepository) FindByKey(ctx context.Context, key string) (*Ide
 
 func (r *IdempotencyRepository) FindByRequestHash(ctx context.Context, requestHash string) (*IdempotencyKey, error) {
 	query := `
-        SELECT key, payment_id, request_hash, locked_at, response_payload, recovery_point
+        SELECT key, payment_id, request_hash, locked_at, response_payload
         FROM idempotency_keys
         WHERE request_hash = $1
-          AND recovery_point = 'completed'
         LIMIT 1
     `
 
@@ -82,7 +80,6 @@ func (r *IdempotencyRepository) FindByRequestHash(ctx context.Context, requestHa
 		&i.RequestHash,
 		&i.LockedAt,
 		&i.ResponsePayload,
-		&i.RecoveryPoint,
 	)
 
 	if err != nil {
@@ -110,16 +107,10 @@ func (r *IdempotencyRepository) StoreResponse(ctx context.Context, key string, r
 	return nil
 }
 
-func (r *IdempotencyRepository) UpdateRecoveryPoint(ctx context.Context, key string, point string) error {
-	query := `UPDATE idempotency_keys SET recovery_point = $1 WHERE key = $2`
-	_, err := r.q.Exec(ctx, query, point, key)
-	return err
-}
-
 func (r *IdempotencyRepository) ReleaseLock(ctx context.Context, key string) error {
 	query := `
         UPDATE idempotency_keys
-        SET locked_at = NULL, recovery_point = 'completed'
+        SET locked_at = NULL
         WHERE key = $1
     `
 
