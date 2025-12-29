@@ -35,9 +35,7 @@ func NewRefundService(
 }
 
 func (s *RefundService) Refund(ctx context.Context, cmd RefundCommand, idempotencyKey string) (*domain.Payment, error) {
-	fmt.Printf("🟢 START Refund with key=%s\n", idempotencyKey)
 	requestHash := s.computeRequestHash(cmd)
-	fmt.Printf("  📝 Computed hash=%s\n", requestHash)
 
 	existingKey, err := s.idempotencyRepo.FindByKey(ctx, idempotencyKey)
 	if err == nil {
@@ -55,7 +53,7 @@ func (s *RefundService) Refund(ctx context.Context, cmd RefundCommand, idempoten
 	existingHash, err := s.idempotencyRepo.FindByRequestHash(ctx, requestHash)
 	if err == nil && existingHash.Key != idempotencyKey {
 		payment, _ := s.paymentRepo.FindByID(ctx, existingHash.PaymentID)
-		if payment != nil && payment.Status() != domain.StatusRefunded {
+		if payment != nil && payment.Status() != domain.StatusCaptured && payment.Status() != domain.StatusRefunding {
 			return nil, application.NewDuplicateBusinessRequestError(existingHash.PaymentID, existingHash.Key)
 		}
 	}

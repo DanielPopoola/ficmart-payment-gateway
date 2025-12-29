@@ -2,7 +2,6 @@ package services_test
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
@@ -345,7 +344,6 @@ func (suite *RefundServiceTestSuite) Test_Refund_ConcurrentRequests_OnlyOneSucce
 	}
 
 	idempotencyKey := "idem-" + uuid.New().String()
-	fmt.Printf("🔑 Using idempotency key: %s\n", idempotencyKey)
 
 	refundResp := &application.BankRefundResponse{
 		Amount:     payment.Amount().Amount,
@@ -357,17 +355,7 @@ func (suite *RefundServiceTestSuite) Test_Refund_ConcurrentRequests_OnlyOneSucce
 	}
 
 	suite.mockBank.EXPECT().
-		Refund(
-			mock.Anything,
-			mock.MatchedBy(func(req application.BankRefundRequest) bool {
-				fmt.Printf("🏦 Bank request: amount=%d, captureID=%s\n", req.Amount, req.CaptureID)
-				return true
-			}),
-			mock.MatchedBy(func(key string) bool {
-				fmt.Printf("🏦 Idempotency key: %s (expected: %s)\n", key, idempotencyKey)
-				return key == idempotencyKey
-			}),
-		).
+		Refund(mock.Anything, mock.Anything, idempotencyKey).
 		Return(refundResp, nil).
 		Once()
 
@@ -375,9 +363,8 @@ func (suite *RefundServiceTestSuite) Test_Refund_ConcurrentRequests_OnlyOneSucce
 
 	for i := range 2 {
 		go func(goroutineID int) {
-			fmt.Printf("🟢 Goroutine %d: Starting\n with:%s", goroutineID, idempotencyKey)
+
 			payment, err := suite.refundService.Refund(ctx, cmd, idempotencyKey)
-			fmt.Printf("🔵 Goroutine %d: Finished (payment=%v, err=%v)\n", goroutineID, payment != nil, err)
 			results <- result{payment, err}
 		}(i)
 	}
@@ -386,9 +373,7 @@ func (suite *RefundServiceTestSuite) Test_Refund_ConcurrentRequests_OnlyOneSucce
 	var paymentIDs []string
 
 	for range 2 {
-		fmt.Println("⏳ Waiting for result...")
 		res := <-results
-		fmt.Printf("✅ Got result: payment=%v, err=%v\n", res.payment != nil, res.err)
 		if res.err == nil {
 			successCount++
 			paymentIDs = append(paymentIDs, res.payment.ID())
