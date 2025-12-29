@@ -97,10 +97,6 @@ func (s *VoidService) Void(ctx context.Context, cmd VoidCommand, idempotencyKey 
 	if err != nil {
 		s.idempotencyRepo.UpdateRecoveryPoint(ctx, idempotencyKey, "BANK_FAILED")
 
-		if err := s.idempotencyRepo.ReleaseLock(ctx, idempotencyKey); err != nil {
-			return payment, err
-		}
-
 		return payment, err
 	}
 

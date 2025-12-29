@@ -105,10 +105,6 @@ func (s *AuthorizeService) Authorize(ctx context.Context, cmd AuthorizeCommand, 
 	bankResp, err := s.bankClient.Authorize(ctx, bankReq, idempotencyKey)
 	if err != nil {
 		s.idempotencyRepo.UpdateRecoveryPoint(ctx, idempotencyKey, "BANK_FAILED")
-
-		if err := s.idempotencyRepo.ReleaseLock(ctx, idempotencyKey); err != nil {
-			return payment, err
-		}
 		return payment, err
 	}
 
