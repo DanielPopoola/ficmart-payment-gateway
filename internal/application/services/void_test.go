@@ -24,7 +24,6 @@ type voidServiceTestSuite struct {
 	testDB           *testhelpers.TestDatabase
 	paymentRepo      *postgres.PaymentRepository
 	idempotencyRepo  *postgres.IdempotencyRepository
-	coordinator      *postgres.TransactionCoordinator
 	mockBank         *mocks.MockBankClient
 	authorizeService *services.AuthorizeService
 	voidService      *services.VoidService
@@ -37,8 +36,7 @@ func TestVoidServiceSuite(t *testing.T) {
 func (suite *voidServiceTestSuite) SetupSuite() {
 	suite.testDB = testhelpers.SetupTestDatabase(suite.T())
 	suite.paymentRepo = postgres.NewPaymentRepository(suite.testDB.DB.Pool)
-	suite.idempotencyRepo = postgres.NewIdempotencyRepository(suite.testDB.DB)
-	suite.coordinator = postgres.NewTransactionCoordinator(suite.testDB.DB)
+	suite.idempotencyRepo = postgres.NewIdempotencyRepository(suite.testDB.DB.Pool)
 }
 
 func (suite *voidServiceTestSuite) TearDownSuite() {
@@ -51,15 +49,15 @@ func (suite *voidServiceTestSuite) SetupTest() {
 	suite.authorizeService = services.NewAuthorizeService(
 		suite.paymentRepo,
 		suite.idempotencyRepo,
-		suite.coordinator,
 		suite.mockBank,
+		suite.testDB.DB.Pool,
 	)
 
 	suite.voidService = services.NewVoidService(
 		suite.paymentRepo,
 		suite.idempotencyRepo,
-		suite.coordinator,
 		suite.mockBank,
+		suite.testDB.DB.Pool,
 	)
 }
 
@@ -252,7 +250,7 @@ func (suite *voidServiceTestSuite) Test_Void_BankReturns500_PaymentStaysVoiding(
 	assert.Nil(suite.T(), savedPayment.BankVoidID())
 }
 
-func (suite *voidServiceTestSuite) Test_Void_BankReturnsPermanentError_PaymentStayVoiding() {
+func (suite *voidServiceTestSuite) Test_Void_BankReturnsPermanentError_PaymentFails() {
 	ctx := context.Background()
 
 	payment := testhelpers.CreateAuthorizedPayment(suite.T(), ctx, suite.authorizeService, suite.mockBank)
@@ -278,7 +276,7 @@ func (suite *voidServiceTestSuite) Test_Void_BankReturnsPermanentError_PaymentSt
 	require.Error(suite.T(), err)
 
 	require.NotNil(suite.T(), voidedPayment)
-	assert.Equal(suite.T(), domain.StatusVoiding, voidedPayment.Status())
+	assert.Equal(suite.T(), domain.StatusFailed, voidedPayment.Status())
 }
 
 func (suite *voidServiceTestSuite) Test_Void_ConcurrentRequests_OnlyOneSucceeds() {

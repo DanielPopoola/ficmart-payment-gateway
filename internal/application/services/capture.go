@@ -11,26 +11,27 @@ import (
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/application"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/domain"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/infrastructure/persistence/postgres"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type CaptureService struct {
 	paymentRepo     *postgres.PaymentRepository
 	idempotencyRepo *postgres.IdempotencyRepository
-	coordinator     *postgres.TransactionCoordinator
 	bankClient      application.BankClient
+	db              *pgxpool.Pool
 }
 
 func NewCaptureService(
 	paymentRepo *postgres.PaymentRepository,
 	idempotencyRepo *postgres.IdempotencyRepository,
-	coordinator *postgres.TransactionCoordinator,
 	bankClient application.BankClient,
+	db *pgxpool.Pool,
 ) *CaptureService {
 	return &CaptureService{
 		paymentRepo:     paymentRepo,
 		idempotencyRepo: idempotencyRepo,
-		coordinator:     coordinator,
 		bankClient:      bankClient,
+		db:              db,
 	}
 }
 
@@ -43,7 +44,7 @@ func (s *CaptureService) Capture(ctx context.Context, cmd CaptureCommand, idempo
 			return nil, application.NewIdempotencyMismatchError()
 		}
 
-		if existingKey.ResponsePayload != nil {
+		if existingKey.LockedAt != nil {
 			payment, _ := s.paymentRepo.FindByID(ctx, existingKey.PaymentID)
 			return payment, nil
 		}
@@ -58,36 +59,34 @@ func (s *CaptureService) Capture(ctx context.Context, cmd CaptureCommand, idempo
 		}
 	}
 
-	var payment *domain.Payment
-	err = s.coordinator.WithTransaction(ctx, func(ctx context.Context, txPaymentRepo *postgres.PaymentRepository, txIdempotencyRepo *postgres.IdempotencyRepository) error {
-		if err := txIdempotencyRepo.AcquireLock(ctx, idempotencyKey, cmd.PaymentID, requestHash); err != nil {
-			return err
-		}
-
-		var err error
-		payment, err = txPaymentRepo.FindByIDForUpdate(ctx, cmd.PaymentID)
-		if err != nil {
-			return err
-		}
-
-		if err := payment.MarkCapturing(); err != nil {
-			return err
-		}
-
-		if err := txPaymentRepo.Update(ctx, payment); err != nil {
-			return err
-		}
-
-		return nil
-	})
-
+	tx, err := s.db.Begin(ctx)
 	if err != nil {
-		if errors.Is(err, postgres.ErrIdempotencyMismatch) {
-			return nil, application.NewIdempotencyMismatchError()
-		}
+		return nil, application.NewInternalError(err)
+	}
+	defer tx.Rollback(ctx)
+
+	payment, err := s.paymentRepo.FindByIDForUpdate(ctx, tx, cmd.PaymentID)
+	if err != nil {
+		return nil, application.NewInternalError(err)
+	}
+
+	if err := s.idempotencyRepo.AcquireLock(ctx, tx, idempotencyKey, cmd.PaymentID, requestHash); err != nil {
 		if errors.Is(err, postgres.ErrDuplicateIdempotencyKey) {
+			tx.Rollback(ctx)
 			return s.waitForCompletion(ctx, idempotencyKey, cmd.PaymentID)
 		}
+		return nil, application.NewInternalError(err)
+	}
+
+	if err := payment.MarkCapturing(); err != nil {
+		return nil, application.NewInternalError(err)
+	}
+
+	if err := s.paymentRepo.Update(ctx, tx, payment); err != nil {
+		return nil, application.NewInternalError(err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
 		return nil, application.NewInternalError(err)
 	}
 
@@ -97,34 +96,58 @@ func (s *CaptureService) Capture(ctx context.Context, cmd CaptureCommand, idempo
 	}
 
 	bankResp, err := s.bankClient.Capture(ctx, bankReq, idempotencyKey)
-
 	if err != nil {
+		category := application.CategorizeError(err)
+		if category == application.CategoryPermanent {
+			if failErr := payment.Fail(); failErr != nil {
+				return nil, application.NewInternalError(err)
+			}
+
+			tx2, err := s.db.Begin(ctx)
+			if err != nil {
+				return nil, application.NewInternalError(err)
+			}
+			defer tx2.Rollback(ctx)
+
+			if updateErr := s.paymentRepo.Update(ctx, tx2, payment); updateErr != nil {
+				return nil, application.NewInternalError(updateErr)
+			}
+			responsePayload, _ := json.Marshal(err)
+			if storeErr := s.idempotencyRepo.StoreResponse(ctx, tx2, idempotencyKey, responsePayload); storeErr != nil {
+				return nil, application.NewInternalError(storeErr)
+			}
+			if err := tx2.Commit(ctx); err != nil {
+				return nil, application.NewInternalError(err)
+			}
+		}
 		return payment, err
 	}
 
-	err = s.coordinator.WithTransaction(ctx, func(ctx context.Context, txPaymentRepo *postgres.PaymentRepository, txIdempotencyRepo *postgres.IdempotencyRepository) error {
-		if err := payment.Capture(bankResp.CaptureID, bankResp.CapturedAt); err != nil {
-			return err
-		}
-
-		if err := txPaymentRepo.Update(ctx, payment); err != nil {
-			return err
-		}
-
-		responsePayload, _ := json.Marshal(bankResp)
-		if err := txIdempotencyRepo.StoreResponse(ctx, idempotencyKey, responsePayload); err != nil {
-			return err
-		}
-
-		if err := txIdempotencyRepo.ReleaseLock(ctx, idempotencyKey); err != nil {
-			return err
-		}
-
-		return nil
-	})
-
+	tx3, err := s.db.Begin(ctx)
 	if err != nil {
+		return payment, application.NewInternalError(err)
+	}
+	defer tx3.Rollback(ctx)
+
+	if err := payment.Capture(bankResp.CaptureID, bankResp.CapturedAt); err != nil {
 		return nil, application.NewInternalError(err)
+	}
+
+	if err := s.paymentRepo.Update(ctx, tx3, payment); err != nil {
+		return nil, application.NewInternalError(err)
+	}
+
+	responsePayload, _ := json.Marshal(bankResp)
+	if err := s.idempotencyRepo.StoreResponse(ctx, tx3, idempotencyKey, responsePayload); err != nil {
+		return nil, application.NewInternalError(err)
+	}
+
+	if err := s.idempotencyRepo.ReleaseLock(ctx, tx3, idempotencyKey); err != nil {
+		return nil, application.NewInternalError(err)
+	}
+
+	if err := tx3.Commit(ctx); err != nil {
+		return payment, application.NewInternalError(err)
 	}
 
 	return payment, nil
@@ -150,7 +173,7 @@ func (s *CaptureService) waitForCompletion(ctx context.Context, idempotencyKey s
 			if key.LockedAt == nil {
 				payment, err := s.paymentRepo.FindByID(ctx, key.PaymentID)
 				if err != nil {
-					return nil, err
+					return nil, application.NewInternalError(err)
 				}
 				return payment, nil
 			}

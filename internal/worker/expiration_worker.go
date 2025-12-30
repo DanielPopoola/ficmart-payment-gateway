@@ -112,5 +112,5 @@ func (w *ExpirationWorker) markAsExpired(ctx context.Context, payment *domain.Pa
 		return err
 	}
 
-	return w.paymentRepo.Update(ctx, payment)
+	return w.paymentRepo.Update(ctx, nil, payment)
 }

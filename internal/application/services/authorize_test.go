@@ -24,7 +24,6 @@ type AuthorizeServiceTestSuite struct {
 	testDB          *testhelpers.TestDatabase
 	paymentRepo     *postgres.PaymentRepository
 	idempotencyRepo *postgres.IdempotencyRepository
-	coordinator     *postgres.TransactionCoordinator
 	mockBank        *mocks.MockBankClient
 	service         *services.AuthorizeService
 }
@@ -37,8 +36,7 @@ func TestAuthorizeServiceSuite(t *testing.T) {
 func (suite *AuthorizeServiceTestSuite) SetupSuite() {
 	suite.testDB = testhelpers.SetupTestDatabase(suite.T())
 	suite.paymentRepo = postgres.NewPaymentRepository(suite.testDB.DB.Pool)
-	suite.idempotencyRepo = postgres.NewIdempotencyRepository(suite.testDB.DB)
-	suite.coordinator = postgres.NewTransactionCoordinator(suite.testDB.DB)
+	suite.idempotencyRepo = postgres.NewIdempotencyRepository(suite.testDB.DB.Pool)
 }
 
 // TearDownSuite runs once after all tests
@@ -53,8 +51,8 @@ func (suite *AuthorizeServiceTestSuite) SetupTest() {
 	suite.service = services.NewAuthorizeService(
 		suite.paymentRepo,
 		suite.idempotencyRepo,
-		suite.coordinator,
 		suite.mockBank,
+		suite.testDB.DB.Pool,
 	)
 }
 

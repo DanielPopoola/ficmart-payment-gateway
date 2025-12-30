@@ -12,26 +12,27 @@ import (
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/domain"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/infrastructure/persistence/postgres"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type AuthorizeService struct {
 	paymentRepo     *postgres.PaymentRepository
 	idempotencyRepo *postgres.IdempotencyRepository
-	coordinator     *postgres.TransactionCoordinator
 	bankClient      application.BankClient
+	db              *pgxpool.Pool
 }
 
 func NewAuthorizeService(
 	paymentRepo *postgres.PaymentRepository,
 	idempotencyRepo *postgres.IdempotencyRepository,
-	coordinator *postgres.TransactionCoordinator,
 	bankClient application.BankClient,
+	db *pgxpool.Pool,
 ) *AuthorizeService {
 	return &AuthorizeService{
 		paymentRepo:     paymentRepo,
 		idempotencyRepo: idempotencyRepo,
-		coordinator:     coordinator,
 		bankClient:      bankClient,
+		db:              db,
 	}
 }
 
@@ -59,40 +60,44 @@ func (s *AuthorizeService) Authorize(ctx context.Context, cmd AuthorizeCommand, 
 		}
 	}
 
+	// Begin transaction
+	tx, err := s.db.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+
+	// Save intent
 	paymentID := uuid.New().String()
 	var payment *domain.Payment
 
-	err = s.coordinator.WithTransaction(ctx, func(ctx context.Context, txPaymentRepo *postgres.PaymentRepository, txIdempotencyRepo *postgres.IdempotencyRepository) error {
-		money, err := domain.NewMoney(cmd.Amount, cmd.Currency)
-		if err != nil {
-			return err
-		}
-
-		payment, err = domain.NewPayment(paymentID, cmd.OrderID, cmd.CustomerID, money)
-		if err != nil {
-			return err
-		}
-
-		if err := txPaymentRepo.Create(ctx, payment); err != nil {
-			return err
-		}
-
-		if err := txIdempotencyRepo.AcquireLock(ctx, idempotencyKey, paymentID, requestHash); err != nil {
-			return err
-		}
-		return nil
-	})
-
+	money, err := domain.NewMoney(cmd.Amount, cmd.Currency)
 	if err != nil {
-		if errors.Is(err, postgres.ErrIdempotencyMismatch) {
-			return nil, application.NewIdempotencyMismatchError()
-		}
+		return nil, err
+	}
+
+	payment, err = domain.NewPayment(paymentID, cmd.OrderID, cmd.CustomerID, money)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := s.paymentRepo.Create(ctx, tx, payment); err != nil {
+		return nil, err
+	}
+
+	if err := s.idempotencyRepo.AcquireLock(ctx, tx, idempotencyKey, paymentID, requestHash); err != nil {
 		if errors.Is(err, postgres.ErrDuplicateIdempotencyKey) {
+			tx.Rollback(ctx)
 			return s.waitForCompletion(ctx, idempotencyKey, cmd)
 		}
 		return nil, application.NewInternalError(err)
 	}
 
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+
+	// Call bank
 	bankReq := application.BankAuthorizationRequest{
 		Amount:      cmd.Amount,
 		CardNumber:  cmd.CardNumber,
@@ -103,32 +108,43 @@ func (s *AuthorizeService) Authorize(ctx context.Context, cmd AuthorizeCommand, 
 
 	bankResp, err := s.bankClient.Authorize(ctx, bankReq, idempotencyKey)
 	if err != nil {
+		category := application.CategorizeError(err)
+		if category == application.CategoryPermanent {
+			payment.Fail()
+			s.paymentRepo.Update(ctx, nil, payment)
+		}
+		responsePayload, _ := json.Marshal(err)
+		if storeErr := s.idempotencyRepo.StoreResponse(ctx, nil, idempotencyKey, responsePayload); storeErr != nil {
+		}
 		return payment, err
 	}
 
-	err = s.coordinator.WithTransaction(ctx, func(ctx context.Context, txPaymentRepo *postgres.PaymentRepository, txIdempotencyRepo *postgres.IdempotencyRepository) error {
-		if err := payment.Authorize(bankResp.AuthorizationID, bankResp.CreatedAt, bankResp.ExpiresAt); err != nil {
-			return err
-		}
-
-		if err := txPaymentRepo.Update(ctx, payment); err != nil {
-			return err
-		}
-
-		responsePayload, _ := json.Marshal(bankResp)
-		if err = txIdempotencyRepo.StoreResponse(ctx, idempotencyKey, responsePayload); err != nil {
-			return err
-		}
-
-		if err := txIdempotencyRepo.ReleaseLock(ctx, idempotencyKey); err != nil {
-			return err
-		}
-
-		return nil
-	})
-
+	// Save response in transaction
+	tx2, err := s.db.Begin(ctx)
 	if err != nil {
-		return nil, application.NewInternalError(err)
+		return payment, err
+	}
+	defer tx2.Rollback(ctx)
+
+	if err := payment.Authorize(bankResp.AuthorizationID, bankResp.CreatedAt, bankResp.ExpiresAt); err != nil {
+		return payment, err
+	}
+
+	if err := s.paymentRepo.Update(ctx, tx2, payment); err != nil {
+		return payment, err
+	}
+
+	responsePayload, _ := json.Marshal(bankResp)
+	if err := s.idempotencyRepo.StoreResponse(ctx, tx2, idempotencyKey, responsePayload); err != nil {
+		return payment, err
+	}
+
+	if err := s.idempotencyRepo.ReleaseLock(ctx, tx2, idempotencyKey); err != nil {
+		return payment, err
+	}
+
+	if err := tx2.Commit(ctx); err != nil {
+		return payment, err
 	}
 
 	return payment, nil

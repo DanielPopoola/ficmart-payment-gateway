@@ -24,7 +24,6 @@ type CaptureServiceTestSuite struct {
 	testDB           *testhelpers.TestDatabase
 	paymentRepo      *postgres.PaymentRepository
 	idempotencyRepo  *postgres.IdempotencyRepository
-	coordinator      *postgres.TransactionCoordinator
 	mockBank         *mocks.MockBankClient
 	authorizeService *services.AuthorizeService
 	captureService   *services.CaptureService
@@ -37,8 +36,7 @@ func TestCaptureServiceSuite(t *testing.T) {
 func (suite *CaptureServiceTestSuite) SetupSuite() {
 	suite.testDB = testhelpers.SetupTestDatabase(suite.T())
 	suite.paymentRepo = postgres.NewPaymentRepository(suite.testDB.DB.Pool)
-	suite.idempotencyRepo = postgres.NewIdempotencyRepository(suite.testDB.DB)
-	suite.coordinator = postgres.NewTransactionCoordinator(suite.testDB.DB)
+	suite.idempotencyRepo = postgres.NewIdempotencyRepository(suite.testDB.DB.Pool)
 }
 
 func (suite *CaptureServiceTestSuite) TearDownSuite() {
@@ -51,15 +49,15 @@ func (suite *CaptureServiceTestSuite) SetupTest() {
 	suite.authorizeService = services.NewAuthorizeService(
 		suite.paymentRepo,
 		suite.idempotencyRepo,
-		suite.coordinator,
 		suite.mockBank,
+		suite.testDB.DB.Pool,
 	)
 
 	suite.captureService = services.NewCaptureService(
 		suite.paymentRepo,
 		suite.idempotencyRepo,
-		suite.coordinator,
 		suite.mockBank,
+		suite.testDB.DB.Pool,
 	)
 }
 
@@ -261,7 +259,7 @@ func (suite *CaptureServiceTestSuite) Test_Capture_BankReturns500_PaymentStaysCa
 	assert.Nil(suite.T(), savedPayment.BankCaptureID())
 }
 
-func (suite *CaptureServiceTestSuite) Test_Capture_BankReturnsPermanentError_PaymentStaysCapturing() {
+func (suite *CaptureServiceTestSuite) Test_Capture_BankReturnsPermanentError_IsFailed() {
 	ctx := context.Background()
 
 	payment := testhelpers.CreateAuthorizedPayment(suite.T(), ctx, suite.authorizeService, suite.mockBank)
@@ -288,7 +286,7 @@ func (suite *CaptureServiceTestSuite) Test_Capture_BankReturnsPermanentError_Pay
 	require.Error(suite.T(), err)
 
 	require.NotNil(suite.T(), capturedPayment)
-	assert.Equal(suite.T(), domain.StatusCapturing, capturedPayment.Status())
+	assert.Equal(suite.T(), domain.StatusFailed, capturedPayment.Status())
 }
 
 func (suite *CaptureServiceTestSuite) Test_Capture_ConcurrentRequests_OnlyOneSucceeds() {

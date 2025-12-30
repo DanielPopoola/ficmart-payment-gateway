@@ -23,7 +23,6 @@ type RefundServiceTestSuite struct {
 	testDB           *testhelpers.TestDatabase
 	paymentRepo      *postgres.PaymentRepository
 	idempotencyRepo  *postgres.IdempotencyRepository
-	coordinator      *postgres.TransactionCoordinator
 	mockBank         *mocks.MockBankClient
 	authorizeService *services.AuthorizeService
 	captureService   *services.CaptureService
@@ -37,8 +36,7 @@ func TestRefundServiceSuite(t *testing.T) {
 func (suite *RefundServiceTestSuite) SetupSuite() {
 	suite.testDB = testhelpers.SetupTestDatabase(suite.T())
 	suite.paymentRepo = postgres.NewPaymentRepository(suite.testDB.DB.Pool)
-	suite.idempotencyRepo = postgres.NewIdempotencyRepository(suite.testDB.DB)
-	suite.coordinator = postgres.NewTransactionCoordinator(suite.testDB.DB)
+	suite.idempotencyRepo = postgres.NewIdempotencyRepository(suite.testDB.DB.Pool)
 }
 
 func (suite *RefundServiceTestSuite) TearDownSuite() {
@@ -51,22 +49,22 @@ func (suite *RefundServiceTestSuite) SetupTest() {
 	suite.authorizeService = services.NewAuthorizeService(
 		suite.paymentRepo,
 		suite.idempotencyRepo,
-		suite.coordinator,
 		suite.mockBank,
+		suite.testDB.DB.Pool,
 	)
 
 	suite.captureService = services.NewCaptureService(
 		suite.paymentRepo,
 		suite.idempotencyRepo,
-		suite.coordinator,
 		suite.mockBank,
+		suite.testDB.DB.Pool,
 	)
 
 	suite.refundService = services.NewRefundService(
 		suite.paymentRepo,
 		suite.idempotencyRepo,
-		suite.coordinator,
 		suite.mockBank,
+		suite.testDB.DB.Pool,
 	)
 }
 
@@ -287,7 +285,7 @@ func (suite *RefundServiceTestSuite) Test_Refund_BankReturns500_PaymentStaysRefu
 	assert.Nil(suite.T(), savedPayment.BankRefundID())
 }
 
-func (suite *RefundServiceTestSuite) Test_Refund_BankReturnsPermanentError_PaymentStayRefunding() {
+func (suite *RefundServiceTestSuite) Test_Refund_BankReturnsPermanentError_PaymentFails() {
 	ctx := context.Background()
 
 	payment := testhelpers.CreateCapturedPayment(
@@ -320,7 +318,7 @@ func (suite *RefundServiceTestSuite) Test_Refund_BankReturnsPermanentError_Payme
 	require.Error(suite.T(), err)
 
 	require.NotNil(suite.T(), RefundedPayment)
-	assert.Equal(suite.T(), domain.StatusRefunding, RefundedPayment.Status())
+	assert.Equal(suite.T(), domain.StatusFailed, RefundedPayment.Status())
 }
 
 func (suite *RefundServiceTestSuite) Test_Refund_ConcurrentRequests_OnlyOneSucceeds() {

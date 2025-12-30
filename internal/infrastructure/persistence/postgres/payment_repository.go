@@ -8,6 +8,7 @@ import (
 
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/domain"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -15,17 +16,13 @@ var ErrPaymentNotFound = errors.New("payment not found")
 
 type PaymentRepository struct {
 	db *pgxpool.Pool
-	q  Executor
 }
 
 func NewPaymentRepository(db *pgxpool.Pool) *PaymentRepository {
-	return &PaymentRepository{
-		db: db,
-		q:  db,
-	}
+	return &PaymentRepository{db: db}
 }
 
-func (r *PaymentRepository) Create(ctx context.Context, payment *domain.Payment) error {
+func (r *PaymentRepository) Create(ctx context.Context, tx pgx.Tx, payment *domain.Payment) error {
 	query := `
 		INSERT INTO payments (
             id, order_id, customer_id, amount_cents, currency, status,
@@ -35,7 +32,13 @@ func (r *PaymentRepository) Create(ctx context.Context, payment *domain.Payment)
 	`
 
 	p := toDBModel(payment)
-	_, err := r.q.Exec(ctx, query,
+	var q interface {
+		Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+	} = r.db
+	if tx != nil {
+		q = tx
+	}
+	_, err := q.Exec(ctx, query,
 		p.ID,
 		p.OrderID,
 		p.CustomerID,
@@ -70,12 +73,12 @@ func (r *PaymentRepository) FindByID(ctx context.Context, id string) (*domain.Pa
 		FROM payments WHERE id = $1
 	`
 
-	row := r.q.QueryRow(ctx, query, id)
+	row := r.db.QueryRow(ctx, query, id)
 	return scanPayment(row)
 }
 
 // FindbyIDByForUpdate retrieves a payment with row-level lock
-func (r *PaymentRepository) FindByIDForUpdate(ctx context.Context, id string) (*domain.Payment, error) {
+func (r *PaymentRepository) FindByIDForUpdate(ctx context.Context, tx pgx.Tx, id string) (*domain.Payment, error) {
 	query := `
 		SELECT id, order_id, customer_id, amount_cents, currency, status,
 		       bank_auth_id, bank_capture_id, bank_void_id, bank_refund_id,
@@ -83,8 +86,14 @@ func (r *PaymentRepository) FindByIDForUpdate(ctx context.Context, id string) (*
 		FROM payments WHERE id = $1
 		FOR UPDATE
 	`
+	var q interface {
+		QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+	} = r.db
+	if tx != nil {
+		q = tx
+	}
 
-	row := r.q.QueryRow(ctx, query, id)
+	row := q.QueryRow(ctx, query, id)
 	return scanPayment(row)
 }
 
@@ -97,7 +106,7 @@ func (r *PaymentRepository) FindByOrderID(ctx context.Context, orderID string) (
 		FROM payments WHERE order_id = $1
 	`
 
-	row := r.q.QueryRow(ctx, query, orderID)
+	row := r.db.QueryRow(ctx, query, orderID)
 	return scanPayment(row)
 
 }
@@ -112,7 +121,7 @@ func (r *PaymentRepository) FindByCustomerID(ctx context.Context, customerID str
 		LIMIT $2 OFFSET $3
 	`
 
-	rows, err := r.q.Query(ctx, query, customerID, limit, offset)
+	rows, err := r.db.Query(ctx, query, customerID, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("query payments by customer_id: %w", err)
 	}
@@ -146,7 +155,7 @@ func (r *PaymentRepository) FindExpiredAuthorizations(ctx context.Context, cutof
 		LIMIT $2
 	`
 
-	rows, err := r.q.Query(ctx, query, cutoffTime, limit)
+	rows, err := r.db.Query(ctx, query, cutoffTime, limit)
 	if err != nil {
 		return nil, fmt.Errorf("query expired authorizations: %w", err)
 	}
@@ -169,7 +178,7 @@ func (r *PaymentRepository) FindExpiredAuthorizations(ctx context.Context, cutof
 	return results, nil
 }
 
-func (r *PaymentRepository) Update(ctx context.Context, payment *domain.Payment) error {
+func (r *PaymentRepository) Update(ctx context.Context, tx pgx.Tx, payment *domain.Payment) error {
 	query := `
 		UPDATE payments
 		SET status = $1,
@@ -179,7 +188,13 @@ func (r *PaymentRepository) Update(ctx context.Context, payment *domain.Payment)
 	`
 
 	p := toDBModel(payment)
-	results, err := r.q.Exec(ctx, query,
+	var q interface {
+		Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+	} = r.db
+	if tx != nil {
+		q = tx
+	}
+	results, err := q.Exec(ctx, query,
 		p.Status,
 		p.BankAuthID,
 		p.BankCaptureID,

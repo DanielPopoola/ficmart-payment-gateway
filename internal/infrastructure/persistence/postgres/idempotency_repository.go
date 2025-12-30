@@ -7,28 +7,35 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 var ErrDuplicateIdempotencyKey = errors.New("duplicate transaction")
 var ErrIdempotencyMismatch = errors.New("idempotency key mismatch")
 
 type IdempotencyRepository struct {
-	q Executor
+	db *pgxpool.Pool
 }
 
-func NewIdempotencyRepository(db *DB) *IdempotencyRepository {
-	return &IdempotencyRepository{
-		q: db.Pool,
-	}
+func NewIdempotencyRepository(db *pgxpool.Pool) *IdempotencyRepository {
+	return &IdempotencyRepository{db: db}
 }
 
-func (r *IdempotencyRepository) AcquireLock(ctx context.Context, key string, paymentID string, requestHash string) error {
+func (r *IdempotencyRepository) AcquireLock(ctx context.Context, tx pgx.Tx, key string, paymentID string, requestHash string) error {
 	query := `
 		INSERT INTO idempotency_keys (key, payment_id, request_hash, locked_at)
 		VALUES ($1, $2, $3, $4)
 	`
 
-	_, err := r.q.Exec(ctx, query, key, paymentID, requestHash, time.Now())
+	var q interface {
+		Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+	} = r.db
+	if tx != nil {
+		q = tx
+	}
+
+	_, err := q.Exec(ctx, query, key, paymentID, requestHash, time.Now())
 	if err != nil {
 		if IsUniqueViolation(err) {
 			return ErrDuplicateIdempotencyKey
@@ -47,7 +54,7 @@ func (r *IdempotencyRepository) FindByKey(ctx context.Context, key string) (*Ide
     `
 	var i IdempotencyKey
 
-	err := r.q.QueryRow(ctx, query, key).Scan(
+	err := r.db.QueryRow(ctx, query, key).Scan(
 		&i.Key,
 		&i.PaymentID,
 		&i.RequestHash,
@@ -74,7 +81,7 @@ func (r *IdempotencyRepository) FindByRequestHash(ctx context.Context, requestHa
     `
 
 	var i IdempotencyKey
-	err := r.q.QueryRow(ctx, query, requestHash).Scan(
+	err := r.db.QueryRow(ctx, query, requestHash).Scan(
 		&i.Key,
 		&i.PaymentID,
 		&i.RequestHash,
@@ -92,14 +99,19 @@ func (r *IdempotencyRepository) FindByRequestHash(ctx context.Context, requestHa
 	return &i, nil
 }
 
-func (r *IdempotencyRepository) StoreResponse(ctx context.Context, key string, responsePayload []byte) error {
+func (r *IdempotencyRepository) StoreResponse(ctx context.Context, tx pgx.Tx, key string, responsePayload []byte) error {
 	query := `
 		UPDATE idempotency_keys
 		SET response_payload = $1
 		WHERE key = $2
 	`
-
-	_, err := r.q.Exec(ctx, query, responsePayload, key)
+	var q interface {
+		Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+	} = r.db
+	if tx != nil {
+		q = tx
+	}
+	_, err := q.Exec(ctx, query, responsePayload, key)
 	if err != nil {
 		return fmt.Errorf("failed to store idempotency response: %w", err)
 	}
@@ -107,14 +119,21 @@ func (r *IdempotencyRepository) StoreResponse(ctx context.Context, key string, r
 	return nil
 }
 
-func (r *IdempotencyRepository) ReleaseLock(ctx context.Context, key string) error {
+func (r *IdempotencyRepository) ReleaseLock(ctx context.Context, tx pgx.Tx, key string) error {
 	query := `
         UPDATE idempotency_keys
         SET locked_at = NULL
         WHERE key = $1
     `
 
-	_, err := r.q.Exec(ctx, query, key)
+	var q interface {
+		Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+	} = r.db
+	if tx != nil {
+		q = tx
+	}
+
+	_, err := q.Exec(ctx, query, key)
 	if err != nil {
 		return fmt.Errorf("failed to release idempotency lock: %w", err)
 	}

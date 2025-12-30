@@ -2,6 +2,7 @@ package worker
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"time"
@@ -9,32 +10,36 @@ import (
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/application"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/domain"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/infrastructure/persistence/postgres"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type RetryWorker struct {
-	paymentRepo *postgres.PaymentRepository
-	bankClient  application.BankClient
-	interval    time.Duration
-	batchSize   int
-	db          *postgres.DB
-	logger      *slog.Logger
+	paymentRepo     *postgres.PaymentRepository
+	idempotencyRepo *postgres.IdempotencyRepository
+	bankClient      application.BankClient
+	interval        time.Duration
+	batchSize       int
+	db              *pgxpool.Pool
+	logger          *slog.Logger
 }
 
 func NewRetryWorker(
 	paymentRepo *postgres.PaymentRepository,
+	idempotencyRepo *postgres.IdempotencyRepository,
 	bankClient application.BankClient,
-	db *postgres.DB,
+	db *pgxpool.Pool,
 	interval time.Duration,
 	batchSize int,
 	logger *slog.Logger,
 ) *RetryWorker {
 	return &RetryWorker{
-		paymentRepo: paymentRepo,
-		bankClient:  bankClient,
-		interval:    interval,
-		batchSize:   batchSize,
-		db:          db,
-		logger:      logger,
+		paymentRepo:     paymentRepo,
+		idempotencyRepo: idempotencyRepo,
+		bankClient:      bankClient,
+		interval:        interval,
+		batchSize:       batchSize,
+		db:              db,
+		logger:          logger,
 	}
 }
 
@@ -53,7 +58,7 @@ func (w *RetryWorker) Start(ctx context.Context) {
 				w.logger.Error("retry processing failed", "error", err)
 			}
 
-			if err := w.timeoutPendingPayments(ctx); err != nil {
+			if err := w.timeoutUnAuthorizedPayments(ctx); err != nil {
 				w.logger.Error("timeout failed", "error", err)
 			}
 		}
@@ -80,9 +85,10 @@ func (w *RetryWorker) processRetries(ctx context.Context) error {
 			AND i.locked_at < NOW() - $1::interval
 		ORDER BY p.created_at ASC
 		LIMIT $2
+		FOR UPDATE
 	`
 
-	rows, err := w.db.Pool.Query(ctx, query, w.interval, w.batchSize)
+	rows, err := w.db.Query(ctx, query, w.interval, w.batchSize)
 	if err != nil {
 		return fmt.Errorf("query stuck payments: %w", err)
 	}
@@ -113,7 +119,7 @@ func (w *RetryWorker) processRetries(ctx context.Context) error {
 	return rows.Err()
 }
 
-func (w *RetryWorker) timeoutPendingPayments(ctx context.Context) error {
+func (w *RetryWorker) timeoutUnAuthorizedPayments(ctx context.Context) error {
 	query := `
         SELECT p.id, p.order_id, i.key, p.created_at
         FROM payments p
@@ -122,9 +128,10 @@ func (w *RetryWorker) timeoutPendingPayments(ctx context.Context) error {
             p.status = 'PENDING'
             AND p.created_at < NOW() - INTERVAL '10 minutes'
             AND i.locked_at IS NOT NULL
+		FOR UPDATE
     `
 
-	rows, err := w.db.Pool.Query(ctx, query)
+	rows, err := w.db.Query(ctx, query)
 	if err != nil {
 		return err
 	}
@@ -141,7 +148,7 @@ func (w *RetryWorker) timeoutPendingPayments(ctx context.Context) error {
 		}
 
 		payment.Fail()
-		w.paymentRepo.Update(ctx, payment)
+		w.paymentRepo.Update(ctx, nil, payment)
 
 		w.logger.Error("ORPHANED_AUTHORIZATION_RISK",
 			"payment_id", id,
@@ -188,17 +195,39 @@ func (w *RetryWorker) resumeCapture(ctx context.Context, payment *domain.Payment
 
 		if category == application.CategoryPermanent {
 			payment.Fail()
-			w.paymentRepo.Update(ctx, payment)
+			w.paymentRepo.Update(ctx, nil, payment)
 			return err
 		}
 		return w.scheduleRetry(ctx, payment, err)
 	}
+	tx, err := w.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
 
 	if err = payment.Capture(resp.CaptureID, resp.CapturedAt); err != nil {
 		return err
 	}
 
-	return w.paymentRepo.Update(ctx, payment)
+	if updateErr := w.paymentRepo.Update(ctx, tx, payment); updateErr != nil {
+		return updateErr
+	}
+
+	responsePayload, _ := json.Marshal(resp)
+	if err := w.idempotencyRepo.StoreResponse(ctx, tx, idempotencyKey, responsePayload); err != nil {
+		return err
+	}
+
+	if err := w.idempotencyRepo.ReleaseLock(ctx, tx, idempotencyKey); err != nil {
+		return err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (w *RetryWorker) resumeVoid(ctx context.Context, payment *domain.Payment, idempotencyKey string) error {
@@ -216,17 +245,39 @@ func (w *RetryWorker) resumeVoid(ctx context.Context, payment *domain.Payment, i
 
 		if category == application.CategoryPermanent {
 			payment.Fail()
-			w.paymentRepo.Update(ctx, payment)
+			w.paymentRepo.Update(ctx, nil, payment)
 			return err
 		}
 		return w.scheduleRetry(ctx, payment, err)
 	}
+	tx, err := w.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
 
-	if err = payment.Capture(resp.VoidID, resp.VoidedAt); err != nil {
+	if err = payment.Void(resp.VoidID, resp.VoidedAt); err != nil {
 		return err
 	}
 
-	return w.paymentRepo.Update(ctx, payment)
+	if updateErr := w.paymentRepo.Update(ctx, tx, payment); updateErr != nil {
+		return updateErr
+	}
+
+	responsePayload, _ := json.Marshal(resp)
+	if err := w.idempotencyRepo.StoreResponse(ctx, tx, idempotencyKey, responsePayload); err != nil {
+		return err
+	}
+
+	if err := w.idempotencyRepo.ReleaseLock(ctx, tx, idempotencyKey); err != nil {
+		return err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (w *RetryWorker) resumeRefund(ctx context.Context, payment *domain.Payment, idempotencyKey string) error {
@@ -245,17 +296,40 @@ func (w *RetryWorker) resumeRefund(ctx context.Context, payment *domain.Payment,
 
 		if category == application.CategoryPermanent {
 			payment.Fail()
-			w.paymentRepo.Update(ctx, payment)
+			w.paymentRepo.Update(ctx, nil, payment)
 			return err
 		}
 		return w.scheduleRetry(ctx, payment, err)
 	}
 
-	if err = payment.Capture(resp.RefundID, resp.RefundedAt); err != nil {
+	tx, err := w.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	if err = payment.Refund(resp.RefundID, resp.RefundedAt); err != nil {
 		return err
 	}
 
-	return w.paymentRepo.Update(ctx, payment)
+	if updateErr := w.paymentRepo.Update(ctx, tx, payment); updateErr != nil {
+		return updateErr
+	}
+
+	responsePayload, _ := json.Marshal(resp)
+	if err := w.idempotencyRepo.StoreResponse(ctx, tx, idempotencyKey, responsePayload); err != nil {
+		return err
+	}
+
+	if err := w.idempotencyRepo.ReleaseLock(ctx, tx, idempotencyKey); err != nil {
+		return err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (w *RetryWorker) scheduleRetry(ctx context.Context, payment *domain.Payment, lastErr error) error {
@@ -265,5 +339,5 @@ func (w *RetryWorker) scheduleRetry(ctx context.Context, payment *domain.Payment
 		time.Duration(1<<payment.AttemptCount())*time.Minute,
 		string(category),
 	)
-	return w.paymentRepo.Update(ctx, payment)
+	return w.paymentRepo.Update(ctx, nil, payment)
 }
