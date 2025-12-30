@@ -194,12 +194,34 @@ func (w *RetryWorker) resumeCapture(ctx context.Context, payment *domain.Payment
 			"error", err)
 
 		if category == application.CategoryPermanent {
-			payment.Fail()
-			w.paymentRepo.Update(ctx, nil, payment)
+			if failErr := payment.FailWithCategory(string(category)); failErr != nil {
+				return failErr
+			}
+
+			tx, err := w.db.Begin(ctx)
+			if err != nil {
+				return err
+			}
+			defer tx.Rollback(ctx)
+
+			if updateErr := w.paymentRepo.Update(ctx, tx, payment); updateErr != nil {
+				return updateErr
+			}
+
+			responsePayload, _ := json.Marshal(err)
+			if storeErr := w.idempotencyRepo.StoreResponse(ctx, tx, idempotencyKey, responsePayload); storeErr != nil {
+				return storeErr
+			}
+
+			if err := tx.Commit(ctx); err != nil {
+				return err
+			}
+
 			return err
 		}
 		return w.scheduleRetry(ctx, payment, err)
 	}
+
 	tx, err := w.db.Begin(ctx)
 	if err != nil {
 		return err
@@ -244,8 +266,29 @@ func (w *RetryWorker) resumeVoid(ctx context.Context, payment *domain.Payment, i
 			"error", err)
 
 		if category == application.CategoryPermanent {
-			payment.Fail()
-			w.paymentRepo.Update(ctx, nil, payment)
+			if failErr := payment.FailWithCategory(string(category)); failErr != nil {
+				return failErr
+			}
+
+			tx, err := w.db.Begin(ctx)
+			if err != nil {
+				return err
+			}
+			defer tx.Rollback(ctx)
+
+			if updateErr := w.paymentRepo.Update(ctx, tx, payment); updateErr != nil {
+				return updateErr
+			}
+
+			responsePayload, _ := json.Marshal(err)
+			if storeErr := w.idempotencyRepo.StoreResponse(ctx, tx, idempotencyKey, responsePayload); storeErr != nil {
+				return storeErr
+			}
+
+			if err := tx.Commit(ctx); err != nil {
+				return err
+			}
+
 			return err
 		}
 		return w.scheduleRetry(ctx, payment, err)
@@ -295,8 +338,29 @@ func (w *RetryWorker) resumeRefund(ctx context.Context, payment *domain.Payment,
 			"error", err)
 
 		if category == application.CategoryPermanent {
-			payment.Fail()
-			w.paymentRepo.Update(ctx, nil, payment)
+			if failErr := payment.FailWithCategory(string(category)); failErr != nil {
+				return failErr
+			}
+
+			tx, err := w.db.Begin(ctx)
+			if err != nil {
+				return err
+			}
+			defer tx.Rollback(ctx)
+
+			if updateErr := w.paymentRepo.Update(ctx, tx, payment); updateErr != nil {
+				return updateErr
+			}
+
+			responsePayload, _ := json.Marshal(err)
+			if storeErr := w.idempotencyRepo.StoreResponse(ctx, tx, idempotencyKey, responsePayload); storeErr != nil {
+				return storeErr
+			}
+
+			if err := tx.Commit(ctx); err != nil {
+				return err
+			}
+
 			return err
 		}
 		return w.scheduleRetry(ctx, payment, err)

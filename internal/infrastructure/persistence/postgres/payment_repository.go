@@ -69,7 +69,8 @@ func (r *PaymentRepository) FindByID(ctx context.Context, id string) (*domain.Pa
 	query := `
 		SELECT id, order_id, customer_id, amount_cents, currency, status,
 		       bank_auth_id, bank_capture_id, bank_void_id, bank_refund_id,
-		       created_at, authorized_at, captured_at, voided_at, refunded_at, expires_at
+		       created_at, authorized_at, captured_at, voided_at, refunded_at, expires_at,
+			   attempt_count, next_retry_at, last_error_category
 		FROM payments WHERE id = $1
 	`
 
@@ -82,7 +83,8 @@ func (r *PaymentRepository) FindByIDForUpdate(ctx context.Context, tx pgx.Tx, id
 	query := `
 		SELECT id, order_id, customer_id, amount_cents, currency, status,
 		       bank_auth_id, bank_capture_id, bank_void_id, bank_refund_id,
-		       created_at, authorized_at, captured_at, voided_at, refunded_at, expires_at
+		       created_at, authorized_at, captured_at, voided_at, refunded_at, expires_at,
+			   attempt_count, next_retry_at, last_error_category
 		FROM payments WHERE id = $1
 		FOR UPDATE
 	`
@@ -102,7 +104,8 @@ func (r *PaymentRepository) FindByOrderID(ctx context.Context, orderID string) (
 	query := `
 		SELECT id, order_id, customer_id, amount_cents, currency, status,
 		       bank_auth_id, bank_capture_id, bank_void_id, bank_refund_id,
-		       created_at, authorized_at, captured_at, voided_at, refunded_at, expires_at
+		       created_at, authorized_at, captured_at, voided_at, refunded_at, expires_at,
+			   attempt_count, next_retry_at, last_error_category
 		FROM payments WHERE order_id = $1
 	`
 
@@ -116,7 +119,8 @@ func (r *PaymentRepository) FindByCustomerID(ctx context.Context, customerID str
 	query := `
 		SELECT id, order_id, customer_id, amount_cents, currency, status,
 		       bank_auth_id, bank_capture_id, bank_void_id, bank_refund_id,
-		       created_at, authorized_at, captured_at, voided_at, refunded_at, expires_at
+		       created_at, authorized_at, captured_at, voided_at, refunded_at, expires_at,
+			   attempt_count, next_retry_at, last_error_category
 		FROM payments WHERE customer_id = $1
 		LIMIT $2 OFFSET $3
 	`
@@ -131,6 +135,7 @@ func (r *PaymentRepository) FindByCustomerID(ctx context.Context, customerID str
 			&m.ID, &m.OrderID, &m.CustomerID, &m.AmountCents, &m.Currency, &m.Status,
 			&m.BankAuthID, &m.BankCaptureID, &m.BankVoidID, &m.BankRefundID,
 			&m.CreatedAt, &m.AuthorizedAt, &m.CapturedAt, &m.VoidedAt, &m.RefundedAt, &m.ExpiresAt,
+			&m.AttemptCount, &m.NextRetryAt, &m.LastErrorCategory,
 		)
 		return toDomainModel(m), err
 	})
@@ -183,8 +188,9 @@ func (r *PaymentRepository) Update(ctx context.Context, tx pgx.Tx, payment *doma
 		UPDATE payments
 		SET status = $1,
 			bank_auth_id = $2, bank_capture_id = $3, bank_void_id = $4, bank_refund_id = $5,
-			authorized_at = $6, captured_at = $7, voided_at = $8, refunded_at = $9, expires_at = $10
-		WHERE id = $11
+			authorized_at = $6, captured_at = $7, voided_at = $8, refunded_at = $9, expires_at = $10,
+			attempt_count = $11, next_retry_at = $12, last_error_category = $13
+		WHERE id = $14
 	`
 
 	p := toDBModel(payment)
@@ -205,6 +211,9 @@ func (r *PaymentRepository) Update(ctx context.Context, tx pgx.Tx, payment *doma
 		p.VoidedAt,
 		p.RefundedAt,
 		p.ExpiresAt,
+		p.AttemptCount,
+		p.NextRetryAt,
+		p.LastErrorCategory,
 		p.ID,
 	)
 
@@ -228,6 +237,7 @@ func scanPayment(row pgx.Row) (*domain.Payment, error) {
 		&m.ID, &m.OrderID, &m.CustomerID, &m.AmountCents, &m.Currency, &m.Status,
 		&m.BankAuthID, &m.BankCaptureID, &m.BankVoidID, &m.BankRefundID,
 		&m.CreatedAt, &m.AuthorizedAt, &m.CapturedAt, &m.VoidedAt, &m.RefundedAt, &m.ExpiresAt,
+		&m.AttemptCount, &m.NextRetryAt, &m.LastErrorCategory,
 	)
 
 	if err != nil {

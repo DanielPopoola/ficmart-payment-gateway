@@ -98,7 +98,7 @@ func (s *VoidService) Void(ctx context.Context, cmd VoidCommand, idempotencyKey 
 	if err != nil {
 		category := application.CategorizeError(err)
 		if category == application.CategoryPermanent {
-			if failErr := payment.Fail(); failErr != nil {
+			if failErr := payment.FailWithCategory(string(category)); failErr != nil {
 				return nil, application.NewInternalError(failErr)
 			}
 

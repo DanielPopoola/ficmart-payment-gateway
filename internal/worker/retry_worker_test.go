@@ -109,3 +109,174 @@ func TestRetryWorker_RecoversStuckCapture(t *testing.T) {
 	require.NoError(t, err)
 	assert.Nil(t, key.LockedAt, "Lock should be released after success")
 }
+
+func TestRetryWorker_SchedulesRetryOnTransientError(t *testing.T) {
+	ctx := context.Background()
+
+	testDB := testhelpers.SetupTestDatabase(t)
+	defer testDB.Cleanup(t)
+
+	paymentRepo := postgres.NewPaymentRepository(testDB.DB.Pool)
+	idempotencyRepo := postgres.NewIdempotencyRepository(testDB.DB.Pool)
+	mockBank := mocks.NewMockBankClient(t)
+
+	authService := services.NewAuthorizeService(
+		paymentRepo,
+		idempotencyRepo,
+		mockBank,
+		testDB.DB.Pool,
+	)
+
+	idempotencyKey := "idem-test-capture-" + uuid.New().String()
+
+	authCmd := testhelpers.DefaultAuthorizeCommand()
+
+	mockBank.EXPECT().Authorize(
+		mock.Anything,
+		mock.Anything,
+		idempotencyKey,
+	).Return(&application.BankAuthorizationResponse{
+		Amount:          authCmd.Amount,
+		Currency:        authCmd.Currency,
+		Status:          "authorized",
+		AuthorizationID: "auth-123",
+		CreatedAt:       time.Now(),
+		ExpiresAt:       time.Now().Add(7 * 24 * time.Hour),
+	}, nil).Once()
+
+	payment, err := authService.Authorize(ctx, authCmd, idempotencyKey)
+	require.NoError(t, err)
+
+	err = payment.MarkCapturing()
+	require.NoError(t, err)
+
+	err = paymentRepo.Update(ctx, nil, payment)
+	require.NoError(t, err)
+
+	_, err = testDB.DB.Pool.Exec(ctx,
+		"UPDATE idempotency_keys SET locked_at = $1 WHERE key = $2",
+		time.Now().Add(-2*time.Hour),
+		idempotencyKey,
+	)
+	require.NoError(t, err)
+
+	mockBank.EXPECT().Capture(
+		mock.Anything,
+		mock.Anything,
+		idempotencyKey,
+	).Return(nil, &application.BankError{
+		Code:       "internal_error",
+		Message:    "Bank internal error",
+		StatusCode: 500}).Once()
+
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+		Level: slog.LevelError,
+	}))
+
+	worker := worker.NewRetryWorker(
+		paymentRepo,
+		idempotencyRepo,
+		mockBank,
+		testDB.DB.Pool,
+		1*time.Minute,
+		10,
+		logger,
+	)
+
+	err = worker.ProcessRetries(ctx)
+	require.NoError(t, err)
+
+	updatedPayment, err := paymentRepo.FindByID(ctx, payment.ID())
+	require.NoError(t, err)
+
+	assert.Equal(t, domain.StatusCapturing, updatedPayment.Status())
+	require.NotNil(t, updatedPayment.NextRetryAt())
+	assert.True(t, updatedPayment.NextRetryAt().After(time.Now()))
+	assert.Equal(t, 1, updatedPayment.AttemptCount())
+	assert.Equal(t, "TRANSIENT", *updatedPayment.LastErrorCategory())
+}
+
+func TestRetryWorker_FailsOnPermanentError(t *testing.T) {
+	ctx := context.Background()
+
+	testDB := testhelpers.SetupTestDatabase(t)
+	defer testDB.Cleanup(t)
+
+	paymentRepo := postgres.NewPaymentRepository(testDB.DB.Pool)
+	idempotencyRepo := postgres.NewIdempotencyRepository(testDB.DB.Pool)
+	mockBank := mocks.NewMockBankClient(t)
+
+	authService := services.NewAuthorizeService(
+		paymentRepo,
+		idempotencyRepo,
+		mockBank,
+		testDB.DB.Pool,
+	)
+
+	idempotencyKey := "idem-test-capture-" + uuid.New().String()
+
+	authCmd := testhelpers.DefaultAuthorizeCommand()
+
+	mockBank.EXPECT().Authorize(
+		mock.Anything,
+		mock.Anything,
+		idempotencyKey,
+	).Return(&application.BankAuthorizationResponse{
+		Amount:          authCmd.Amount,
+		Currency:        authCmd.Currency,
+		Status:          "authorized",
+		AuthorizationID: "auth-123",
+		CreatedAt:       time.Now(),
+		ExpiresAt:       time.Now().Add(7 * 24 * time.Hour),
+	}, nil).Once()
+
+	payment, err := authService.Authorize(ctx, authCmd, idempotencyKey)
+	require.NoError(t, err)
+
+	err = payment.MarkCapturing()
+	require.NoError(t, err)
+
+	err = paymentRepo.Update(ctx, nil, payment)
+	require.NoError(t, err)
+
+	_, err = testDB.DB.Pool.Exec(ctx,
+		"UPDATE idempotency_keys SET locked_at = $1 WHERE key = $2",
+		time.Now().Add(-2*time.Hour),
+		idempotencyKey,
+	)
+	require.NoError(t, err)
+
+	mockBank.EXPECT().Capture(
+		mock.Anything,
+		mock.Anything,
+		idempotencyKey,
+	).Return(nil, &application.BankError{
+		Code:       "authorization_expired",
+		Message:    "Authorization has expired",
+		StatusCode: 400}).Once()
+
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+		Level: slog.LevelError,
+	}))
+
+	worker := worker.NewRetryWorker(
+		paymentRepo,
+		idempotencyRepo,
+		mockBank,
+		testDB.DB.Pool,
+		1*time.Minute,
+		10,
+		logger,
+	)
+
+	err = worker.ProcessRetries(ctx)
+	require.NoError(t, err)
+
+	updatedPayment, err := paymentRepo.FindByID(ctx, payment.ID())
+	require.NoError(t, err)
+
+	require.NotNil(t, updatedPayment.LastErrorCategory())
+	assert.Equal(t, "PERMANENT", *updatedPayment.LastErrorCategory())
+
+	assert.Nil(t, updatedPayment.NextRetryAt())
+}

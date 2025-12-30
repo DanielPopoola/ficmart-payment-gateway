@@ -206,6 +206,14 @@ func (p *Payment) ScheduleRetry(backoff time.Duration, errorCategory string) {
 	p.lastErrorCategory = &errorCategory
 }
 
+func (p *Payment) FailWithCategory(errorCategory string) error {
+	if err := p.transition(StatusFailed); err != nil {
+		return err
+	}
+	p.lastErrorCategory = &errorCategory
+	return nil
+}
+
 // Reconstitute - Special constructor for loading from DB
 func Reconstitute(
 	id string, orderID string, customerID string,

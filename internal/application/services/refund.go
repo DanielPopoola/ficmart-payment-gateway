@@ -98,7 +98,7 @@ func (s *RefundService) Refund(ctx context.Context, cmd RefundCommand, idempoten
 	if err != nil {
 		category := application.CategorizeError(err)
 		if category == application.CategoryPermanent {
-			if failErr := payment.Fail(); failErr != nil {
+			if failErr := payment.FailWithCategory(string(category)); failErr != nil {
 				return nil, application.NewInternalError(failErr)
 			}
 

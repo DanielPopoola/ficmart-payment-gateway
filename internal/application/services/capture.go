@@ -99,8 +99,8 @@ func (s *CaptureService) Capture(ctx context.Context, cmd CaptureCommand, idempo
 	if err != nil {
 		category := application.CategorizeError(err)
 		if category == application.CategoryPermanent {
-			if failErr := payment.Fail(); failErr != nil {
-				return nil, application.NewInternalError(err)
+			if failErr := payment.FailWithCategory(string(category)); failErr != nil {
+				return nil, application.NewInternalError(failErr)
 			}
 
 			tx, err := s.db.Begin(ctx)
