@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/domain"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/infrastructure/persistence/postgres"
@@ -203,10 +204,9 @@ func ToErrorCode(err error) string {
 	if errors.Is(err, postgres.ErrPaymentNotFound) {
 		return "PAYMENT_NOT_FOUND"
 	}
-	// Bank errors - pass through bank's error code
+
 	if bankErr, ok := IsBankError(err); ok {
-		// Convert to uppercase with underscores (API convention)
-		return toUpperSnakeCase(bankErr.Code)
+		return strings.ToUpper(bankErr.Code)
 	}
 
 	// Context errors
@@ -215,18 +215,4 @@ func ToErrorCode(err error) string {
 	}
 
 	return "INTERNAL_ERROR"
-}
-
-// toUpperSnakeCase converts "invalid_card" to "INVALID_CARD"
-func toUpperSnakeCase(s string) string {
-	// Bank already returns snake_case, just uppercase it
-	result := make([]byte, len(s))
-	for i := 0; i < len(s); i++ {
-		if s[i] >= 'a' && s[i] <= 'z' {
-			result[i] = s[i] - 32 // Convert to uppercase
-		} else {
-			result[i] = s[i]
-		}
-	}
-	return string(result)
 }

@@ -104,6 +104,11 @@ func (w *ExpirationWorker) checkAndMarkExpired(ctx context.Context, payment *dom
 		return nil
 	}
 
+	if time.Since(*payment.AuthorizedAt()) > 9*24*time.Hour {
+		w.logger.Error("FORCE_EXPIRED", "payment_id", payment.ID())
+		return w.markAsExpired(ctx, payment)
+	}
+
 	return w.markAsExpired(ctx, payment)
 }
 
