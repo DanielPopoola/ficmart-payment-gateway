@@ -110,40 +110,55 @@ func (s *AuthorizeService) Authorize(ctx context.Context, cmd AuthorizeCommand, 
 	if err != nil {
 		category := application.CategorizeError(err)
 		if category == application.CategoryPermanent {
-			payment.Fail()
-			s.paymentRepo.Update(ctx, nil, payment)
-		}
-		responsePayload, _ := json.Marshal(err)
-		if storeErr := s.idempotencyRepo.StoreResponse(ctx, nil, idempotencyKey, responsePayload); storeErr != nil {
+			if failErr := payment.Fail(); failErr != nil {
+				return nil, application.NewInternalError(err)
+			}
+
+			tx, err := s.db.Begin(ctx)
+			if err != nil {
+				return nil, application.NewInternalError(err)
+			}
+			defer tx.Rollback(ctx)
+
+			if updateErr := s.paymentRepo.Update(ctx, tx, payment); updateErr != nil {
+				return nil, application.NewInternalError(updateErr)
+			}
+			responsePayload, _ := json.Marshal(err)
+			if storeErr := s.idempotencyRepo.StoreResponse(ctx, tx, idempotencyKey, responsePayload); storeErr != nil {
+				return nil, application.NewInternalError(storeErr)
+			}
+			if err := tx.Commit(ctx); err != nil {
+				return nil, application.NewInternalError(err)
+			}
 		}
 		return payment, err
 	}
 
 	// Save response in transaction
-	tx2, err := s.db.Begin(ctx)
+	tx, err = s.db.Begin(ctx)
 	if err != nil {
 		return payment, err
 	}
-	defer tx2.Rollback(ctx)
+	defer tx.Rollback(ctx)
 
 	if err := payment.Authorize(bankResp.AuthorizationID, bankResp.CreatedAt, bankResp.ExpiresAt); err != nil {
 		return payment, err
 	}
 
-	if err := s.paymentRepo.Update(ctx, tx2, payment); err != nil {
+	if err := s.paymentRepo.Update(ctx, tx, payment); err != nil {
 		return payment, err
 	}
 
 	responsePayload, _ := json.Marshal(bankResp)
-	if err := s.idempotencyRepo.StoreResponse(ctx, tx2, idempotencyKey, responsePayload); err != nil {
+	if err := s.idempotencyRepo.StoreResponse(ctx, tx, idempotencyKey, responsePayload); err != nil {
 		return payment, err
 	}
 
-	if err := s.idempotencyRepo.ReleaseLock(ctx, tx2, idempotencyKey); err != nil {
+	if err := s.idempotencyRepo.ReleaseLock(ctx, tx, idempotencyKey); err != nil {
 		return payment, err
 	}
 
-	if err := tx2.Commit(ctx); err != nil {
+	if err := tx.Commit(ctx); err != nil {
 		return payment, err
 	}
 
