@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -90,13 +92,20 @@ func (td *TestDatabase) CleanTables(t *testing.T) {
 
 	_, err := td.DB.Pool.Exec(ctx, "TRUNCATE TABLE idempotency_keys, payments RESTART IDENTITY CASCADE;")
 	require.NoError(t, err)
+}
 
+func getProjectRoot() string {
+	_, filename, _, _ := runtime.Caller(0)
+	return filepath.Dir(filepath.Dir(filepath.Dir(filepath.Dir(filename))))
 }
 
 func runMigrations(ctx context.Context, db *postgres.DB) error {
-	migrationSQL, err := os.ReadFile("../../../internal/db/migrations/001_initial_schema.sql")
+	root := getProjectRoot()
+	migrationPath := filepath.Join(root, "db", "migrations", "001_initial_schema.sql")
+
+	migrationSQL, err := os.ReadFile(migrationPath)
 	if err != nil {
-		return fmt.Errorf("read migration file: %w", err)
+		return fmt.Errorf("read migration file from %s: %w", migrationPath, err)
 	}
 
 	_, err = db.Pool.Exec(ctx, string(migrationSQL))

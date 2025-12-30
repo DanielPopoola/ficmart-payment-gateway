@@ -54,7 +54,7 @@ func (w *RetryWorker) Start(ctx context.Context) {
 			w.logger.Info("retry worker stopping")
 			return
 		case <-ticker.C:
-			if err := w.processRetries(ctx); err != nil {
+			if err := w.ProcessRetries(ctx); err != nil {
 				w.logger.Error("retry processing failed", "error", err)
 			}
 
@@ -71,7 +71,7 @@ type stuckPayment struct {
 	idempotencyKey string
 }
 
-func (w *RetryWorker) processRetries(ctx context.Context) error {
+func (w *RetryWorker) ProcessRetries(ctx context.Context) error {
 	query := `
 		SELECT p.id, p.status, i.key
 		FROM payments p
