@@ -54,7 +54,7 @@ func (s *CaptureService) Capture(ctx context.Context, cmd CaptureCommand, idempo
 	existingHash, err := s.idempotencyRepo.FindByRequestHash(ctx, requestHash)
 	if err == nil && existingHash.Key != idempotencyKey {
 		payment, _ := s.paymentRepo.FindByID(ctx, existingHash.PaymentID)
-		if payment != nil && payment.Status() != domain.StatusAuthorized {
+		if payment != nil && payment.Status != domain.StatusAuthorized {
 			return nil, application.NewDuplicateBusinessRequestError(existingHash.PaymentID, existingHash.Key)
 		}
 	}
@@ -92,7 +92,7 @@ func (s *CaptureService) Capture(ctx context.Context, cmd CaptureCommand, idempo
 
 	bankReq := application.BankCaptureRequest{
 		Amount:          cmd.Amount,
-		AuthorizationID: *payment.BankAuthID(),
+		AuthorizationID: *payment.BankAuthID,
 	}
 
 	bankResp, err := s.bankClient.Capture(ctx, bankReq, idempotencyKey)

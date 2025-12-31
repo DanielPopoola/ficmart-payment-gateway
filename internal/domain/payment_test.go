@@ -17,13 +17,13 @@ func TestNewPayment(t *testing.T) {
 		payment, err := domain.NewPayment("pay-123", "order-456", "cust-789", money)
 
 		require.NoError(t, err)
-		assert.Equal(t, "pay-123", payment.ID())
-		assert.Equal(t, "order-456", payment.OrderID())
-		assert.Equal(t, "cust-789", payment.CustomerID())
-		assert.Equal(t, int64(5000), payment.Amount().Amount)
-		assert.Equal(t, "USD", payment.Amount().Currency)
-		assert.Equal(t, domain.StatusPending, payment.Status())
-		assert.NotZero(t, payment.CreatedAt())
+		assert.Equal(t, "pay-123", payment.ID)
+		assert.Equal(t, "order-456", payment.OrderID)
+		assert.Equal(t, "cust-789", payment.CustomerID)
+		assert.Equal(t, int64(5000), payment.AmountCents)
+		assert.Equal(t, "USD", payment.Currency)
+		assert.Equal(t, domain.StatusPending, payment.Status)
+		assert.NotZero(t, payment.CreatedAt)
 	})
 
 	t.Run("rejects empty payment ID", func(t *testing.T) {
@@ -84,10 +84,10 @@ func TestPayment_StateTransitions(t *testing.T) {
 		err := payment.Authorize("auth-123", time.Now(), time.Now().Add(7*24*time.Hour))
 
 		require.NoError(t, err)
-		assert.Equal(t, domain.StatusAuthorized, payment.Status())
-		assert.Equal(t, "auth-123", *payment.BankAuthID())
-		assert.NotNil(t, payment.AuthorizedAt())
-		assert.NotNil(t, payment.ExpiresAt())
+		assert.Equal(t, domain.StatusAuthorized, payment.Status)
+		assert.Equal(t, "auth-123", *payment.BankAuthID)
+		assert.NotNil(t, payment.AuthorizedAt)
+		assert.NotNil(t, payment.ExpiresAt)
 	})
 
 	t.Run("PENDING -> FAILED transition", func(t *testing.T) {
@@ -96,7 +96,7 @@ func TestPayment_StateTransitions(t *testing.T) {
 		err := payment.Fail()
 
 		require.NoError(t, err)
-		assert.Equal(t, domain.StatusFailed, payment.Status())
+		assert.Equal(t, domain.StatusFailed, payment.Status)
 	})
 
 	t.Run("AUTHORIZED -> CAPTURING transition", func(t *testing.T) {
@@ -105,7 +105,7 @@ func TestPayment_StateTransitions(t *testing.T) {
 		err := payment.MarkCapturing()
 
 		require.NoError(t, err)
-		assert.Equal(t, domain.StatusCapturing, payment.Status())
+		assert.Equal(t, domain.StatusCapturing, payment.Status)
 	})
 
 	t.Run("CAPTURING -> CAPTURED transition", func(t *testing.T) {
@@ -114,9 +114,9 @@ func TestPayment_StateTransitions(t *testing.T) {
 		err := payment.Capture("cap-123", time.Now())
 
 		require.NoError(t, err)
-		assert.Equal(t, domain.StatusCaptured, payment.Status())
-		assert.Equal(t, "cap-123", *payment.BankCaptureID())
-		assert.NotNil(t, payment.CapturedAt())
+		assert.Equal(t, domain.StatusCaptured, payment.Status)
+		assert.Equal(t, "cap-123", *payment.BankCaptureID)
+		assert.NotNil(t, payment.CapturedAt)
 	})
 
 	t.Run("AUTHORIZED -> VOIDING transition", func(t *testing.T) {
@@ -125,7 +125,7 @@ func TestPayment_StateTransitions(t *testing.T) {
 		err := payment.MarkVoiding()
 
 		require.NoError(t, err)
-		assert.Equal(t, domain.StatusVoiding, payment.Status())
+		assert.Equal(t, domain.StatusVoiding, payment.Status)
 	})
 
 	t.Run("VOIDING -> VOIDED transition", func(t *testing.T) {
@@ -134,9 +134,9 @@ func TestPayment_StateTransitions(t *testing.T) {
 		err := payment.Void("void-123", time.Now())
 
 		require.NoError(t, err)
-		assert.Equal(t, domain.StatusVoided, payment.Status())
-		assert.Equal(t, "void-123", *payment.BankVoidID())
-		assert.NotNil(t, payment.VoidedAt())
+		assert.Equal(t, domain.StatusVoided, payment.Status)
+		assert.Equal(t, "void-123", *payment.BankVoidID)
+		assert.NotNil(t, payment.VoidedAt)
 	})
 
 	t.Run("CAPTURED -> REFUNDING transition", func(t *testing.T) {
@@ -145,7 +145,7 @@ func TestPayment_StateTransitions(t *testing.T) {
 		err := payment.MarkRefunding()
 
 		require.NoError(t, err)
-		assert.Equal(t, domain.StatusRefunding, payment.Status())
+		assert.Equal(t, domain.StatusRefunding, payment.Status)
 	})
 
 	t.Run("REFUNDING -> REFUNDED transition", func(t *testing.T) {
@@ -154,9 +154,9 @@ func TestPayment_StateTransitions(t *testing.T) {
 		err := payment.Refund("ref-123", time.Now())
 
 		require.NoError(t, err)
-		assert.Equal(t, domain.StatusRefunded, payment.Status())
-		assert.Equal(t, "ref-123", *payment.BankRefundID())
-		assert.NotNil(t, payment.RefundedAt())
+		assert.Equal(t, domain.StatusRefunded, payment.Status)
+		assert.Equal(t, "ref-123", *payment.BankRefundID)
+		assert.NotNil(t, payment.RefundedAt)
 	})
 }
 
@@ -226,12 +226,12 @@ func TestPayment_ScheduleRetry(t *testing.T) {
 
 		payment.ScheduleRetry(backoff, "TRANSIENT")
 
-		assert.Equal(t, 1, payment.AttemptCount())
-		assert.NotNil(t, payment.NextRetryAt())
-		assert.Equal(t, "TRANSIENT", *payment.LastErrorCategory())
+		assert.Equal(t, 1, payment.AttemptCount)
+		assert.NotNil(t, payment.NextRetryAt)
+		assert.Equal(t, "TRANSIENT", *payment.LastErrorCategory)
 
 		expectedRetryTime := time.Now().Add(backoff)
-		assert.WithinDuration(t, expectedRetryTime, *payment.NextRetryAt(), time.Second)
+		assert.WithinDuration(t, expectedRetryTime, *payment.NextRetryAt, time.Second)
 	})
 
 	t.Run("increments attempt count on multiple retries", func(t *testing.T) {
@@ -241,7 +241,7 @@ func TestPayment_ScheduleRetry(t *testing.T) {
 		payment.ScheduleRetry(2*time.Minute, "TRANSIENT")
 		payment.ScheduleRetry(4*time.Minute, "TRANSIENT")
 
-		assert.Equal(t, 3, payment.AttemptCount())
+		assert.Equal(t, 3, payment.AttemptCount)
 	})
 }
 
@@ -283,8 +283,7 @@ func createCapturedPayment(t *testing.T) *domain.Payment {
 func createVoidingPayment(t *testing.T) *domain.Payment {
 	t.Helper()
 	payment := createAuthorizedPayment(t)
-	err := payment.MarkVoiding()
-	require.NoError(t, err)
+	payment.Status = domain.StatusVoiding
 	return payment
 }
 

@@ -75,9 +75,9 @@ func TestRetryWorker_RecoversStuckCapture(t *testing.T) {
 		mock.Anything,
 		idempotencyKey,
 	).Return(&application.BankCaptureResponse{
-		Amount:          payment.Amount().Amount,
-		Currency:        payment.Amount().Currency,
-		AuthorizationID: *payment.BankAuthID(),
+		Amount:          payment.AmountCents,
+		Currency:        payment.Currency,
+		AuthorizationID: *payment.BankAuthID,
 		CaptureID:       "cap-worker-test",
 		Status:          "captured",
 		CapturedAt:      time.Now(),
@@ -100,10 +100,10 @@ func TestRetryWorker_RecoversStuckCapture(t *testing.T) {
 	err = worker.ProcessRetries(ctx)
 	require.NoError(t, err)
 
-	updatedPayment, err := paymentRepo.FindByID(ctx, payment.ID())
+	updatedPayment, err := paymentRepo.FindByID(ctx, payment.ID)
 	require.NoError(t, err)
-	assert.Equal(t, domain.StatusCaptured, updatedPayment.Status())
-	assert.Equal(t, "cap-worker-test", *updatedPayment.BankCaptureID())
+	assert.Equal(t, domain.StatusCaptured, updatedPayment.Status)
+	assert.Equal(t, "cap-worker-test", *updatedPayment.BankCaptureID)
 
 	key, err := idempotencyRepo.FindByKey(ctx, idempotencyKey)
 	require.NoError(t, err)
@@ -186,14 +186,14 @@ func TestRetryWorker_SchedulesRetryOnTransientError(t *testing.T) {
 	err = worker.ProcessRetries(ctx)
 	require.NoError(t, err)
 
-	updatedPayment, err := paymentRepo.FindByID(ctx, payment.ID())
+	updatedPayment, err := paymentRepo.FindByID(ctx, payment.ID)
 	require.NoError(t, err)
 
-	assert.Equal(t, domain.StatusCapturing, updatedPayment.Status())
-	require.NotNil(t, updatedPayment.NextRetryAt())
-	assert.True(t, updatedPayment.NextRetryAt().After(time.Now()))
-	assert.Equal(t, 1, updatedPayment.AttemptCount())
-	assert.Equal(t, "TRANSIENT", *updatedPayment.LastErrorCategory())
+	assert.Equal(t, domain.StatusCapturing, updatedPayment.Status)
+	require.NotNil(t, updatedPayment.NextRetryAt)
+	assert.True(t, updatedPayment.NextRetryAt.After(time.Now()))
+	assert.Equal(t, 1, updatedPayment.AttemptCount)
+	assert.Equal(t, "TRANSIENT", *updatedPayment.LastErrorCategory)
 }
 
 func TestRetryWorker_FailsOnPermanentError(t *testing.T) {
@@ -272,11 +272,11 @@ func TestRetryWorker_FailsOnPermanentError(t *testing.T) {
 	err = worker.ProcessRetries(ctx)
 	require.NoError(t, err)
 
-	updatedPayment, err := paymentRepo.FindByID(ctx, payment.ID())
+	updatedPayment, err := paymentRepo.FindByID(ctx, payment.ID)
 	require.NoError(t, err)
 
-	require.NotNil(t, updatedPayment.LastErrorCategory())
-	assert.Equal(t, "PERMANENT", *updatedPayment.LastErrorCategory())
+	require.NotNil(t, updatedPayment.LastErrorCategory)
+	assert.Equal(t, "PERMANENT", *updatedPayment.LastErrorCategory)
 
-	assert.Nil(t, updatedPayment.NextRetryAt())
+	assert.Nil(t, updatedPayment.NextRetryAt)
 }

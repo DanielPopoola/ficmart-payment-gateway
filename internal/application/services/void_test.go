@@ -81,15 +81,15 @@ func (suite *voidServiceTestSuite) Test_Void_Success() {
 	)
 	require.NotNil(suite.T(), voidedPayment)
 
-	assert.Equal(suite.T(), domain.StatusVoided, voidedPayment.Status())
-	assert.Equal(suite.T(), "void-123", *voidedPayment.BankVoidID())
-	assert.NotNil(suite.T(), voidedPayment.VoidedAt())
+	assert.Equal(suite.T(), domain.StatusVoided, voidedPayment.Status)
+	assert.Equal(suite.T(), "void-123", *voidedPayment.BankVoidID)
+	assert.NotNil(suite.T(), voidedPayment.VoidedAt)
 
 	// Verify database state
-	savedPayment, err := suite.paymentRepo.FindByID(ctx, voidedPayment.ID())
+	savedPayment, err := suite.paymentRepo.FindByID(ctx, voidedPayment.ID)
 	require.NoError(suite.T(), err)
-	assert.Equal(suite.T(), domain.StatusVoided, savedPayment.Status())
-	assert.Equal(suite.T(), "void-123", *savedPayment.BankVoidID())
+	assert.Equal(suite.T(), domain.StatusVoided, savedPayment.Status)
+	assert.Equal(suite.T(), "void-123", *savedPayment.BankVoidID)
 }
 
 // ============================================================================
@@ -116,10 +116,10 @@ func (suite *voidServiceTestSuite) Test_Void_CannotVoidPendingPayment() {
 	payment, err := suite.authorizeService.Authorize(ctx, cmd, idempotencyKey)
 	require.Error(suite.T(), err)
 	require.NotNil(suite.T(), payment)
-	require.Equal(suite.T(), domain.StatusPending, payment.Status())
+	require.Equal(suite.T(), domain.StatusPending, payment.Status)
 
 	VoidCmd := services.VoidCommand{
-		PaymentID: payment.ID(),
+		PaymentID: payment.ID,
 	}
 	VoidKey := "idem-Void-" + uuid.New().String()
 
@@ -135,12 +135,12 @@ func (suite *voidServiceTestSuite) Test_Void_CannotVoidAlreadyVoidedPayment() {
 	payment := testhelpers.CreateAuthorizedPayment(suite.T(), ctx, suite.authorizeService, suite.mockBank)
 
 	cmd := services.VoidCommand{
-		PaymentID: payment.ID(),
+		PaymentID: payment.ID,
 	}
 	firstKey := "idem-first-" + uuid.New().String()
 
 	VoidResp := &application.BankVoidResponse{
-		AuthorizationID: *payment.BankAuthID(),
+		AuthorizationID: *payment.BankAuthID,
 		VoidID:          "void-123",
 		Status:          "voided",
 		VoidedAt:        time.Now(),
@@ -171,12 +171,12 @@ func (suite *voidServiceTestSuite) Test_Void_IdempotencyReturnsCache() {
 	payment := testhelpers.CreateAuthorizedPayment(suite.T(), ctx, suite.authorizeService, suite.mockBank)
 
 	cmd := services.VoidCommand{
-		PaymentID: payment.ID(),
+		PaymentID: payment.ID,
 	}
 	idempotencyKey := "idem-same-key"
 
 	VoidResp := &application.BankVoidResponse{
-		AuthorizationID: *payment.BankAuthID(),
+		AuthorizationID: *payment.BankAuthID,
 		VoidID:          "void-123",
 		Status:          "voided",
 		VoidedAt:        time.Now(),
@@ -193,8 +193,8 @@ func (suite *voidServiceTestSuite) Test_Void_IdempotencyReturnsCache() {
 	secondResult, err := suite.voidService.Void(ctx, cmd, idempotencyKey)
 	require.NoError(suite.T(), err)
 
-	assert.Equal(suite.T(), firstResult.ID(), secondResult.ID())
-	assert.Equal(suite.T(), domain.StatusVoided, secondResult.Status())
+	assert.Equal(suite.T(), firstResult.ID, secondResult.ID)
+	assert.Equal(suite.T(), domain.StatusVoided, secondResult.Status)
 }
 
 func (suite *voidServiceTestSuite) Test_Void_PaymentNotFound() {
@@ -222,7 +222,7 @@ func (suite *voidServiceTestSuite) Test_Void_BankReturns500_PaymentStaysVoiding(
 	payment := testhelpers.CreateAuthorizedPayment(suite.T(), ctx, suite.authorizeService, suite.mockBank)
 
 	cmd := services.VoidCommand{
-		PaymentID: payment.ID(),
+		PaymentID: payment.ID,
 	}
 	idempotencyKey := "idem-" + uuid.New().String()
 
@@ -242,12 +242,12 @@ func (suite *voidServiceTestSuite) Test_Void_BankReturns500_PaymentStaysVoiding(
 	require.Error(suite.T(), err)
 
 	require.NotNil(suite.T(), voidedPayment)
-	assert.Equal(suite.T(), domain.StatusVoiding, voidedPayment.Status())
+	assert.Equal(suite.T(), domain.StatusVoiding, voidedPayment.Status)
 
-	savedPayment, err := suite.paymentRepo.FindByID(ctx, payment.ID())
+	savedPayment, err := suite.paymentRepo.FindByID(ctx, payment.ID)
 	require.NoError(suite.T(), err)
-	assert.Equal(suite.T(), domain.StatusVoiding, savedPayment.Status())
-	assert.Nil(suite.T(), savedPayment.BankVoidID())
+	assert.Equal(suite.T(), domain.StatusVoiding, savedPayment.Status)
+	assert.Nil(suite.T(), savedPayment.BankVoidID)
 }
 
 func (suite *voidServiceTestSuite) Test_Void_BankReturnsPermanentError_PaymentFails() {
@@ -256,7 +256,7 @@ func (suite *voidServiceTestSuite) Test_Void_BankReturnsPermanentError_PaymentFa
 	payment := testhelpers.CreateAuthorizedPayment(suite.T(), ctx, suite.authorizeService, suite.mockBank)
 
 	cmd := services.VoidCommand{
-		PaymentID: payment.ID(),
+		PaymentID: payment.ID,
 	}
 	idempotencyKey := "idem-" + uuid.New().String()
 
@@ -276,7 +276,7 @@ func (suite *voidServiceTestSuite) Test_Void_BankReturnsPermanentError_PaymentFa
 	require.Error(suite.T(), err)
 
 	require.NotNil(suite.T(), voidedPayment)
-	assert.Equal(suite.T(), domain.StatusFailed, voidedPayment.Status())
+	assert.Equal(suite.T(), domain.StatusFailed, voidedPayment.Status)
 }
 
 func (suite *voidServiceTestSuite) Test_Void_ConcurrentRequests_OnlyOneSucceeds() {
@@ -285,12 +285,12 @@ func (suite *voidServiceTestSuite) Test_Void_ConcurrentRequests_OnlyOneSucceeds(
 	payment := testhelpers.CreateAuthorizedPayment(suite.T(), ctx, suite.authorizeService, suite.mockBank)
 
 	cmd := services.VoidCommand{
-		PaymentID: payment.ID(),
+		PaymentID: payment.ID,
 	}
 	idempotencyKey := "idem-same-key"
 
 	VoidResp := &application.BankVoidResponse{
-		AuthorizationID: *payment.BankAuthID(),
+		AuthorizationID: *payment.BankAuthID,
 		VoidID:          "void-123",
 		Status:          "voided",
 		VoidedAt:        time.Now(),
@@ -323,7 +323,7 @@ func (suite *voidServiceTestSuite) Test_Void_ConcurrentRequests_OnlyOneSucceeds(
 
 	assert.Equal(suite.T(), 2, successCount)
 
-	finalPayment, err := suite.paymentRepo.FindByID(ctx, payment.ID())
+	finalPayment, err := suite.paymentRepo.FindByID(ctx, payment.ID)
 	require.NoError(suite.T(), err)
-	assert.Equal(suite.T(), domain.StatusVoided, finalPayment.Status())
+	assert.Equal(suite.T(), domain.StatusVoided, finalPayment.Status)
 }

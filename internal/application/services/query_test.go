@@ -109,16 +109,16 @@ func (suite *QueryServiceTestSuite) Test_FindByID_Success() {
 	payment := suite.createAuthorizedPayment(ctx, orderID, customerID)
 
 	// Query by ID
-	foundPayment, err := suite.queryService.FindByID(ctx, payment.ID())
+	foundPayment, err := suite.queryService.FindByID(ctx, payment.ID)
 
 	// Assert
 	require.NoError(suite.T(), err)
 	require.NotNil(suite.T(), foundPayment)
 
-	assert.Equal(suite.T(), payment.ID(), foundPayment.ID())
-	assert.Equal(suite.T(), orderID, foundPayment.OrderID())
-	assert.Equal(suite.T(), customerID, foundPayment.CustomerID())
-	assert.Equal(suite.T(), domain.StatusAuthorized, foundPayment.Status())
+	assert.Equal(suite.T(), payment.ID, foundPayment.ID)
+	assert.Equal(suite.T(), orderID, foundPayment.OrderID)
+	assert.Equal(suite.T(), customerID, foundPayment.CustomerID)
+	assert.Equal(suite.T(), domain.StatusAuthorized, foundPayment.Status)
 }
 
 func (suite *QueryServiceTestSuite) Test_FindByOrderID_Success() {
@@ -136,8 +136,8 @@ func (suite *QueryServiceTestSuite) Test_FindByOrderID_Success() {
 	require.NoError(suite.T(), err)
 	require.NotNil(suite.T(), foundPayment)
 
-	assert.Equal(suite.T(), payment.ID(), foundPayment.ID())
-	assert.Equal(suite.T(), orderID, foundPayment.OrderID())
+	assert.Equal(suite.T(), payment.ID, foundPayment.ID)
+	assert.Equal(suite.T(), orderID, foundPayment.OrderID)
 }
 
 func (suite *QueryServiceTestSuite) Test_FindByCustomerID_Success() {
@@ -158,10 +158,10 @@ func (suite *QueryServiceTestSuite) Test_FindByCustomerID_Success() {
 	require.Len(suite.T(), payments, 3)
 
 	// Verify all payments belong to the customer
-	paymentIDs := []string{payment1.ID(), payment2.ID(), payment3.ID()}
+	paymentIDs := []string{payment1.ID, payment2.ID, payment3.ID}
 	for _, payment := range payments {
-		assert.Equal(suite.T(), customerID, payment.CustomerID())
-		assert.Contains(suite.T(), paymentIDs, payment.ID())
+		assert.Equal(suite.T(), customerID, payment.CustomerID)
+		assert.Contains(suite.T(), paymentIDs, payment.ID)
 	}
 }
 
@@ -194,8 +194,8 @@ func (suite *QueryServiceTestSuite) Test_FindByCustomerID_WithPagination() {
 	// Verify no duplicates across pages
 	allPaymentIDs := make(map[string]bool)
 	for _, payment := range append(append(page1, page2...), page3...) {
-		assert.False(suite.T(), allPaymentIDs[payment.ID()], "Duplicate payment ID found")
-		allPaymentIDs[payment.ID()] = true
+		assert.False(suite.T(), allPaymentIDs[payment.ID], "Duplicate payment ID found")
+		allPaymentIDs[payment.ID] = true
 	}
 }
 
@@ -249,7 +249,7 @@ func (suite *QueryServiceTestSuite) Test_FindByCustomerID_OnlyReturnsCustomerPay
 	assert.Len(suite.T(), payments, 2)
 
 	for _, payment := range payments {
-		assert.Equal(suite.T(), customer1, payment.CustomerID())
+		assert.Equal(suite.T(), customer1, payment.CustomerID)
 	}
 }
 
@@ -288,8 +288,8 @@ func (suite *QueryServiceTestSuite) Test_FindByCustomerID_RespectsOffset() {
 	require.NoError(suite.T(), err)
 	assert.Len(suite.T(), offsetPayments, 3)
 
-	firstTwoIDs := []string{allPayments[0].ID(), allPayments[1].ID()}
+	firstTwoIDs := []string{allPayments[0].ID, allPayments[1].ID}
 	for _, payment := range offsetPayments {
-		assert.NotContains(suite.T(), firstTwoIDs, payment.ID())
+		assert.NotContains(suite.T(), firstTwoIDs, payment.ID)
 	}
 }

@@ -54,7 +54,7 @@ func (s *RefundService) Refund(ctx context.Context, cmd RefundCommand, idempoten
 	existingHash, err := s.idempotencyRepo.FindByRequestHash(ctx, requestHash)
 	if err == nil && existingHash.Key != idempotencyKey {
 		payment, _ := s.paymentRepo.FindByID(ctx, existingHash.PaymentID)
-		if payment != nil && payment.Status() != domain.StatusCaptured && payment.Status() != domain.StatusRefunding {
+		if payment != nil && payment.Status != domain.StatusCaptured && payment.Status != domain.StatusRefunding {
 			return nil, application.NewDuplicateBusinessRequestError(existingHash.PaymentID, existingHash.Key)
 		}
 	}
@@ -91,7 +91,7 @@ func (s *RefundService) Refund(ctx context.Context, cmd RefundCommand, idempoten
 
 	bankReq := application.BankRefundRequest{
 		Amount:    cmd.Amount,
-		CaptureID: *payment.BankCaptureID(),
+		CaptureID: *payment.BankCaptureID,
 	}
 
 	bankResp, err := s.bankClient.Refund(ctx, bankReq, idempotencyKey)

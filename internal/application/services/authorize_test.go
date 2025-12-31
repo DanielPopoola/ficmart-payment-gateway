@@ -90,17 +90,17 @@ func (suite *AuthorizeServiceTestSuite) Test_Authorize_Success() {
 	require.NoError(suite.T(), err)
 	require.NotNil(suite.T(), payment)
 
-	assert.Equal(suite.T(), domain.StatusAuthorized, payment.Status())
-	assert.Equal(suite.T(), cmd.OrderID, payment.OrderID())
-	assert.Equal(suite.T(), cmd.CustomerID, payment.CustomerID())
-	assert.Equal(suite.T(), cmd.Amount, payment.Amount().Amount)
-	assert.Equal(suite.T(), "auth-123", *payment.BankAuthID())
-	assert.NotNil(suite.T(), payment.AuthorizedAt())
-	assert.NotNil(suite.T(), payment.ExpiresAt())
+	assert.Equal(suite.T(), domain.StatusAuthorized, payment.Status)
+	assert.Equal(suite.T(), cmd.OrderID, payment.OrderID)
+	assert.Equal(suite.T(), cmd.CustomerID, payment.CustomerID)
+	assert.Equal(suite.T(), cmd.Amount, payment.AmountCents)
+	assert.Equal(suite.T(), "auth-123", *payment.BankAuthID)
+	assert.NotNil(suite.T(), payment.AuthorizedAt)
+	assert.NotNil(suite.T(), payment.ExpiresAt)
 
-	savedPayment, err := suite.paymentRepo.FindByID(ctx, payment.ID())
+	savedPayment, err := suite.paymentRepo.FindByID(ctx, payment.ID)
 	require.NoError(suite.T(), err)
-	assert.Equal(suite.T(), domain.StatusAuthorized, savedPayment.Status())
+	assert.Equal(suite.T(), domain.StatusAuthorized, savedPayment.Status)
 }
 
 // ============================================================================
@@ -133,8 +133,8 @@ func (suite *AuthorizeServiceTestSuite) Test_Authorize_DuplicateIdempotencyKey_R
 	secondPayment, err := suite.service.Authorize(ctx, cmd, idempotencyKey)
 	require.NoError(suite.T(), err)
 
-	assert.Equal(suite.T(), firstPayment.ID(), secondPayment.ID())
-	assert.Equal(suite.T(), domain.StatusAuthorized, secondPayment.Status())
+	assert.Equal(suite.T(), firstPayment.ID, secondPayment.ID)
+	assert.Equal(suite.T(), domain.StatusAuthorized, secondPayment.Status)
 }
 
 func (suite *AuthorizeServiceTestSuite) Test_Authorize_DifferentRequestSameKey_ReturnsError() {
@@ -233,12 +233,12 @@ func (suite *AuthorizeServiceTestSuite) Test_Authorize_BankReturns500_PaymentSta
 	require.Error(suite.T(), err)
 
 	require.NotNil(suite.T(), payment)
-	assert.Equal(suite.T(), domain.StatusPending, payment.Status())
+	assert.Equal(suite.T(), domain.StatusPending, payment.Status)
 
-	savedPayment, err := suite.paymentRepo.FindByID(ctx, payment.ID())
+	savedPayment, err := suite.paymentRepo.FindByID(ctx, payment.ID)
 	require.NoError(suite.T(), err)
-	assert.Equal(suite.T(), domain.StatusPending, savedPayment.Status())
-	assert.Nil(suite.T(), savedPayment.BankAuthID()) // No bank ID yet
+	assert.Equal(suite.T(), domain.StatusPending, savedPayment.Status)
+	assert.Nil(suite.T(), savedPayment.BankAuthID) // No bank ID yet
 }
 
 func (suite *AuthorizeServiceTestSuite) Test_Authorize_ContextCancelled_PaymentStaysPending() {
@@ -255,7 +255,7 @@ func (suite *AuthorizeServiceTestSuite) Test_Authorize_ContextCancelled_PaymentS
 	assert.True(suite.T(), errors.Is(err, context.Canceled) || (isSvcErr && svcErr.Code == application.ErrCodeIdempotencyMismatch))
 
 	if payment != nil {
-		assert.Equal(suite.T(), domain.StatusPending, payment.Status())
+		assert.Equal(suite.T(), domain.StatusPending, payment.Status)
 	}
 }
 
@@ -302,7 +302,7 @@ func (suite *AuthorizeServiceTestSuite) Test_Authorize_ConcurrentRequests_OnlyOn
 		res := <-results
 		if res.err == nil {
 			successCount++
-			paymentIDs = append(paymentIDs, res.payment.ID())
+			paymentIDs = append(paymentIDs, res.payment.ID)
 		}
 	}
 

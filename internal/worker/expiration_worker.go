@@ -68,7 +68,7 @@ func (w *ExpirationWorker) processExpirations(ctx context.Context) error {
 	for _, payment := range expiredPayments {
 		if err := w.checkAndMarkExpired(ctx, payment); err != nil {
 			w.logger.Error("failed to process expiration",
-				"payment_id", payment.ID(),
+				"payment_id", payment.ID,
 				"error", err)
 		} else {
 			expired++
@@ -84,7 +84,7 @@ func (w *ExpirationWorker) processExpirations(ctx context.Context) error {
 }
 
 func (w *ExpirationWorker) checkAndMarkExpired(ctx context.Context, payment *domain.Payment) error {
-	bankAuth, err := w.bankClient.GetAuthorization(ctx, *payment.BankAuthID())
+	bankAuth, err := w.bankClient.GetAuthorization(ctx, *payment.BankAuthID)
 
 	if err != nil {
 		if bankErr, ok := application.IsBankError(err); ok {
@@ -98,14 +98,14 @@ func (w *ExpirationWorker) checkAndMarkExpired(ctx context.Context, payment *dom
 
 	if bankAuth.Status == "AUTHORIZED" {
 		w.logger.Warn("payment still active at bank despite age",
-			"payment_id", payment.ID(),
-			"bank_auth_id", *payment.BankAuthID(),
-			"authorized_at", payment.AuthorizedAt())
+			"payment_id", payment.ID,
+			"bank_auth_id", *payment.BankAuthID,
+			"authorized_at", payment.AuthorizedAt)
 		return nil
 	}
 
-	if time.Since(*payment.AuthorizedAt()) > 9*24*time.Hour {
-		w.logger.Error("FORCE_EXPIRED", "payment_id", payment.ID())
+	if time.Since(*payment.AuthorizedAt) > 9*24*time.Hour {
+		w.logger.Error("FORCE_EXPIRED", "payment_id", payment.ID)
 		return w.markAsExpired(ctx, payment)
 	}
 

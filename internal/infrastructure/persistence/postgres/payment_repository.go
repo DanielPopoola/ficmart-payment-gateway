@@ -31,7 +31,7 @@ func (r *PaymentRepository) Create(ctx context.Context, tx pgx.Tx, payment *doma
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
 	`
 
-	p := toDBModel(payment)
+	var p domain.Payment
 	var q interface {
 		Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
 	} = r.db
@@ -130,14 +130,14 @@ func (r *PaymentRepository) FindByCustomerID(ctx context.Context, customerID str
 		return nil, fmt.Errorf("query payments by customer_id: %w", err)
 	}
 	results, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (*domain.Payment, error) {
-		var m PaymentModel
+		var p domain.Payment
 		err := row.Scan(
-			&m.ID, &m.OrderID, &m.CustomerID, &m.AmountCents, &m.Currency, &m.Status,
-			&m.BankAuthID, &m.BankCaptureID, &m.BankVoidID, &m.BankRefundID,
-			&m.CreatedAt, &m.AuthorizedAt, &m.CapturedAt, &m.VoidedAt, &m.RefundedAt, &m.ExpiresAt,
-			&m.AttemptCount, &m.NextRetryAt, &m.LastErrorCategory,
+			&p.ID, &p.OrderID, &p.CustomerID, &p.AmountCents, &p.Currency, &p.Status,
+			&p.BankAuthID, &p.BankCaptureID, &p.BankVoidID, &p.BankRefundID,
+			&p.CreatedAt, &p.AuthorizedAt, &p.CapturedAt, &p.VoidedAt, &p.RefundedAt, &p.ExpiresAt,
+			&p.AttemptCount, &p.NextRetryAt, &p.LastErrorCategory,
 		)
-		return toDomainModel(m), err
+		return &p, err
 	})
 
 	if err != nil {
@@ -166,14 +166,14 @@ func (r *PaymentRepository) FindExpiredAuthorizations(ctx context.Context, cutof
 	}
 
 	results, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (*domain.Payment, error) {
-		var m PaymentModel
+		var p domain.Payment
 		err := row.Scan(
-			&m.ID, &m.OrderID, &m.CustomerID, &m.AmountCents, &m.Currency, &m.Status,
-			&m.BankAuthID, &m.BankCaptureID, &m.BankVoidID, &m.BankRefundID,
-			&m.CreatedAt, &m.AuthorizedAt, &m.CapturedAt, &m.VoidedAt, &m.RefundedAt, &m.ExpiresAt,
-			&m.AttemptCount, &m.NextRetryAt, &m.LastErrorCategory,
+			&p.ID, &p.OrderID, &p.CustomerID, &p.AmountCents, &p.Currency, &p.Status,
+			&p.BankAuthID, &p.BankCaptureID, &p.BankVoidID, &p.BankRefundID,
+			&p.CreatedAt, &p.AuthorizedAt, &p.CapturedAt, &p.VoidedAt, &p.RefundedAt, &p.ExpiresAt,
+			&p.AttemptCount, &p.NextRetryAt, &p.LastErrorCategory,
 		)
-		return toDomainModel(m), err
+		return &p, err
 	})
 
 	if err != nil {
@@ -193,7 +193,7 @@ func (r *PaymentRepository) Update(ctx context.Context, tx pgx.Tx, payment *doma
 		WHERE id = $14
 	`
 
-	p := toDBModel(payment)
+	var p domain.Payment
 	var q interface {
 		Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
 	} = r.db
@@ -232,12 +232,12 @@ func (r *PaymentRepository) Update(ctx context.Context, tx pgx.Tx, payment *doma
 // scanPayment converts a database row into a domain Payment.
 // Returns ErrPaymentNotFound if the row doesn't exist.
 func scanPayment(row pgx.Row) (*domain.Payment, error) {
-	var m PaymentModel
+	var p domain.Payment
 	err := row.Scan(
-		&m.ID, &m.OrderID, &m.CustomerID, &m.AmountCents, &m.Currency, &m.Status,
-		&m.BankAuthID, &m.BankCaptureID, &m.BankVoidID, &m.BankRefundID,
-		&m.CreatedAt, &m.AuthorizedAt, &m.CapturedAt, &m.VoidedAt, &m.RefundedAt, &m.ExpiresAt,
-		&m.AttemptCount, &m.NextRetryAt, &m.LastErrorCategory,
+		&p.ID, &p.OrderID, &p.CustomerID, &p.AmountCents, &p.Currency, &p.Status,
+		&p.BankAuthID, &p.BankCaptureID, &p.BankVoidID, &p.BankRefundID,
+		&p.CreatedAt, &p.AuthorizedAt, &p.CapturedAt, &p.VoidedAt, &p.RefundedAt, &p.ExpiresAt,
+		&p.AttemptCount, &p.NextRetryAt, &p.LastErrorCategory,
 	)
 
 	if err != nil {
@@ -246,5 +246,5 @@ func scanPayment(row pgx.Row) (*domain.Payment, error) {
 		}
 		return nil, fmt.Errorf("failed to scan payment: %w", err)
 	}
-	return toDomainModel(m), nil
+	return &p, nil
 }

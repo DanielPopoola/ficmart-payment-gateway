@@ -14,6 +14,15 @@ import (
 var ErrDuplicateIdempotencyKey = errors.New("duplicate transaction")
 var ErrIdempotencyMismatch = errors.New("idempotency key mismatch")
 
+type IdempotencyKey struct {
+	Key             string
+	PaymentID       string
+	RequestHash     string
+	LockedAt        *time.Time
+	ResponsePayload *[]byte
+	StatusCode      *int
+}
+
 type IdempotencyRepository struct {
 	db *pgxpool.Pool
 }

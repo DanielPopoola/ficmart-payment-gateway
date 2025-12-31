@@ -24,27 +24,28 @@ const (
 )
 
 type Payment struct {
-	id         string
-	orderID    string
-	customerID string
-	amount     Money
-	status     PaymentStatus
+	ID          string
+	OrderID     string
+	CustomerID  string
+	AmountCents int64
+	Currency    string
+	Status      PaymentStatus
 
-	bankAuthID    *string
-	bankCaptureID *string
-	bankVoidID    *string
-	bankRefundID  *string
+	BankAuthID    *string
+	BankCaptureID *string
+	BankVoidID    *string
+	BankRefundID  *string
 
-	createdAt    time.Time
-	authorizedAt *time.Time
-	capturedAt   *time.Time
-	voidedAt     *time.Time
-	refundedAt   *time.Time
-	expiresAt    *time.Time
+	CreatedAt    time.Time
+	AuthorizedAt *time.Time
+	CapturedAt   *time.Time
+	VoidedAt     *time.Time
+	RefundedAt   *time.Time
+	ExpiresAt    *time.Time
 
-	attemptCount      int
-	nextRetryAt       *time.Time
-	lastErrorCategory *string
+	AttemptCount      int
+	NextRetryAt       *time.Time
+	LastErrorCategory *string
 }
 
 func NewPayment(
@@ -64,34 +65,15 @@ func NewPayment(
 	}
 
 	return &Payment{
-		id:         id,
-		orderID:    orderID,
-		customerID: customerID,
-		amount:     amount,
-		status:     StatusPending,
-		createdAt:  time.Now(),
+		ID:          id,
+		OrderID:     orderID,
+		CustomerID:  customerID,
+		AmountCents: amount.Amount,
+		Currency:    amount.Currency,
+		Status:      StatusPending,
+		CreatedAt:   time.Now(),
 	}, nil
 }
-
-// Getters
-func (p *Payment) ID() string                 { return p.id }
-func (p *Payment) OrderID() string            { return p.orderID }
-func (p *Payment) CustomerID() string         { return p.customerID }
-func (p *Payment) Amount() Money              { return p.amount }
-func (p *Payment) Status() PaymentStatus      { return p.status }
-func (p *Payment) BankAuthID() *string        { return p.bankAuthID }
-func (p *Payment) BankCaptureID() *string     { return p.bankCaptureID }
-func (p *Payment) BankVoidID() *string        { return p.bankVoidID }
-func (p *Payment) BankRefundID() *string      { return p.bankRefundID }
-func (p *Payment) CreatedAt() time.Time       { return p.createdAt }
-func (p *Payment) AuthorizedAt() *time.Time   { return p.authorizedAt }
-func (p *Payment) CapturedAt() *time.Time     { return p.capturedAt }
-func (p *Payment) VoidedAt() *time.Time       { return p.voidedAt }
-func (p *Payment) RefundedAt() *time.Time     { return p.refundedAt }
-func (p *Payment) ExpiresAt() *time.Time      { return p.expiresAt }
-func (p *Payment) AttemptCount() int          { return p.attemptCount }
-func (p *Payment) NextRetryAt() *time.Time    { return p.nextRetryAt }
-func (p *Payment) LastErrorCategory() *string { return p.lastErrorCategory }
 
 func (p *Payment) MarkCapturing() error {
 	return p.transition(StatusCapturing)
@@ -117,13 +99,13 @@ func (p *Payment) transition(target PaymentStatus) error {
 	if err := p.canTransitionTo(target); err != nil {
 		return err
 	}
-	p.status = target
+	p.Status = target
 	return nil
 }
 
 // defines various payment statuses that can be transitioned to
 func (p *Payment) canTransitionTo(target PaymentStatus) error {
-	switch p.status {
+	switch p.Status {
 	case StatusPending:
 		return p.allow(target, StatusAuthorized, StatusFailed)
 	case StatusAuthorized:
@@ -153,9 +135,9 @@ func (p *Payment) Authorize(bankAuthID string, authorizedAt, expiresAt time.Time
 	if err := p.transition(StatusAuthorized); err != nil {
 		return err
 	}
-	p.bankAuthID = &bankAuthID
-	p.authorizedAt = &authorizedAt
-	p.expiresAt = &expiresAt
+	p.BankAuthID = &bankAuthID
+	p.AuthorizedAt = &authorizedAt
+	p.ExpiresAt = &expiresAt
 	return nil
 }
 
@@ -164,8 +146,8 @@ func (p *Payment) Capture(bankCaptureID string, capturedAt time.Time) error {
 	if err := p.transition(StatusCaptured); err != nil {
 		return err
 	}
-	p.bankCaptureID = &bankCaptureID
-	p.capturedAt = &capturedAt
+	p.BankCaptureID = &bankCaptureID
+	p.CapturedAt = &capturedAt
 	return nil
 }
 
@@ -174,8 +156,8 @@ func (p *Payment) Void(bankVoidID string, voidedAt time.Time) error {
 	if err := p.transition(StatusVoided); err != nil {
 		return err
 	}
-	p.bankVoidID = &bankVoidID
-	p.voidedAt = &voidedAt
+	p.BankVoidID = &bankVoidID
+	p.VoidedAt = &voidedAt
 	return nil
 }
 
@@ -184,14 +166,14 @@ func (p *Payment) Refund(bankRefundID string, refundedAt time.Time) error {
 	if err := p.transition(StatusRefunded); err != nil {
 		return err
 	}
-	p.bankRefundID = &bankRefundID
-	p.refundedAt = &refundedAt
+	p.BankRefundID = &bankRefundID
+	p.RefundedAt = &refundedAt
 	return nil
 }
 
 // helper to identify payment statuses that are terminal
 func (p *Payment) IsTerminal() bool {
-	switch p.status {
+	switch p.Status {
 	case StatusVoided, StatusRefunded, StatusExpired, StatusFailed:
 		return true
 	default:
@@ -200,17 +182,17 @@ func (p *Payment) IsTerminal() bool {
 }
 
 func (p *Payment) ScheduleRetry(backoff time.Duration, errorCategory string) {
-	p.attemptCount++
+	p.AttemptCount++
 	next := time.Now().Add(backoff)
-	p.nextRetryAt = &next
-	p.lastErrorCategory = &errorCategory
+	p.NextRetryAt = &next
+	p.LastErrorCategory = &errorCategory
 }
 
 func (p *Payment) FailWithCategory(errorCategory string) error {
-	if err := p.transition(StatusFailed); err != nil {
+	if err := p.canTransitionTo(StatusFailed); err != nil {
 		return err
 	}
-	p.lastErrorCategory = &errorCategory
+	p.LastErrorCategory = &errorCategory
 	return nil
 }
 
@@ -225,23 +207,24 @@ func Reconstitute(
 	attempCount int, nextRetryAt *time.Time, lastErrorCategory *string,
 ) *Payment {
 	return &Payment{
-		id:                id,
-		orderID:           orderID,
-		customerID:        customerID,
-		amount:            Money{Amount: amount, Currency: currency},
-		status:            status,
-		bankAuthID:        bankAuthID,
-		bankCaptureID:     bankCaptureID,
-		bankVoidID:        bankVoidID,
-		bankRefundID:      bankRefundID,
-		createdAt:         createdAt,
-		authorizedAt:      authorizedAt,
-		capturedAt:        capturedAt,
-		voidedAt:          voidedAt,
-		refundedAt:        refundedAt,
-		expiresAt:         expiresAt,
-		attemptCount:      attempCount,
-		nextRetryAt:       nextRetryAt,
-		lastErrorCategory: lastErrorCategory,
+		ID:                id,
+		OrderID:           orderID,
+		CustomerID:        customerID,
+		AmountCents:       amount,
+		Currency:          currency,
+		Status:            status,
+		BankAuthID:        bankAuthID,
+		BankCaptureID:     bankCaptureID,
+		BankVoidID:        bankVoidID,
+		BankRefundID:      bankRefundID,
+		CreatedAt:         createdAt,
+		AuthorizedAt:      authorizedAt,
+		CapturedAt:        capturedAt,
+		VoidedAt:          voidedAt,
+		RefundedAt:        refundedAt,
+		ExpiresAt:         expiresAt,
+		AttemptCount:      attempCount,
+		NextRetryAt:       nextRetryAt,
+		LastErrorCategory: lastErrorCategory,
 	}
 }

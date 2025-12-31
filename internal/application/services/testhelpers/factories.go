@@ -52,7 +52,7 @@ func CreateAuthorizedPayment(
 	payment, err := authService.Authorize(ctx, cmd, idempotencyKey)
 	require.NoError(t, err)
 	require.NotNil(t, payment)
-	require.Equal(t, domain.StatusAuthorized, payment.Status())
+	require.Equal(t, domain.StatusAuthorized, payment.Status)
 
 	return payment
 }
@@ -67,15 +67,15 @@ func CreateCapturedPayment(
 	payment := CreateAuthorizedPayment(t, ctx, authService, mockBank)
 
 	cmd := services.CaptureCommand{
-		PaymentID: payment.ID(),
-		Amount:    payment.Amount().Amount,
+		PaymentID: payment.ID,
+		Amount:    payment.AmountCents,
 	}
 	idempotencyKey := "idem-capt" + uuid.New().String()
 
 	captureResp := &application.BankCaptureResponse{
-		Amount:          payment.Amount().Amount,
-		Currency:        payment.Amount().Currency,
-		AuthorizationID: *payment.BankAuthID(),
+		Amount:          payment.AmountCents,
+		Currency:        payment.Currency,
+		AuthorizationID: *payment.BankAuthID,
 		Status:          "captured",
 		CaptureID:       "cap-123",
 		CapturedAt:      time.Now(),
@@ -102,12 +102,12 @@ func CreateVoidedPayment(
 	payment := CreateAuthorizedPayment(t, ctx, authService, mockBank)
 
 	cmd := services.VoidCommand{
-		PaymentID: payment.ID(),
+		PaymentID: payment.ID,
 	}
 	idempotencyKey := "idem-void" + uuid.New().String()
 
 	voidResp := &application.BankVoidResponse{
-		AuthorizationID: *payment.BankAuthID(),
+		AuthorizationID: *payment.BankAuthID,
 		Status:          "voided",
 		VoidID:          "void-123",
 		VoidedAt:        time.Now(),
@@ -135,14 +135,14 @@ func CreateRefundedPayment(
 	payment := CreateCapturedPayment(t, ctx, authService, captureService, mockBank)
 
 	cmd := services.RefundCommand{
-		PaymentID: payment.ID(),
-		Amount:    payment.Amount().Amount,
+		PaymentID: payment.ID,
+		Amount:    payment.AmountCents,
 	}
 	idempotencyKey := "idem-refund" + uuid.New().String()
 
 	refundResp := &application.BankRefundResponse{
-		Amount:     payment.Amount().Amount,
-		Currency:   payment.Amount().Currency,
+		Amount:     payment.AmountCents,
+		Currency:   payment.Currency,
 		Status:     "captured",
 		CaptureID:  "cap-123",
 		RefundID:   "ref-123",

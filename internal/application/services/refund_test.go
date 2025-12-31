@@ -89,15 +89,15 @@ func (suite *RefundServiceTestSuite) Test_Refund_Success() {
 	)
 	require.NotNil(suite.T(), refundedPayment)
 
-	assert.Equal(suite.T(), domain.StatusRefunded, refundedPayment.Status())
-	assert.Equal(suite.T(), "ref-123", *refundedPayment.BankRefundID())
-	assert.NotNil(suite.T(), refundedPayment.RefundedAt())
+	assert.Equal(suite.T(), domain.StatusRefunded, refundedPayment.Status)
+	assert.Equal(suite.T(), "ref-123", *refundedPayment.BankRefundID)
+	assert.NotNil(suite.T(), refundedPayment.RefundedAt)
 
 	// Verify database state
-	savedPayment, err := suite.paymentRepo.FindByID(ctx, refundedPayment.ID())
+	savedPayment, err := suite.paymentRepo.FindByID(ctx, refundedPayment.ID)
 	require.NoError(suite.T(), err)
-	assert.Equal(suite.T(), domain.StatusRefunded, savedPayment.Status())
-	assert.Equal(suite.T(), "ref-123", *savedPayment.BankRefundID())
+	assert.Equal(suite.T(), domain.StatusRefunded, savedPayment.Status)
+	assert.Equal(suite.T(), "ref-123", *savedPayment.BankRefundID)
 }
 
 // ============================================================================
@@ -124,11 +124,11 @@ func (suite *RefundServiceTestSuite) Test_Refund_CannotRefundPendingPayment() {
 	payment, err := suite.authorizeService.Authorize(ctx, cmd, idempotencyKey)
 	require.Error(suite.T(), err)
 	require.NotNil(suite.T(), payment)
-	require.Equal(suite.T(), domain.StatusPending, payment.Status())
+	require.Equal(suite.T(), domain.StatusPending, payment.Status)
 
 	refundCmd := services.RefundCommand{
-		PaymentID: payment.ID(),
-		Amount:    payment.Amount().Amount,
+		PaymentID: payment.ID,
+		Amount:    payment.AmountCents,
 	}
 	refundKey := "idem-Refund-" + uuid.New().String()
 
@@ -150,15 +150,15 @@ func (suite *RefundServiceTestSuite) Test_Refund_CannotRefundAlreadyRefundedPaym
 	)
 
 	cmd := services.RefundCommand{
-		PaymentID: payment.ID(),
-		Amount:    payment.Amount().Amount,
+		PaymentID: payment.ID,
+		Amount:    payment.AmountCents,
 	}
 	firstKey := "idem-first-" + uuid.New().String()
 
 	refundResp := &application.BankRefundResponse{
-		Amount:     payment.Amount().Amount,
-		Currency:   payment.Amount().Currency,
-		CaptureID:  *payment.BankCaptureID(),
+		Amount:     payment.AmountCents,
+		Currency:   payment.Currency,
+		CaptureID:  *payment.BankCaptureID,
 		RefundID:   "refund-123",
 		Status:     "refunded",
 		RefundedAt: time.Now(),
@@ -195,15 +195,15 @@ func (suite *RefundServiceTestSuite) Test_Refund_IdempotencyReturnsCache() {
 	)
 
 	cmd := services.RefundCommand{
-		PaymentID: payment.ID(),
-		Amount:    payment.Amount().Amount,
+		PaymentID: payment.ID,
+		Amount:    payment.AmountCents,
 	}
 	idempotencyKey := "idem-same-key"
 
 	refundResp := &application.BankRefundResponse{
-		Amount:     payment.Amount().Amount,
-		Currency:   payment.Amount().Currency,
-		CaptureID:  *payment.BankCaptureID(),
+		Amount:     payment.AmountCents,
+		Currency:   payment.Currency,
+		CaptureID:  *payment.BankCaptureID,
 		RefundID:   "refund-123",
 		Status:     "refunded",
 		RefundedAt: time.Now(),
@@ -220,8 +220,8 @@ func (suite *RefundServiceTestSuite) Test_Refund_IdempotencyReturnsCache() {
 	secondResult, err := suite.refundService.Refund(ctx, cmd, idempotencyKey)
 	require.NoError(suite.T(), err)
 
-	assert.Equal(suite.T(), firstResult.ID(), secondResult.ID())
-	assert.Equal(suite.T(), domain.StatusRefunded, secondResult.Status())
+	assert.Equal(suite.T(), firstResult.ID, secondResult.ID)
+	assert.Equal(suite.T(), domain.StatusRefunded, secondResult.Status)
 }
 
 func (suite *RefundServiceTestSuite) Test_Refund_PaymentNotFound() {
@@ -256,8 +256,8 @@ func (suite *RefundServiceTestSuite) Test_Refund_BankReturns500_PaymentStaysRefu
 	)
 
 	cmd := services.RefundCommand{
-		PaymentID: payment.ID(),
-		Amount:    payment.Amount().Amount,
+		PaymentID: payment.ID,
+		Amount:    payment.AmountCents,
 	}
 	idempotencyKey := "idem-" + uuid.New().String()
 
@@ -277,12 +277,12 @@ func (suite *RefundServiceTestSuite) Test_Refund_BankReturns500_PaymentStaysRefu
 	require.Error(suite.T(), err)
 
 	require.NotNil(suite.T(), RefundedPayment)
-	assert.Equal(suite.T(), domain.StatusRefunding, RefundedPayment.Status())
+	assert.Equal(suite.T(), domain.StatusRefunding, RefundedPayment.Status)
 
-	savedPayment, err := suite.paymentRepo.FindByID(ctx, payment.ID())
+	savedPayment, err := suite.paymentRepo.FindByID(ctx, payment.ID)
 	require.NoError(suite.T(), err)
-	assert.Equal(suite.T(), domain.StatusRefunding, savedPayment.Status())
-	assert.Nil(suite.T(), savedPayment.BankRefundID())
+	assert.Equal(suite.T(), domain.StatusRefunding, savedPayment.Status)
+	assert.Nil(suite.T(), savedPayment.BankRefundID)
 }
 
 func (suite *RefundServiceTestSuite) Test_Refund_BankReturnsPermanentError_PaymentFails() {
@@ -297,8 +297,8 @@ func (suite *RefundServiceTestSuite) Test_Refund_BankReturnsPermanentError_Payme
 	)
 
 	cmd := services.RefundCommand{
-		PaymentID: payment.ID(),
-		Amount:    payment.Amount().Amount,
+		PaymentID: payment.ID,
+		Amount:    payment.AmountCents,
 	}
 	idempotencyKey := "idem-" + uuid.New().String()
 
@@ -318,7 +318,7 @@ func (suite *RefundServiceTestSuite) Test_Refund_BankReturnsPermanentError_Payme
 	require.Error(suite.T(), err)
 
 	require.NotNil(suite.T(), RefundedPayment)
-	assert.Equal(suite.T(), domain.StatusFailed, RefundedPayment.Status())
+	assert.Equal(suite.T(), domain.StatusFailed, RefundedPayment.Status)
 }
 
 func (suite *RefundServiceTestSuite) Test_Refund_ConcurrentRequests_OnlyOneSucceeds() {
@@ -332,8 +332,8 @@ func (suite *RefundServiceTestSuite) Test_Refund_ConcurrentRequests_OnlyOneSucce
 	)
 
 	cmd := services.RefundCommand{
-		PaymentID: payment.ID(),
-		Amount:    payment.Amount().Amount,
+		PaymentID: payment.ID,
+		Amount:    payment.AmountCents,
 	}
 
 	type result struct {
@@ -344,9 +344,9 @@ func (suite *RefundServiceTestSuite) Test_Refund_ConcurrentRequests_OnlyOneSucce
 	idempotencyKey := "idem-" + uuid.New().String()
 
 	refundResp := &application.BankRefundResponse{
-		Amount:     payment.Amount().Amount,
-		Currency:   payment.Amount().Currency,
-		CaptureID:  *payment.BankCaptureID(),
+		Amount:     payment.AmountCents,
+		Currency:   payment.Currency,
+		CaptureID:  *payment.BankCaptureID,
 		RefundID:   "refund-123",
 		Status:     "refunded",
 		RefundedAt: time.Now(),
@@ -374,7 +374,7 @@ func (suite *RefundServiceTestSuite) Test_Refund_ConcurrentRequests_OnlyOneSucce
 		res := <-results
 		if res.err == nil {
 			successCount++
-			paymentIDs = append(paymentIDs, res.payment.ID())
+			paymentIDs = append(paymentIDs, res.payment.ID)
 		}
 	}
 

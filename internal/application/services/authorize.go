@@ -55,7 +55,7 @@ func (s *AuthorizeService) Authorize(ctx context.Context, cmd AuthorizeCommand, 
 	existingHash, err := s.idempotencyRepo.FindByRequestHash(ctx, requestHash)
 	if err == nil && existingHash.Key != idempotencyKey {
 		payment, _ := s.paymentRepo.FindByID(ctx, existingHash.PaymentID)
-		if payment != nil && payment.Status() != domain.StatusPending {
+		if payment != nil && payment.Status != domain.StatusPending {
 			return nil, application.NewDuplicateBusinessRequestError(existingHash.PaymentID, existingHash.Key)
 		}
 	}

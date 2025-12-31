@@ -181,15 +181,15 @@ func (w *RetryWorker) retryPayment(ctx context.Context, sp stuckPayment) error {
 
 func (w *RetryWorker) resumeCapture(ctx context.Context, payment *domain.Payment, idempotencyKey string) error {
 	captureReq := application.BankCaptureRequest{
-		Amount:          payment.Amount().Amount,
-		AuthorizationID: *payment.BankAuthID(),
+		Amount:          payment.AmountCents,
+		AuthorizationID: *payment.BankAuthID,
 	}
 
 	resp, err := w.bankClient.Capture(ctx, captureReq, idempotencyKey)
 	if err != nil {
 		category := application.CategorizeError(err)
 		w.logger.Error("capture retry failed",
-			"payment_id", payment.ID(),
+			"payment_id", payment.ID,
 			"category", category,
 			"error", err)
 
@@ -254,14 +254,14 @@ func (w *RetryWorker) resumeCapture(ctx context.Context, payment *domain.Payment
 
 func (w *RetryWorker) resumeVoid(ctx context.Context, payment *domain.Payment, idempotencyKey string) error {
 	voidReq := application.BankVoidRequest{
-		AuthorizationID: *payment.BankAuthID(),
+		AuthorizationID: *payment.BankAuthID,
 	}
 
 	resp, err := w.bankClient.Void(ctx, voidReq, idempotencyKey)
 	if err != nil {
 		category := application.CategorizeError(err)
 		w.logger.Error("void retry failed",
-			"payment_id", payment.ID(),
+			"payment_id", payment.ID,
 			"category", category,
 			"error", err)
 
@@ -325,15 +325,15 @@ func (w *RetryWorker) resumeVoid(ctx context.Context, payment *domain.Payment, i
 
 func (w *RetryWorker) resumeRefund(ctx context.Context, payment *domain.Payment, idempotencyKey string) error {
 	refundReq := application.BankRefundRequest{
-		Amount:    payment.Amount().Amount,
-		CaptureID: *payment.BankCaptureID(),
+		Amount:    payment.AmountCents,
+		CaptureID: *payment.BankCaptureID,
 	}
 
 	resp, err := w.bankClient.Refund(ctx, refundReq, idempotencyKey)
 	if err != nil {
 		category := application.CategorizeError(err)
 		w.logger.Error("refund retry failed",
-			"payment_id", payment.ID(),
+			"payment_id", payment.ID,
 			"category", category,
 			"error", err)
 
@@ -400,7 +400,7 @@ func (w *RetryWorker) scheduleRetry(ctx context.Context, payment *domain.Payment
 	category := application.CategorizeError(lastErr)
 
 	payment.ScheduleRetry(
-		time.Duration(1<<payment.AttemptCount())*time.Minute,
+		time.Duration(1<<payment.AttemptCount)*time.Minute,
 		string(category),
 	)
 	return w.paymentRepo.Update(ctx, nil, payment)
