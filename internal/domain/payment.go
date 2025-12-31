@@ -189,7 +189,7 @@ func (p *Payment) ScheduleRetry(backoff time.Duration, errorCategory string) {
 }
 
 func (p *Payment) FailWithCategory(errorCategory string) error {
-	if err := p.canTransitionTo(StatusFailed); err != nil {
+	if err := p.transition(StatusFailed); err != nil {
 		return err
 	}
 	p.LastErrorCategory = &errorCategory

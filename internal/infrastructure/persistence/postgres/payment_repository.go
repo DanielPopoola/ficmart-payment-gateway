@@ -31,7 +31,6 @@ func (r *PaymentRepository) Create(ctx context.Context, tx pgx.Tx, payment *doma
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
 	`
 
-	var p domain.Payment
 	var q interface {
 		Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
 	} = r.db
@@ -39,22 +38,22 @@ func (r *PaymentRepository) Create(ctx context.Context, tx pgx.Tx, payment *doma
 		q = tx
 	}
 	_, err := q.Exec(ctx, query,
-		p.ID,
-		p.OrderID,
-		p.CustomerID,
-		p.AmountCents,
-		p.Currency,
-		p.Status,
-		p.BankAuthID,
-		p.BankCaptureID,
-		p.BankVoidID,
-		p.BankRefundID,
-		p.CreatedAt,
-		p.AuthorizedAt,
-		p.CapturedAt,
-		p.VoidedAt,
-		p.RefundedAt,
-		p.ExpiresAt,
+		payment.ID,
+		payment.OrderID,
+		payment.CustomerID,
+		payment.AmountCents,
+		payment.Currency,
+		payment.Status,
+		payment.BankAuthID,
+		payment.BankCaptureID,
+		payment.BankVoidID,
+		payment.BankRefundID,
+		payment.CreatedAt,
+		payment.AuthorizedAt,
+		payment.CapturedAt,
+		payment.VoidedAt,
+		payment.RefundedAt,
+		payment.ExpiresAt,
 	)
 
 	if err != nil {
@@ -193,7 +192,6 @@ func (r *PaymentRepository) Update(ctx context.Context, tx pgx.Tx, payment *doma
 		WHERE id = $14
 	`
 
-	var p domain.Payment
 	var q interface {
 		Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
 	} = r.db
@@ -201,20 +199,20 @@ func (r *PaymentRepository) Update(ctx context.Context, tx pgx.Tx, payment *doma
 		q = tx
 	}
 	results, err := q.Exec(ctx, query,
-		p.Status,
-		p.BankAuthID,
-		p.BankCaptureID,
-		p.BankVoidID,
-		p.BankRefundID,
-		p.AuthorizedAt,
-		p.CapturedAt,
-		p.VoidedAt,
-		p.RefundedAt,
-		p.ExpiresAt,
-		p.AttemptCount,
-		p.NextRetryAt,
-		p.LastErrorCategory,
-		p.ID,
+		payment.Status,
+		payment.BankAuthID,
+		payment.BankCaptureID,
+		payment.BankVoidID,
+		payment.BankRefundID,
+		payment.AuthorizedAt,
+		payment.CapturedAt,
+		payment.VoidedAt,
+		payment.RefundedAt,
+		payment.ExpiresAt,
+		payment.AttemptCount,
+		payment.NextRetryAt,
+		payment.LastErrorCategory,
+		payment.ID,
 	)
 
 	if err != nil {
