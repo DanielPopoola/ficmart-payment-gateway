@@ -26,15 +26,15 @@ func TestRetryWorker_RecoversStuckCapture(t *testing.T) {
 	testDB := testhelpers.SetupTestDatabase(t)
 	defer testDB.Cleanup(t)
 
-	paymentRepo := postgres.NewPaymentRepository(testDB.DB.Pool)
-	idempotencyRepo := postgres.NewIdempotencyRepository(testDB.DB.Pool)
+	paymentRepo := postgres.NewPaymentRepository(testDB.DB)
+	idempotencyRepo := postgres.NewIdempotencyRepository(testDB.DB)
 	mockBank := mocks.NewMockBankClient(t)
 
 	authService := services.NewAuthorizeService(
 		paymentRepo,
 		idempotencyRepo,
 		mockBank,
-		testDB.DB.Pool,
+		testDB.DB,
 	)
 
 	idempotencyKey := "idem-test-capture-" + uuid.New().String()
@@ -63,7 +63,7 @@ func TestRetryWorker_RecoversStuckCapture(t *testing.T) {
 	err = paymentRepo.Update(ctx, nil, payment)
 	require.NoError(t, err)
 
-	_, err = testDB.DB.Pool.Exec(ctx,
+	_, err = testDB.DB.Exec(ctx,
 		"UPDATE idempotency_keys SET locked_at = $1 WHERE key = $2",
 		time.Now().Add(-2*time.Hour),
 		idempotencyKey,
@@ -91,7 +91,7 @@ func TestRetryWorker_RecoversStuckCapture(t *testing.T) {
 		paymentRepo,
 		idempotencyRepo,
 		mockBank,
-		testDB.DB.Pool,
+		testDB.DB,
 		1*time.Minute,
 		10,
 		logger,
@@ -116,15 +116,15 @@ func TestRetryWorker_SchedulesRetryOnTransientError(t *testing.T) {
 	testDB := testhelpers.SetupTestDatabase(t)
 	defer testDB.Cleanup(t)
 
-	paymentRepo := postgres.NewPaymentRepository(testDB.DB.Pool)
-	idempotencyRepo := postgres.NewIdempotencyRepository(testDB.DB.Pool)
+	paymentRepo := postgres.NewPaymentRepository(testDB.DB)
+	idempotencyRepo := postgres.NewIdempotencyRepository(testDB.DB)
 	mockBank := mocks.NewMockBankClient(t)
 
 	authService := services.NewAuthorizeService(
 		paymentRepo,
 		idempotencyRepo,
 		mockBank,
-		testDB.DB.Pool,
+		testDB.DB,
 	)
 
 	idempotencyKey := "idem-test-capture-" + uuid.New().String()
@@ -153,7 +153,7 @@ func TestRetryWorker_SchedulesRetryOnTransientError(t *testing.T) {
 	err = paymentRepo.Update(ctx, nil, payment)
 	require.NoError(t, err)
 
-	_, err = testDB.DB.Pool.Exec(ctx,
+	_, err = testDB.DB.Exec(ctx,
 		"UPDATE idempotency_keys SET locked_at = $1 WHERE key = $2",
 		time.Now().Add(-2*time.Hour),
 		idempotencyKey,
@@ -177,7 +177,7 @@ func TestRetryWorker_SchedulesRetryOnTransientError(t *testing.T) {
 		paymentRepo,
 		idempotencyRepo,
 		mockBank,
-		testDB.DB.Pool,
+		testDB.DB,
 		1*time.Minute,
 		10,
 		logger,
@@ -202,15 +202,15 @@ func TestRetryWorker_FailsOnPermanentError(t *testing.T) {
 	testDB := testhelpers.SetupTestDatabase(t)
 	defer testDB.Cleanup(t)
 
-	paymentRepo := postgres.NewPaymentRepository(testDB.DB.Pool)
-	idempotencyRepo := postgres.NewIdempotencyRepository(testDB.DB.Pool)
+	paymentRepo := postgres.NewPaymentRepository(testDB.DB)
+	idempotencyRepo := postgres.NewIdempotencyRepository(testDB.DB)
 	mockBank := mocks.NewMockBankClient(t)
 
 	authService := services.NewAuthorizeService(
 		paymentRepo,
 		idempotencyRepo,
 		mockBank,
-		testDB.DB.Pool,
+		testDB.DB,
 	)
 
 	idempotencyKey := "idem-test-capture-" + uuid.New().String()
@@ -239,7 +239,7 @@ func TestRetryWorker_FailsOnPermanentError(t *testing.T) {
 	err = paymentRepo.Update(ctx, nil, payment)
 	require.NoError(t, err)
 
-	_, err = testDB.DB.Pool.Exec(ctx,
+	_, err = testDB.DB.Exec(ctx,
 		"UPDATE idempotency_keys SET locked_at = $1 WHERE key = $2",
 		time.Now().Add(-2*time.Hour),
 		idempotencyKey,
@@ -263,7 +263,7 @@ func TestRetryWorker_FailsOnPermanentError(t *testing.T) {
 		paymentRepo,
 		idempotencyRepo,
 		mockBank,
-		testDB.DB.Pool,
+		testDB.DB,
 		1*time.Minute,
 		10,
 		logger,

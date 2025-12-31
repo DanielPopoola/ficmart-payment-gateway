@@ -35,8 +35,8 @@ func TestVoidServiceSuite(t *testing.T) {
 
 func (suite *voidServiceTestSuite) SetupSuite() {
 	suite.testDB = testhelpers.SetupTestDatabase(suite.T())
-	suite.paymentRepo = postgres.NewPaymentRepository(suite.testDB.DB.Pool)
-	suite.idempotencyRepo = postgres.NewIdempotencyRepository(suite.testDB.DB.Pool)
+	suite.paymentRepo = postgres.NewPaymentRepository(suite.testDB.DB)
+	suite.idempotencyRepo = postgres.NewIdempotencyRepository(suite.testDB.DB)
 }
 
 func (suite *voidServiceTestSuite) TearDownSuite() {
@@ -50,14 +50,14 @@ func (suite *voidServiceTestSuite) SetupTest() {
 		suite.paymentRepo,
 		suite.idempotencyRepo,
 		suite.mockBank,
-		suite.testDB.DB.Pool,
+		suite.testDB.DB,
 	)
 
 	suite.voidService = services.NewVoidService(
 		suite.paymentRepo,
 		suite.idempotencyRepo,
 		suite.mockBank,
-		suite.testDB.DB.Pool,
+		suite.testDB.DB,
 	)
 }
 

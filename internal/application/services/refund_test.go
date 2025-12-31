@@ -35,8 +35,8 @@ func TestRefundServiceSuite(t *testing.T) {
 
 func (suite *RefundServiceTestSuite) SetupSuite() {
 	suite.testDB = testhelpers.SetupTestDatabase(suite.T())
-	suite.paymentRepo = postgres.NewPaymentRepository(suite.testDB.DB.Pool)
-	suite.idempotencyRepo = postgres.NewIdempotencyRepository(suite.testDB.DB.Pool)
+	suite.paymentRepo = postgres.NewPaymentRepository(suite.testDB.DB)
+	suite.idempotencyRepo = postgres.NewIdempotencyRepository(suite.testDB.DB)
 }
 
 func (suite *RefundServiceTestSuite) TearDownSuite() {
@@ -50,21 +50,21 @@ func (suite *RefundServiceTestSuite) SetupTest() {
 		suite.paymentRepo,
 		suite.idempotencyRepo,
 		suite.mockBank,
-		suite.testDB.DB.Pool,
+		suite.testDB.DB,
 	)
 
 	suite.captureService = services.NewCaptureService(
 		suite.paymentRepo,
 		suite.idempotencyRepo,
 		suite.mockBank,
-		suite.testDB.DB.Pool,
+		suite.testDB.DB,
 	)
 
 	suite.refundService = services.NewRefundService(
 		suite.paymentRepo,
 		suite.idempotencyRepo,
 		suite.mockBank,
-		suite.testDB.DB.Pool,
+		suite.testDB.DB,
 	)
 }
 

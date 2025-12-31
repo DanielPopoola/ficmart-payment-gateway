@@ -11,7 +11,7 @@ import (
 )
 
 type DB struct {
-	Pool   *pgxpool.Pool
+	*pgxpool.Pool
 	logger *slog.Logger
 }
 

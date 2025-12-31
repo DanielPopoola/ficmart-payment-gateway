@@ -11,21 +11,20 @@ import (
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/application"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/domain"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/infrastructure/persistence/postgres"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type CaptureService struct {
 	paymentRepo     *postgres.PaymentRepository
 	idempotencyRepo *postgres.IdempotencyRepository
 	bankClient      application.BankClient
-	db              *pgxpool.Pool
+	db              *postgres.DB
 }
 
 func NewCaptureService(
 	paymentRepo *postgres.PaymentRepository,
 	idempotencyRepo *postgres.IdempotencyRepository,
 	bankClient application.BankClient,
-	db *pgxpool.Pool,
+	db *postgres.DB,
 ) *CaptureService {
 	return &CaptureService{
 		paymentRepo:     paymentRepo,

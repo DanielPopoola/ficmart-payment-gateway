@@ -8,26 +8,16 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 var ErrDuplicateIdempotencyKey = errors.New("duplicate transaction")
 var ErrIdempotencyMismatch = errors.New("idempotency key mismatch")
 
-type IdempotencyKey struct {
-	Key             string
-	PaymentID       string
-	RequestHash     string
-	LockedAt        *time.Time
-	ResponsePayload *[]byte
-	StatusCode      *int
-}
-
 type IdempotencyRepository struct {
-	db *pgxpool.Pool
+	db *DB
 }
 
-func NewIdempotencyRepository(db *pgxpool.Pool) *IdempotencyRepository {
+func NewIdempotencyRepository(db *DB) *IdempotencyRepository {
 	return &IdempotencyRepository{db: db}
 }
 

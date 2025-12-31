@@ -9,16 +9,15 @@ import (
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/domain"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 var ErrPaymentNotFound = errors.New("payment not found")
 
 type PaymentRepository struct {
-	db *pgxpool.Pool
+	db *DB
 }
 
-func NewPaymentRepository(db *pgxpool.Pool) *PaymentRepository {
+func NewPaymentRepository(db *DB) *PaymentRepository {
 	return &PaymentRepository{db: db}
 }
 

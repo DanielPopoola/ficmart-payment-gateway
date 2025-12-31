@@ -35,8 +35,8 @@ func TestCaptureServiceSuite(t *testing.T) {
 
 func (suite *CaptureServiceTestSuite) SetupSuite() {
 	suite.testDB = testhelpers.SetupTestDatabase(suite.T())
-	suite.paymentRepo = postgres.NewPaymentRepository(suite.testDB.DB.Pool)
-	suite.idempotencyRepo = postgres.NewIdempotencyRepository(suite.testDB.DB.Pool)
+	suite.paymentRepo = postgres.NewPaymentRepository(suite.testDB.DB)
+	suite.idempotencyRepo = postgres.NewIdempotencyRepository(suite.testDB.DB)
 }
 
 func (suite *CaptureServiceTestSuite) TearDownSuite() {
@@ -50,14 +50,14 @@ func (suite *CaptureServiceTestSuite) SetupTest() {
 		suite.paymentRepo,
 		suite.idempotencyRepo,
 		suite.mockBank,
-		suite.testDB.DB.Pool,
+		suite.testDB.DB,
 	)
 
 	suite.captureService = services.NewCaptureService(
 		suite.paymentRepo,
 		suite.idempotencyRepo,
 		suite.mockBank,
-		suite.testDB.DB.Pool,
+		suite.testDB.DB,
 	)
 }
 

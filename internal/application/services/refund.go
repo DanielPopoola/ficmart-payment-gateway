@@ -11,21 +11,20 @@ import (
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/application"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/domain"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/infrastructure/persistence/postgres"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type RefundService struct {
 	paymentRepo     *postgres.PaymentRepository
 	idempotencyRepo *postgres.IdempotencyRepository
 	bankClient      application.BankClient
-	db              *pgxpool.Pool
+	db              *postgres.DB
 }
 
 func NewRefundService(
 	paymentRepo *postgres.PaymentRepository,
 	idempotencyRepo *postgres.IdempotencyRepository,
 	bankClient application.BankClient,
-	db *pgxpool.Pool,
+	db *postgres.DB,
 ) *RefundService {
 	return &RefundService{
 		paymentRepo:     paymentRepo,

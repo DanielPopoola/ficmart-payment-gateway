@@ -35,8 +35,8 @@ func TestAuthorizeServiceSuite(t *testing.T) {
 // SetupSuite runs once before all tests
 func (suite *AuthorizeServiceTestSuite) SetupSuite() {
 	suite.testDB = testhelpers.SetupTestDatabase(suite.T())
-	suite.paymentRepo = postgres.NewPaymentRepository(suite.testDB.DB.Pool)
-	suite.idempotencyRepo = postgres.NewIdempotencyRepository(suite.testDB.DB.Pool)
+	suite.paymentRepo = postgres.NewPaymentRepository(suite.testDB.DB)
+	suite.idempotencyRepo = postgres.NewIdempotencyRepository(suite.testDB.DB)
 }
 
 // TearDownSuite runs once after all tests
@@ -52,7 +52,7 @@ func (suite *AuthorizeServiceTestSuite) SetupTest() {
 		suite.paymentRepo,
 		suite.idempotencyRepo,
 		suite.mockBank,
-		suite.testDB.DB.Pool,
+		suite.testDB.DB,
 	)
 }
 

@@ -10,7 +10,6 @@ import (
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/application"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/domain"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/infrastructure/persistence/postgres"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type RetryWorker struct {
@@ -19,7 +18,7 @@ type RetryWorker struct {
 	bankClient      application.BankClient
 	interval        time.Duration
 	batchSize       int
-	db              *pgxpool.Pool
+	db              *postgres.DB
 	logger          *slog.Logger
 }
 
@@ -27,7 +26,7 @@ func NewRetryWorker(
 	paymentRepo *postgres.PaymentRepository,
 	idempotencyRepo *postgres.IdempotencyRepository,
 	bankClient application.BankClient,
-	db *pgxpool.Pool,
+	db *postgres.DB,
 	interval time.Duration,
 	batchSize int,
 	logger *slog.Logger,
