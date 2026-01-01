@@ -2,10 +2,8 @@ package services
 
 import (
 	"context"
-	"crypto/sha256"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/application"
@@ -35,7 +33,7 @@ func NewRefundService(
 }
 
 func (s *RefundService) Refund(ctx context.Context, cmd RefundCommand, idempotencyKey string) (*domain.Payment, error) {
-	requestHash := s.computeRequestHash(cmd)
+	requestHash := ComputeHash(cmd)
 
 	existingKey, err := s.idempotencyRepo.FindByKey(ctx, idempotencyKey)
 	if err == nil {
@@ -151,7 +149,7 @@ func (s *RefundService) Refund(ctx context.Context, cmd RefundCommand, idempoten
 }
 
 func (s *RefundService) waitForCompletion(ctx context.Context, idempotencyKey string, cmd RefundCommand) (*domain.Payment, error) {
-	requestHash := s.computeRequestHash(cmd)
+	requestHash := ComputeHash(cmd)
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 	timeout := time.After(30 * time.Second)
@@ -185,10 +183,4 @@ func (s *RefundService) waitForCompletion(ctx context.Context, idempotencyKey st
 			}
 		}
 	}
-}
-
-func (s *RefundService) computeRequestHash(cmd RefundCommand) string {
-	data := fmt.Sprintf("%+v", cmd)
-	hash := sha256.Sum256([]byte(data))
-	return fmt.Sprintf("%x", hash)
 }

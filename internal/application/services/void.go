@@ -2,10 +2,8 @@ package services
 
 import (
 	"context"
-	"crypto/sha256"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/application"
@@ -35,7 +33,7 @@ func NewVoidService(
 }
 
 func (s *VoidService) Void(ctx context.Context, cmd VoidCommand, idempotencyKey string) (*domain.Payment, error) {
-	requestHash := s.computeRequestHash(cmd)
+	requestHash := ComputeHash(cmd)
 
 	existingKey, err := s.idempotencyRepo.FindByKey(ctx, idempotencyKey)
 	if err == nil {
@@ -181,10 +179,4 @@ func (s *VoidService) waitForCompletion(ctx context.Context, idempotencyKey stri
 			}
 		}
 	}
-}
-
-func (s *VoidService) computeRequestHash(cmd VoidCommand) string {
-	data := fmt.Sprintf("%+v", cmd)
-	hash := sha256.Sum256([]byte(data))
-	return fmt.Sprintf("%x", hash)
 }

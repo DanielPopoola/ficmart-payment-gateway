@@ -2,10 +2,8 @@ package services
 
 import (
 	"context"
-	"crypto/sha256"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/application"
@@ -36,7 +34,7 @@ func NewAuthorizeService(
 }
 
 func (s *AuthorizeService) Authorize(ctx context.Context, cmd AuthorizeCommand, idempotencyKey string) (*domain.Payment, error) {
-	requestHash := s.computeRequestHash(cmd)
+	requestHash := ComputeHash(cmd)
 
 	existingKey, err := s.idempotencyRepo.FindByKey(ctx, idempotencyKey)
 	if err == nil {
@@ -156,7 +154,7 @@ func (s *AuthorizeService) Authorize(ctx context.Context, cmd AuthorizeCommand, 
 }
 
 func (s *AuthorizeService) waitForCompletion(ctx context.Context, idempotencyKey string, cmd AuthorizeCommand) (*domain.Payment, error) {
-	requestHash := s.computeRequestHash(cmd)
+	requestHash := ComputeHash(cmd)
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 	timeout := time.After(30 * time.Second)
@@ -190,10 +188,4 @@ func (s *AuthorizeService) waitForCompletion(ctx context.Context, idempotencyKey
 			}
 		}
 	}
-}
-
-func (s *AuthorizeService) computeRequestHash(cmd AuthorizeCommand) string {
-	data := fmt.Sprintf("%+v", cmd)
-	hash := sha256.Sum256([]byte(data))
-	return fmt.Sprintf("%x", hash)
 }

@@ -2,10 +2,8 @@ package services
 
 import (
 	"context"
-	"crypto/sha256"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/application"
@@ -35,7 +33,7 @@ func NewCaptureService(
 }
 
 func (s *CaptureService) Capture(ctx context.Context, cmd CaptureCommand, idempotencyKey string) (*domain.Payment, error) {
-	requestHash := s.computeRequestHash(cmd)
+	requestHash := ComputeHash(cmd)
 
 	existingKey, err := s.idempotencyRepo.FindByKey(ctx, idempotencyKey)
 	if err == nil {
@@ -185,10 +183,4 @@ func (s *CaptureService) waitForCompletion(ctx context.Context, idempotencyKey s
 			}
 		}
 	}
-}
-
-func (s *CaptureService) computeRequestHash(cmd CaptureCommand) string {
-	data := fmt.Sprintf("%+v", cmd)
-	hash := sha256.Sum256([]byte(data))
-	return fmt.Sprintf("%x", hash)
 }
