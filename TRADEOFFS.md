@@ -18,7 +18,7 @@ I'm storing payment state in my own database instead of always querying the bank
 
 ### How I track payment states:
 
-I save the payment to the database with `status=PENDING` before calling the bank. This solves the critical crash scenario: if my system crashes before receiving the bank's response, I can retry with the same idempotency key. Without this, I'd have lost the bank's response forever and FicMart wouldn't be able to proceed with that payment. The PENDING record is my "intent log" that survives crashes.
+I save the payment to the database with something to show the intent of the action before calling the bank(e.g of intent - `CAPTURING`, `VOIDING`) as result solving the crash scenario of my service crashing before saving the bank's response. Without this I'd have lost the bank's response forever and FicMart wouldn't be able to proceed with that payment.
 I also used background workers for reonciling states. The background worker checks for stuck `PENDING` payments and reconciles them with the bank's state. The worker uses `FOR UPDATE SKIP LOCKED` to prevent multiple worker instances from fighting over the same payment.
 
 ### Lazy Expiration with Grace Period
@@ -57,16 +57,18 @@ I don't retry 4xx errors (like invalid card or insufficient funds) at all since 
 
 ---
 
-## What I'd Do Differently
+## What I'd Do Differently In Production:
 
-### Observability
 
-If this were going to production, I'd add comprehensive monitoring:
-- **p50, p95, p99 latency** for all bank API calls to detect degradation
-- **Retry attempt distributions** to understand failure patterns
-- **State transition metrics** to track how long payments spend in each state
-- **Alerting** for payments stuck in PENDING beyond expected thresholds
-- **Database connection pool metrics** to detect exhaustion from long transactions
+## State Management
+
+I'd represent only states exposed to FicMart in my domain layer; Then I'd add a `operation_type` column to the `idempotency_keys` table to separate operation intent from payment state
+
+## Others
+
+I'd add something like a payment_events or payment_lifecycle table to show transitions of various payments from one state to the other. This is particularly useful cos in my project, I mark pending payments that timed out as failed so if a authorize call was made to the bank for a new payment and my gateway for any reason didn't receive the response of `authorized`, I can show that this payment went from pending -> failed and if the bank authorized it, I can use it to tell the bank to release the customer's funds.
+
+
 
 ### Testing Strategy
 
