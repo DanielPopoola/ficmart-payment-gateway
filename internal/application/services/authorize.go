@@ -59,29 +59,22 @@ func (s *AuthorizeService) Authorize(ctx context.Context, cmd AuthorizeCommand, 
 		}
 	}
 
-	// Begin transaction
 	tx, err := s.db.Begin(ctx)
 	if err != nil {
-		return nil, err
+		return nil, application.NewInternalError(err)
 	}
 	defer tx.Rollback(ctx)
 
-	// Save intent
 	paymentID := uuid.New().String()
 	var payment *domain.Payment
 
-	money, err := domain.NewMoney(cmd.Amount, cmd.Currency)
+	payment, err = domain.NewPayment(paymentID, cmd.OrderID, cmd.CustomerID, cmd.Amount, cmd.Currency)
 	if err != nil {
-		return nil, err
-	}
-
-	payment, err = domain.NewPayment(paymentID, cmd.OrderID, cmd.CustomerID, money)
-	if err != nil {
-		return nil, err
+		return nil, application.NewInvalidInputError(err)
 	}
 
 	if err := s.paymentRepo.Create(ctx, tx, payment); err != nil {
-		return nil, err
+		return nil, application.NewInternalError(err)
 	}
 
 	if err := s.idempotencyRepo.AcquireLock(ctx, tx, idempotencyKey, paymentID, requestHash); err != nil {
@@ -93,10 +86,9 @@ func (s *AuthorizeService) Authorize(ctx context.Context, cmd AuthorizeCommand, 
 	}
 
 	if err := tx.Commit(ctx); err != nil {
-		return nil, err
+		return nil, application.NewInternalError(err)
 	}
 
-	// Call bank
 	bankReq := application.BankAuthorizationRequest{
 		Amount:      cmd.Amount,
 		CardNumber:  cmd.CardNumber,
@@ -110,7 +102,7 @@ func (s *AuthorizeService) Authorize(ctx context.Context, cmd AuthorizeCommand, 
 		category := application.CategorizeError(err)
 		if category == application.CategoryPermanent {
 			if failErr := payment.Fail(); failErr != nil {
-				return nil, application.NewInternalError(err)
+				return nil, application.NewInvalidStateError(failErr)
 			}
 
 			tx, err := s.db.Begin(ctx)
@@ -133,32 +125,31 @@ func (s *AuthorizeService) Authorize(ctx context.Context, cmd AuthorizeCommand, 
 		return payment, err
 	}
 
-	// Save response in transaction
 	tx, err = s.db.Begin(ctx)
 	if err != nil {
-		return payment, err
+		return payment, application.NewInternalError(err)
 	}
 	defer tx.Rollback(ctx)
 
 	if err := payment.Authorize(bankResp.AuthorizationID, bankResp.CreatedAt, bankResp.ExpiresAt); err != nil {
-		return payment, err
+		return nil, application.NewInvalidStateError(err)
 	}
 
 	if err := s.paymentRepo.Update(ctx, tx, payment); err != nil {
-		return payment, err
+		return nil, application.NewInternalError(err)
 	}
 
 	responsePayload, _ := json.Marshal(bankResp)
 	if err := s.idempotencyRepo.StoreResponse(ctx, tx, idempotencyKey, responsePayload); err != nil {
-		return payment, err
+		return nil, application.NewInternalError(err)
 	}
 
 	if err := s.idempotencyRepo.ReleaseLock(ctx, tx, idempotencyKey); err != nil {
-		return payment, err
+		return nil, application.NewInternalError(err)
 	}
 
 	if err := tx.Commit(ctx); err != nil {
-		return payment, err
+		return nil, application.NewInternalError(err)
 	}
 
 	return payment, nil
@@ -173,7 +164,7 @@ func (s *AuthorizeService) waitForCompletion(ctx context.Context, idempotencyKey
 	for {
 		select {
 		case <-ctx.Done():
-			return nil, ctx.Err()
+			return nil, application.NewTimeoutError("")
 		case <-timeout:
 			return nil, application.NewTimeoutError("")
 		case <-ticker.C:
@@ -189,7 +180,7 @@ func (s *AuthorizeService) waitForCompletion(ctx context.Context, idempotencyKey
 			if key.LockedAt == nil {
 				payment, err := s.paymentRepo.FindByID(ctx, key.PaymentID)
 				if err != nil {
-					return nil, err
+					return nil, application.NewInternalError(err)
 				}
 				return payment, nil
 			}

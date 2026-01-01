@@ -52,24 +52,24 @@ func NewPayment(
 	id string,
 	orderID string,
 	customerID string,
-	amount Money,
+	amount int64, currency string,
 ) (*Payment, error) {
 	if id == "" {
 		return nil, errors.New("payment ID is required")
 	}
-	if orderID == "" {
-		return nil, errors.New("order ID is required")
+	if amount < 0 {
+		return nil, ErrInvalidAmount
 	}
-	if customerID == "" {
-		return nil, errors.New("customer ID is required")
+	if currency == "" {
+		return nil, errors.New("Invalid currency type")
 	}
 
 	return &Payment{
 		ID:          id,
 		OrderID:     orderID,
 		CustomerID:  customerID,
-		AmountCents: amount.Amount,
-		Currency:    amount.Currency,
+		AmountCents: amount,
+		Currency:    currency,
 		Status:      StatusPending,
 		CreatedAt:   time.Now(),
 	}, nil

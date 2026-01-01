@@ -36,8 +36,6 @@ func (w *ExpirationWorker) Start(ctx context.Context) {
 	ticker := time.NewTicker(w.interval)
 	defer ticker.Stop()
 
-	w.processExpirations(ctx)
-
 	for {
 		select {
 		case <-ctx.Done():

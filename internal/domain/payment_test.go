@@ -11,69 +11,22 @@ import (
 
 func TestNewPayment(t *testing.T) {
 	t.Run("creates payment successfully", func(t *testing.T) {
-		money, err := domain.NewMoney(5000, "USD")
-		require.NoError(t, err)
-
-		payment, err := domain.NewPayment("pay-123", "order-456", "cust-789", money)
+		payment, err := domain.NewPayment("pay-123", "order-456", "cust-789", 500, "USD")
 
 		require.NoError(t, err)
 		assert.Equal(t, "pay-123", payment.ID)
 		assert.Equal(t, "order-456", payment.OrderID)
 		assert.Equal(t, "cust-789", payment.CustomerID)
-		assert.Equal(t, int64(5000), payment.AmountCents)
+		assert.Equal(t, int64(500), payment.AmountCents)
 		assert.Equal(t, "USD", payment.Currency)
 		assert.Equal(t, domain.StatusPending, payment.Status)
 		assert.NotZero(t, payment.CreatedAt)
 	})
 
 	t.Run("rejects empty payment ID", func(t *testing.T) {
-		money, _ := domain.NewMoney(5000, "USD")
-
-		_, err := domain.NewPayment("", "order-456", "cust-789", money)
+		_, err := domain.NewPayment("", "order-456", "cust-789", 500, "USD")
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "payment ID is required")
-	})
-
-	t.Run("rejects empty order ID", func(t *testing.T) {
-		money, _ := domain.NewMoney(5000, "USD")
-
-		_, err := domain.NewPayment("pay-123", "", "cust-789", money)
-
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "order ID is required")
-	})
-
-	t.Run("rejects empty customer ID", func(t *testing.T) {
-		money, _ := domain.NewMoney(5000, "USD")
-
-		_, err := domain.NewPayment("pay-123", "order-456", "", money)
-
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "customer ID is required")
-	})
-}
-
-func TestNewMoney(t *testing.T) {
-	t.Run("creates money successfully", func(t *testing.T) {
-		money, err := domain.NewMoney(5000, "USD")
-
-		require.NoError(t, err)
-		assert.Equal(t, int64(5000), money.Amount)
-		assert.Equal(t, "USD", money.Currency)
-	})
-
-	t.Run("rejects negative amount", func(t *testing.T) {
-		_, err := domain.NewMoney(-100, "USD")
-
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "amount cannot be negative")
-	})
-
-	t.Run("rejects empty currency", func(t *testing.T) {
-		_, err := domain.NewMoney(5000, "")
-
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "currency is required")
 	})
 }
 
@@ -247,10 +200,8 @@ func TestPayment_ScheduleRetry(t *testing.T) {
 
 func createTestPayment(t *testing.T) *domain.Payment {
 	t.Helper()
-	money, err := domain.NewMoney(5000, "USD")
-	require.NoError(t, err)
 
-	payment, err := domain.NewPayment("pay-123", "order-456", "cust-789", money)
+	payment, err := domain.NewPayment("pay-123", "order-456", "cust-789", 500, "USD")
 	require.NoError(t, err)
 
 	return payment

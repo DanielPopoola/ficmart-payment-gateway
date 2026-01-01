@@ -134,8 +134,9 @@ func (suite *RefundServiceTestSuite) Test_Refund_CannotRefundPendingPayment() {
 
 	_, err = suite.refundService.Refund(ctx, refundCmd, refundKey)
 
-	require.Error(suite.T(), err)
-	assert.ErrorIs(suite.T(), err, domain.ErrInvalidTransition)
+	svcErr, ok := application.IsServiceError(err)
+	require.True(suite.T(), ok)
+	assert.Equal(suite.T(), application.ErrCodeInvalidState, svcErr.Code)
 }
 
 func (suite *RefundServiceTestSuite) Test_Refund_CannotRefundAlreadyRefundedPayment() {

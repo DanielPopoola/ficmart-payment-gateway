@@ -45,7 +45,7 @@ func (s *CaptureService) Capture(ctx context.Context, cmd CaptureCommand, idempo
 
 		if existingKey.LockedAt != nil {
 			payment, _ := s.paymentRepo.FindByID(ctx, existingKey.PaymentID)
-			return payment, nil
+			return payment, application.NewInternalError(err)
 		}
 		return s.waitForCompletion(ctx, idempotencyKey, existingKey.PaymentID)
 	}
@@ -66,6 +66,9 @@ func (s *CaptureService) Capture(ctx context.Context, cmd CaptureCommand, idempo
 
 	payment, err := s.paymentRepo.FindByIDForUpdate(ctx, tx, cmd.PaymentID)
 	if err != nil {
+		if errors.Is(err, domain.ErrAmountMismatch) {
+			return nil, application.NewInvalidInputError(err)
+		}
 		return nil, application.NewInternalError(err)
 	}
 
@@ -78,7 +81,7 @@ func (s *CaptureService) Capture(ctx context.Context, cmd CaptureCommand, idempo
 	}
 
 	if err := payment.MarkCapturing(); err != nil {
-		return nil, application.NewInternalError(err)
+		return nil, application.NewInvalidStateError(err)
 	}
 
 	if err := s.paymentRepo.Update(ctx, tx, payment); err != nil {
@@ -99,7 +102,7 @@ func (s *CaptureService) Capture(ctx context.Context, cmd CaptureCommand, idempo
 		category := application.CategorizeError(err)
 		if category == application.CategoryPermanent {
 			if failErr := payment.FailWithCategory(string(category)); failErr != nil {
-				return nil, application.NewInternalError(failErr)
+				return nil, application.NewInvalidStateError(failErr)
 			}
 
 			tx, err := s.db.Begin(ctx)
@@ -129,7 +132,7 @@ func (s *CaptureService) Capture(ctx context.Context, cmd CaptureCommand, idempo
 	defer tx.Rollback(ctx)
 
 	if err := payment.Capture(bankResp.CaptureID, bankResp.CapturedAt); err != nil {
-		return nil, application.NewInternalError(err)
+		return nil, application.NewInvalidStateError(err)
 	}
 
 	if err := s.paymentRepo.Update(ctx, tx, payment); err != nil {
@@ -160,7 +163,7 @@ func (s *CaptureService) waitForCompletion(ctx context.Context, idempotencyKey s
 	for {
 		select {
 		case <-ctx.Done():
-			return nil, ctx.Err()
+			return nil, application.NewTimeoutError("")
 		case <-timeout:
 			return nil, application.NewTimeoutError(paymentID)
 		case <-ticker.C:

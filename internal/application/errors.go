@@ -33,6 +33,8 @@ const (
 	ErrCodeTimeout                  = "TIMEOUT"
 	ErrCodeMissingDependency        = "MISSING_DEPENDENCY"
 	ErrCodeInternal                 = "INTERNAL_ERROR"
+	ErrCodeInvalidInput             = "INVALID_INPUT"
+	ErrCodeInvalidState             = "INVALID_STATE"
 )
 
 func NewDuplicateBusinessRequestError(paymentID, originalKey string) *ServiceError {
@@ -81,6 +83,22 @@ func NewInternalError(err error) *ServiceError {
 		Message:    "An internal error occurred",
 		HTTPStatus: http.StatusInternalServerError,
 		Err:        err,
+	}
+}
+
+func NewInvalidInputError(err error) *ServiceError {
+	return &ServiceError{
+		Code:       ErrCodeInvalidInput,
+		Message:    "Invalid input",
+		HTTPStatus: http.StatusBadRequest,
+	}
+}
+
+func NewInvalidStateError(err error) *ServiceError {
+	return &ServiceError{
+		Code:       ErrCodeInvalidState,
+		Message:    "Invalid state transition or unallowed state",
+		HTTPStatus: http.StatusConflict,
 	}
 }
 

@@ -77,7 +77,7 @@ func (s *RefundService) Refund(ctx context.Context, cmd RefundCommand, idempoten
 	}
 
 	if err := payment.MarkRefunding(); err != nil {
-		return nil, application.NewInternalError(err)
+		return nil, application.NewInvalidStateError(err)
 	}
 
 	if err := s.paymentRepo.Update(ctx, tx, payment); err != nil {
@@ -98,7 +98,7 @@ func (s *RefundService) Refund(ctx context.Context, cmd RefundCommand, idempoten
 		category := application.CategorizeError(err)
 		if category == application.CategoryPermanent {
 			if failErr := payment.FailWithCategory(string(category)); failErr != nil {
-				return nil, application.NewInternalError(failErr)
+				return nil, application.NewInvalidStateError(failErr)
 			}
 
 			tx, err := s.db.Begin(ctx)
@@ -128,7 +128,7 @@ func (s *RefundService) Refund(ctx context.Context, cmd RefundCommand, idempoten
 	defer tx.Rollback(ctx)
 
 	if err := payment.Refund(bankResp.RefundID, bankResp.RefundedAt); err != nil {
-		return nil, application.NewInternalError(err)
+		return nil, application.NewInvalidStateError(err)
 	}
 
 	if err := s.paymentRepo.Update(ctx, tx, payment); err != nil {
@@ -159,7 +159,7 @@ func (s *RefundService) waitForCompletion(ctx context.Context, idempotencyKey st
 	for {
 		select {
 		case <-ctx.Done():
-			return nil, ctx.Err()
+			return nil, application.NewTimeoutError("")
 		case <-timeout:
 			return nil, application.NewTimeoutError("")
 		case <-ticker.C:

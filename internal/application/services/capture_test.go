@@ -126,8 +126,9 @@ func (suite *CaptureServiceTestSuite) Test_Capture_CannotCapturePendingPayment()
 
 	_, err = suite.captureService.Capture(ctx, captureCmd, captureKey)
 
-	require.Error(suite.T(), err)
-	assert.ErrorIs(suite.T(), err, domain.ErrInvalidTransition)
+	svcErr, ok := application.IsServiceError(err)
+	require.True(suite.T(), ok)
+	assert.Equal(suite.T(), application.ErrCodeInvalidState, svcErr.Code)
 }
 
 func (suite *CaptureServiceTestSuite) Test_Capture_CannotCaptureAlreadyCapturedPayment() {
