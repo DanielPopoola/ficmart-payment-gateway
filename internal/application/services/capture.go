@@ -52,13 +52,46 @@ func (s *CaptureService) Capture(ctx context.Context, cmd CaptureCommand, idempo
 		return s.waitForCompletion(ctx, idempotencyKey)
 	}
 
+	payment, err := s.paymentRepo.FindByID(ctx, cmd.PaymentID)
+	if err != nil {
+		return nil, application.NewInternalError(err)
+	}
+	authResp, err := s.bankClient.GetAuthorization(ctx, *payment.BankAuthID)
+	if err != nil {
+		return nil, application.NewInternalError(err)
+	}
+	if authResp.Status != "approved" {
+		if err := payment.MarkExpired(); err != nil {
+			return nil, application.NewInvalidStateError(err)
+		}
+
+		tx, err := s.db.Begin(ctx)
+		if err != nil {
+			return nil, application.NewInternalError(err)
+		}
+		defer tx.Rollback(ctx)
+
+		if updateErr := s.paymentRepo.Update(ctx, tx, payment); updateErr != nil {
+			return nil, application.NewInternalError(updateErr)
+		}
+		responsePayload, _ := json.Marshal(authResp)
+		if err := s.idempotencyRepo.StoreResponse(ctx, tx, idempotencyKey, responsePayload); err != nil {
+			return nil, application.NewInternalError(err)
+		}
+
+		if err := tx.Commit(ctx); err != nil {
+			return nil, application.NewInternalError(err)
+		}
+		return payment, nil
+	}
+
 	tx, err := s.db.Begin(ctx)
 	if err != nil {
 		return nil, application.NewInternalError(err)
 	}
 	defer tx.Rollback(ctx)
 
-	payment, err := s.paymentRepo.FindByIDForUpdate(ctx, tx, cmd.PaymentID)
+	payment, err = s.paymentRepo.FindByIDForUpdate(ctx, tx, cmd.PaymentID)
 	if err != nil {
 		if errors.Is(err, domain.ErrAmountMismatch) {
 			return nil, application.NewInvalidInputError(err)
