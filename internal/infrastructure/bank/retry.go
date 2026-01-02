@@ -79,26 +79,6 @@ func (r *RetryBankClient) GetAuthorization(ctx context.Context, authID string) (
 	)
 }
 
-func (r *RetryBankClient) GetCapture(ctx context.Context, captureID string) (*application.BankCaptureResponse, error) {
-	return retry(
-		r,
-		ctx,
-		func(ctx context.Context) (*application.BankCaptureResponse, error) {
-			return r.inner.GetCapture(ctx, captureID)
-		},
-	)
-}
-
-func (r *RetryBankClient) GetRefund(ctx context.Context, refundID string) (*application.BankRefundResponse, error) {
-	return retry(
-		r,
-		ctx,
-		func(ctx context.Context) (*application.BankRefundResponse, error) {
-			return r.inner.GetRefund(ctx, refundID)
-		},
-	)
-}
-
 // Generic retry helper
 func retry[T any](r *RetryBankClient, ctx context.Context, operation func(ctx context.Context) (*T, error)) (*T, error) {
 	var lastErr error

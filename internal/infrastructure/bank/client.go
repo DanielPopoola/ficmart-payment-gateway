@@ -53,16 +53,6 @@ func (c *HTTPBankClient) GetAuthorization(ctx context.Context, authID string) (*
 	return sendRequest[any, application.BankAuthorizationResponse](c, ctx, http.MethodGet, url, nil, "")
 }
 
-func (c *HTTPBankClient) GetCapture(ctx context.Context, captureID string) (*application.BankCaptureResponse, error) {
-	url := fmt.Sprintf("%s/api/v1/captures/%s", c.baseURL, captureID)
-	return sendRequest[any, application.BankCaptureResponse](c, ctx, http.MethodGet, url, nil, "")
-}
-
-func (c *HTTPBankClient) GetRefund(ctx context.Context, refundID string) (*application.BankRefundResponse, error) {
-	url := fmt.Sprintf("%s/api/v1/refunds/%s", c.baseURL, refundID)
-	return sendRequest[any, application.BankRefundResponse](c, ctx, http.MethodGet, url, nil, "")
-}
-
 func sendRequest[Req any, Resp any](c *HTTPBankClient, ctx context.Context, method, url string, reqBody *Req, idempotencyKey string) (*Resp, error) {
 	var bodyReader io.Reader
 	if reqBody != nil {

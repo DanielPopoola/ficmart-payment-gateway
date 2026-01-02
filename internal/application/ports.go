@@ -12,6 +12,4 @@ type BankClient interface {
 	Refund(ctx context.Context, req BankRefundRequest, idempotencyKey string) (*BankRefundResponse, error)
 
 	GetAuthorization(ctx context.Context, authID string) (*BankAuthorizationResponse, error)
-	GetCapture(ctx context.Context, captureID string) (*BankCaptureResponse, error)
-	GetRefund(ctx context.Context, refundID string) (*BankRefundResponse, error)
 }
