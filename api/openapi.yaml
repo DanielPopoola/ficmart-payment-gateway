@@ -614,10 +614,6 @@ components:
           format: date-time
           nullable: true
           description: When next retry is scheduled
-        last_error_category:
-          type: string
-          nullable: true
-          description: Category of last error encountered
 
     PaymentResponse:
       type: object

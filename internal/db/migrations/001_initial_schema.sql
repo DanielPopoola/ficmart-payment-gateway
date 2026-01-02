@@ -21,8 +21,7 @@ CREATE TABLE IF NOT EXISTS payments (
     expires_at TIMESTAMP WITH TIME ZONE,
     
     attempt_count INT NOT NULL DEFAULT 0,
-    next_retry_at TIMESTAMP WITH TIME ZONE,
-    last_error_category TEXT
+    next_retry_at TIMESTAMP WITH TIME ZONE
 );
 
 -- 2. Create idempotency table

@@ -68,7 +68,7 @@ func (r *PaymentRepository) FindByID(ctx context.Context, id string) (*domain.Pa
 		SELECT id, order_id, customer_id, amount_cents, currency, status,
 		       bank_auth_id, bank_capture_id, bank_void_id, bank_refund_id,
 		       created_at, authorized_at, captured_at, voided_at, refunded_at, expires_at,
-			   attempt_count, next_retry_at, last_error_category
+			   attempt_count, next_retry_at
 		FROM payments WHERE id = $1
 	`
 
@@ -82,7 +82,7 @@ func (r *PaymentRepository) FindByIDForUpdate(ctx context.Context, tx pgx.Tx, id
 		SELECT id, order_id, customer_id, amount_cents, currency, status,
 		       bank_auth_id, bank_capture_id, bank_void_id, bank_refund_id,
 		       created_at, authorized_at, captured_at, voided_at, refunded_at, expires_at,
-			   attempt_count, next_retry_at, last_error_category
+			   attempt_count, next_retry_at
 		FROM payments WHERE id = $1
 		FOR UPDATE
 	`
@@ -103,7 +103,7 @@ func (r *PaymentRepository) FindByOrderID(ctx context.Context, orderID string) (
 		SELECT id, order_id, customer_id, amount_cents, currency, status,
 		       bank_auth_id, bank_capture_id, bank_void_id, bank_refund_id,
 		       created_at, authorized_at, captured_at, voided_at, refunded_at, expires_at,
-			   attempt_count, next_retry_at, last_error_category
+			   attempt_count, next_retry_at
 		FROM payments WHERE order_id = $1
 	`
 
@@ -118,7 +118,7 @@ func (r *PaymentRepository) FindByCustomerID(ctx context.Context, customerID str
 		SELECT id, order_id, customer_id, amount_cents, currency, status,
 		       bank_auth_id, bank_capture_id, bank_void_id, bank_refund_id,
 		       created_at, authorized_at, captured_at, voided_at, refunded_at, expires_at,
-			   attempt_count, next_retry_at, last_error_category
+			   attempt_count, next_retry_at
 		FROM payments WHERE customer_id = $1
 		LIMIT $2 OFFSET $3
 	`
@@ -133,7 +133,7 @@ func (r *PaymentRepository) FindByCustomerID(ctx context.Context, customerID str
 			&p.ID, &p.OrderID, &p.CustomerID, &p.AmountCents, &p.Currency, &p.Status,
 			&p.BankAuthID, &p.BankCaptureID, &p.BankVoidID, &p.BankRefundID,
 			&p.CreatedAt, &p.AuthorizedAt, &p.CapturedAt, &p.VoidedAt, &p.RefundedAt, &p.ExpiresAt,
-			&p.AttemptCount, &p.NextRetryAt, &p.LastErrorCategory,
+			&p.AttemptCount, &p.NextRetryAt,
 		)
 		return &p, err
 	})
@@ -150,7 +150,7 @@ func (r *PaymentRepository) FindExpiredAuthorizations(ctx context.Context, cutof
 		SELECT id, order_id, customer_id, amount_cents, currency, status,
 		       bank_auth_id, bank_capture_id, bank_void_id, bank_refund_id,
 		       created_at, authorized_at, captured_at, voided_at, refunded_at, expires_at,
-		       attempt_count, next_retry_at, last_error_category
+		       attempt_count, next_retry_at
 		FROM payments
 		WHERE status = 'AUTHORIZED'
 		  AND authorized_at < $1
@@ -169,7 +169,7 @@ func (r *PaymentRepository) FindExpiredAuthorizations(ctx context.Context, cutof
 			&p.ID, &p.OrderID, &p.CustomerID, &p.AmountCents, &p.Currency, &p.Status,
 			&p.BankAuthID, &p.BankCaptureID, &p.BankVoidID, &p.BankRefundID,
 			&p.CreatedAt, &p.AuthorizedAt, &p.CapturedAt, &p.VoidedAt, &p.RefundedAt, &p.ExpiresAt,
-			&p.AttemptCount, &p.NextRetryAt, &p.LastErrorCategory,
+			&p.AttemptCount, &p.NextRetryAt,
 		)
 		return &p, err
 	})
@@ -187,8 +187,8 @@ func (r *PaymentRepository) Update(ctx context.Context, tx pgx.Tx, payment *doma
 		SET status = $1,
 			bank_auth_id = $2, bank_capture_id = $3, bank_void_id = $4, bank_refund_id = $5,
 			authorized_at = $6, captured_at = $7, voided_at = $8, refunded_at = $9, expires_at = $10,
-			attempt_count = $11, next_retry_at = $12, last_error_category = $13
-		WHERE id = $14
+			attempt_count = $11, next_retry_at = $12
+		WHERE id = $13
 	`
 
 	var q interface {
@@ -210,7 +210,6 @@ func (r *PaymentRepository) Update(ctx context.Context, tx pgx.Tx, payment *doma
 		payment.ExpiresAt,
 		payment.AttemptCount,
 		payment.NextRetryAt,
-		payment.LastErrorCategory,
 		payment.ID,
 	)
 
@@ -234,7 +233,7 @@ func scanPayment(row pgx.Row) (*domain.Payment, error) {
 		&p.ID, &p.OrderID, &p.CustomerID, &p.AmountCents, &p.Currency, &p.Status,
 		&p.BankAuthID, &p.BankCaptureID, &p.BankVoidID, &p.BankRefundID,
 		&p.CreatedAt, &p.AuthorizedAt, &p.CapturedAt, &p.VoidedAt, &p.RefundedAt, &p.ExpiresAt,
-		&p.AttemptCount, &p.NextRetryAt, &p.LastErrorCategory,
+		&p.AttemptCount, &p.NextRetryAt,
 	)
 
 	if err != nil {

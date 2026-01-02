@@ -52,9 +52,6 @@ func ToAPIPayment(p *domain.Payment) (api.Payment, error) {
 	if p.BankRefundID != nil {
 		apiPayment.BankRefundId = *p.BankRefundID
 	}
-	if p.LastErrorCategory != nil {
-		apiPayment.LastErrorCategory = *p.LastErrorCategory
-	}
 	if p.NextRetryAt != nil {
 		apiPayment.NextRetryAt = *p.NextRetryAt
 	}

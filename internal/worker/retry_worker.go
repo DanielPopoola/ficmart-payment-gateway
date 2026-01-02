@@ -57,7 +57,7 @@ func (w *RetryWorker) Start(ctx context.Context) {
 				w.logger.Error("retry processing failed", "error", err)
 			}
 
-			if err := w.timeoutUnAuthorizedPayments(ctx); err != nil {
+			if err := w.timeoutUnauthorizedPayments(ctx); err != nil {
 				w.logger.Error("timeout failed", "error", err)
 			}
 		}
@@ -118,7 +118,7 @@ func (w *RetryWorker) ProcessRetries(ctx context.Context) error {
 	return rows.Err()
 }
 
-func (w *RetryWorker) timeoutUnAuthorizedPayments(ctx context.Context) error {
+func (w *RetryWorker) timeoutUnauthorizedPayments(ctx context.Context) error {
 	query := `
         SELECT p.id, p.order_id, i.key, p.created_at
         FROM payments p
@@ -193,7 +193,7 @@ func (w *RetryWorker) resumeCapture(ctx context.Context, payment *domain.Payment
 			"error", err)
 
 		if category == application.CategoryPermanent {
-			if failErr := payment.FailWithCategory(string(category)); failErr != nil {
+			if failErr := payment.Fail(); failErr != nil {
 				return failErr
 			}
 
@@ -265,7 +265,7 @@ func (w *RetryWorker) resumeVoid(ctx context.Context, payment *domain.Payment, i
 			"error", err)
 
 		if category == application.CategoryPermanent {
-			if failErr := payment.FailWithCategory(string(category)); failErr != nil {
+			if failErr := payment.Fail(); failErr != nil {
 				return failErr
 			}
 
@@ -337,7 +337,7 @@ func (w *RetryWorker) resumeRefund(ctx context.Context, payment *domain.Payment,
 			"error", err)
 
 		if category == application.CategoryPermanent {
-			if failErr := payment.FailWithCategory(string(category)); failErr != nil {
+			if failErr := payment.Fail(); failErr != nil {
 				return failErr
 			}
 

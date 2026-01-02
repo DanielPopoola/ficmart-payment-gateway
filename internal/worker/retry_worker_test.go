@@ -193,7 +193,6 @@ func TestRetryWorker_SchedulesRetryOnTransientError(t *testing.T) {
 	require.NotNil(t, updatedPayment.NextRetryAt)
 	assert.True(t, updatedPayment.NextRetryAt.After(time.Now()))
 	assert.Equal(t, 1, updatedPayment.AttemptCount)
-	assert.Equal(t, "TRANSIENT", *updatedPayment.LastErrorCategory)
 }
 
 func TestRetryWorker_FailsOnPermanentError(t *testing.T) {
@@ -274,9 +273,6 @@ func TestRetryWorker_FailsOnPermanentError(t *testing.T) {
 
 	updatedPayment, err := paymentRepo.FindByID(ctx, payment.ID)
 	require.NoError(t, err)
-
-	require.NotNil(t, updatedPayment.LastErrorCategory)
-	assert.Equal(t, "PERMANENT", *updatedPayment.LastErrorCategory)
 
 	assert.Nil(t, updatedPayment.NextRetryAt)
 }

@@ -128,9 +128,6 @@ type Payment struct {
 	// Id Unique payment identifier
 	Id openapi_types.UUID `json:"id"`
 
-	// LastErrorCategory Category of last error encountered
-	LastErrorCategory string `json:"last_error_category,omitzero"`
-
 	// NextRetryAt When next retry is scheduled
 	NextRetryAt time.Time `json:"next_retry_at,omitzero"`
 

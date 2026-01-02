@@ -181,7 +181,6 @@ func TestPayment_ScheduleRetry(t *testing.T) {
 
 		assert.Equal(t, 1, payment.AttemptCount)
 		assert.NotNil(t, payment.NextRetryAt)
-		assert.Equal(t, "TRANSIENT", *payment.LastErrorCategory)
 
 		expectedRetryTime := time.Now().Add(backoff)
 		assert.WithinDuration(t, expectedRetryTime, *payment.NextRetryAt, time.Second)

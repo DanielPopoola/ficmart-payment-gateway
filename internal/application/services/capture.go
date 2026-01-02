@@ -99,7 +99,7 @@ func (s *CaptureService) Capture(ctx context.Context, cmd CaptureCommand, idempo
 	if err != nil {
 		category := application.CategorizeError(err)
 		if category == application.CategoryPermanent {
-			if failErr := payment.FailWithCategory(string(category)); failErr != nil {
+			if failErr := payment.Fail(); failErr != nil {
 				return nil, application.NewInvalidStateError(failErr)
 			}
 
@@ -147,7 +147,7 @@ func (s *CaptureService) Capture(ctx context.Context, cmd CaptureCommand, idempo
 	}
 
 	if err := tx.Commit(ctx); err != nil {
-		return payment, application.NewInternalError(err)
+		return nil, application.NewInternalError(err)
 	}
 
 	return payment, nil

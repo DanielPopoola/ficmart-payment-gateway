@@ -43,9 +43,8 @@ type Payment struct {
 	RefundedAt   *time.Time
 	ExpiresAt    *time.Time
 
-	AttemptCount      int
-	NextRetryAt       *time.Time
-	LastErrorCategory *string
+	AttemptCount int
+	NextRetryAt  *time.Time
 }
 
 func NewPayment(
@@ -185,15 +184,6 @@ func (p *Payment) ScheduleRetry(backoff time.Duration, errorCategory string) {
 	p.AttemptCount++
 	next := time.Now().Add(backoff)
 	p.NextRetryAt = &next
-	p.LastErrorCategory = &errorCategory
-}
-
-func (p *Payment) FailWithCategory(errorCategory string) error {
-	if err := p.transition(StatusFailed); err != nil {
-		return err
-	}
-	p.LastErrorCategory = &errorCategory
-	return nil
 }
 
 // Reconstitute - Special constructor for loading from DB
@@ -207,24 +197,23 @@ func Reconstitute(
 	attempCount int, nextRetryAt *time.Time, lastErrorCategory *string,
 ) *Payment {
 	return &Payment{
-		ID:                id,
-		OrderID:           orderID,
-		CustomerID:        customerID,
-		AmountCents:       amount,
-		Currency:          currency,
-		Status:            status,
-		BankAuthID:        bankAuthID,
-		BankCaptureID:     bankCaptureID,
-		BankVoidID:        bankVoidID,
-		BankRefundID:      bankRefundID,
-		CreatedAt:         createdAt,
-		AuthorizedAt:      authorizedAt,
-		CapturedAt:        capturedAt,
-		VoidedAt:          voidedAt,
-		RefundedAt:        refundedAt,
-		ExpiresAt:         expiresAt,
-		AttemptCount:      attempCount,
-		NextRetryAt:       nextRetryAt,
-		LastErrorCategory: lastErrorCategory,
+		ID:            id,
+		OrderID:       orderID,
+		CustomerID:    customerID,
+		AmountCents:   amount,
+		Currency:      currency,
+		Status:        status,
+		BankAuthID:    bankAuthID,
+		BankCaptureID: bankCaptureID,
+		BankVoidID:    bankVoidID,
+		BankRefundID:  bankRefundID,
+		CreatedAt:     createdAt,
+		AuthorizedAt:  authorizedAt,
+		CapturedAt:    capturedAt,
+		VoidedAt:      voidedAt,
+		RefundedAt:    refundedAt,
+		ExpiresAt:     expiresAt,
+		AttemptCount:  attempCount,
+		NextRetryAt:   nextRetryAt,
 	}
 }
