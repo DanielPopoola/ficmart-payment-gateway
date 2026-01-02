@@ -77,12 +77,6 @@ paths:
                       authorized_at: "2024-01-15T10:30:01Z"
                       expires_at: "2024-01-22T10:30:01Z"
                       attempt_count: 0
-        '202':
-          description: Request is being processed (duplicate idempotency key, still processing)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
         '400':
           description: Invalid request parameters
           content:
@@ -96,18 +90,38 @@ paths:
                     error:
                       code: "INVALID_AMOUNT"
                       message: "invalid amount -100"
+        '408':
+          description: Request timed out
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                request_timeout:
+                  value:
+                    success: false
+                    error:
+                      code: "TIMEOUT"
+                      message: "request processing timed out"
+        '409':
+          description: Request processing conflict or invalid state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
                 idempotency_mismatch:
                   value:
                     success: false
                     error:
                       code: "IDEMPOTENCY_MISMATCH"
                       message: "idempotency key reused with different parameters"
-        '409':
-          description: Request timed out or still processing
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                duplicate_business_request:
+                  value:
+                    success: false
+                    error:
+                      code: "DUPLICATE_BUSINESS_REQUEST"
+                      message: "duplicate business request for order-123 with key-456"
         '500':
           description: Internal server error
           content:
@@ -461,9 +475,7 @@ components:
         - amount_cents
         - currency
         - status
-        - idempotency_key
         - created_at
-        - updated_at
         - attempt_count
       properties:
         id:
@@ -489,18 +501,12 @@ components:
           enum:
             - PENDING
             - AUTHORIZED
-            - CAPTURING
             - CAPTURED
             - FAILED
             - REFUNDED
-            - REFUNDING
-            - VOIDING
             - VOIDED
             - EXPIRED
           description: Current payment status
-        idempotency_key:
-          type: string
-          description: Idempotency key used for this payment
         bank_auth_id:
           type: string
           nullable: true
@@ -521,10 +527,6 @@ components:
           type: string
           format: date-time
           description: When payment was created
-        updated_at:
-          type: string
-          format: date-time
-          description: When payment was last updated
         authorized_at:
           type: string
           format: date-time
@@ -592,6 +594,7 @@ components:
                 - DUPLICATE_IDEMPOTENCY_KEY
                 - REQUEST_PROCESSING
                 - MISSING_REQUIRED_FIELD
+                - DUPLICATE_BUSINESS_REQUEST
                 - INVALID_STATE
                 - AMOUNT_MISMATCH
                 - MISSING_DEPENDENCY

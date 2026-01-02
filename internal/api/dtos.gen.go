@@ -11,34 +11,32 @@ import (
 
 // Defines values for ErrorResponseErrorCode.
 const (
-	AMOUNTMISMATCH          ErrorResponseErrorCode = "AMOUNT_MISMATCH"
-	DUPLICATEIDEMPOTENCYKEY ErrorResponseErrorCode = "DUPLICATE_IDEMPOTENCY_KEY"
-	IDEMPOTENCYMISMATCH     ErrorResponseErrorCode = "IDEMPOTENCY_MISMATCH"
-	INTERNALERROR           ErrorResponseErrorCode = "INTERNAL_ERROR"
-	INVALIDAMOUNT           ErrorResponseErrorCode = "INVALID_AMOUNT"
-	INVALIDSTATE            ErrorResponseErrorCode = "INVALID_STATE"
-	INVALIDTRANSITION       ErrorResponseErrorCode = "INVALID_TRANSITION"
-	MISSINGDEPENDENCY       ErrorResponseErrorCode = "MISSING_DEPENDENCY"
-	MISSINGREQUIREDFIELD    ErrorResponseErrorCode = "MISSING_REQUIRED_FIELD"
-	PAYMENTEXPIRED          ErrorResponseErrorCode = "PAYMENT_EXPIRED"
-	PAYMENTNOTFOUND         ErrorResponseErrorCode = "PAYMENT_NOT_FOUND"
-	REQUESTPROCESSING       ErrorResponseErrorCode = "REQUEST_PROCESSING"
-	TIMEOUT                 ErrorResponseErrorCode = "TIMEOUT"
-	VALIDATIONERROR         ErrorResponseErrorCode = "VALIDATION_ERROR"
+	AMOUNTMISMATCH           ErrorResponseErrorCode = "AMOUNT_MISMATCH"
+	DUPLICATEBUSINESSREQUEST ErrorResponseErrorCode = "DUPLICATE_BUSINESS_REQUEST"
+	DUPLICATEIDEMPOTENCYKEY  ErrorResponseErrorCode = "DUPLICATE_IDEMPOTENCY_KEY"
+	IDEMPOTENCYMISMATCH      ErrorResponseErrorCode = "IDEMPOTENCY_MISMATCH"
+	INTERNALERROR            ErrorResponseErrorCode = "INTERNAL_ERROR"
+	INVALIDAMOUNT            ErrorResponseErrorCode = "INVALID_AMOUNT"
+	INVALIDSTATE             ErrorResponseErrorCode = "INVALID_STATE"
+	INVALIDTRANSITION        ErrorResponseErrorCode = "INVALID_TRANSITION"
+	MISSINGDEPENDENCY        ErrorResponseErrorCode = "MISSING_DEPENDENCY"
+	MISSINGREQUIREDFIELD     ErrorResponseErrorCode = "MISSING_REQUIRED_FIELD"
+	PAYMENTEXPIRED           ErrorResponseErrorCode = "PAYMENT_EXPIRED"
+	PAYMENTNOTFOUND          ErrorResponseErrorCode = "PAYMENT_NOT_FOUND"
+	REQUESTPROCESSING        ErrorResponseErrorCode = "REQUEST_PROCESSING"
+	TIMEOUT                  ErrorResponseErrorCode = "TIMEOUT"
+	VALIDATIONERROR          ErrorResponseErrorCode = "VALIDATION_ERROR"
 )
 
 // Defines values for PaymentStatus.
 const (
 	AUTHORIZED PaymentStatus = "AUTHORIZED"
 	CAPTURED   PaymentStatus = "CAPTURED"
-	CAPTURING  PaymentStatus = "CAPTURING"
 	EXPIRED    PaymentStatus = "EXPIRED"
 	FAILED     PaymentStatus = "FAILED"
 	PENDING    PaymentStatus = "PENDING"
 	REFUNDED   PaymentStatus = "REFUNDED"
-	REFUNDING  PaymentStatus = "REFUNDING"
 	VOIDED     PaymentStatus = "VOIDED"
-	VOIDING    PaymentStatus = "VOIDING"
 )
 
 // AuthorizeRequest defines model for AuthorizeRequest.
@@ -130,9 +128,6 @@ type Payment struct {
 	// Id Unique payment identifier
 	Id openapi_types.UUID `json:"id"`
 
-	// IdempotencyKey Idempotency key used for this payment
-	IdempotencyKey string `json:"idempotency_key"`
-
 	// LastErrorCategory Category of last error encountered
 	LastErrorCategory string `json:"last_error_category,omitzero"`
 
@@ -147,9 +142,6 @@ type Payment struct {
 
 	// Status Current payment status
 	Status PaymentStatus `json:"status"`
-
-	// UpdatedAt When payment was last updated
-	UpdatedAt time.Time `json:"updated_at"`
 
 	// VoidedAt When payment was voided
 	VoidedAt time.Time `json:"voided_at,omitzero"`

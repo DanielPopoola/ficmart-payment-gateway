@@ -439,20 +439,20 @@ func (response AuthorizePayment201JSONResponse) VisitAuthorizePaymentResponse(w 
 	return json.NewEncoder(w).Encode(response)
 }
 
-type AuthorizePayment202JSONResponse ErrorResponse
-
-func (response AuthorizePayment202JSONResponse) VisitAuthorizePaymentResponse(w http.ResponseWriter) error {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(202)
-
-	return json.NewEncoder(w).Encode(response)
-}
-
 type AuthorizePayment400JSONResponse ErrorResponse
 
 func (response AuthorizePayment400JSONResponse) VisitAuthorizePaymentResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type AuthorizePayment408JSONResponse ErrorResponse
+
+func (response AuthorizePayment408JSONResponse) VisitAuthorizePaymentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(408)
 
 	return json.NewEncoder(w).Encode(response)
 }
