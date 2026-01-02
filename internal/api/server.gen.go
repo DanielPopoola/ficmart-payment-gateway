@@ -13,6 +13,7 @@ import (
 
 	"github.com/oapi-codegen/runtime"
 	strictnethttp "github.com/oapi-codegen/runtime/strictmiddleware/nethttp"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
 // ServerInterface represents all server handlers.
@@ -29,6 +30,9 @@ type ServerInterface interface {
 	// Get Payment by Order ID
 	// (GET /payments/order/{orderID})
 	GetPaymentByOrder(w http.ResponseWriter, r *http.Request, orderID string)
+	// Get Payment by ID
+	// (GET /payments/{paymentID})
+	GetPaymentByID(w http.ResponseWriter, r *http.Request, paymentID openapi_types.UUID)
 	// Refund Payment
 	// (POST /refund)
 	RefundPayment(w http.ResponseWriter, r *http.Request, params RefundPaymentParams)
@@ -194,6 +198,31 @@ func (siw *ServerInterfaceWrapper) GetPaymentByOrder(w http.ResponseWriter, r *h
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetPaymentByOrder(w, r, orderID)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetPaymentByID operation middleware
+func (siw *ServerInterfaceWrapper) GetPaymentByID(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "paymentID" -------------
+	var paymentID openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "paymentID", r.PathValue("paymentID"), &paymentID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "paymentID", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetPaymentByID(w, r, paymentID)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -415,6 +444,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc("POST "+options.BaseURL+"/capture", wrapper.CapturePayment)
 	m.HandleFunc("GET "+options.BaseURL+"/payments/customer/{customerID}", wrapper.GetPaymentsByCustomer)
 	m.HandleFunc("GET "+options.BaseURL+"/payments/order/{orderID}", wrapper.GetPaymentByOrder)
+	m.HandleFunc("GET "+options.BaseURL+"/payments/{paymentID}", wrapper.GetPaymentByID)
 	m.HandleFunc("POST "+options.BaseURL+"/refund", wrapper.RefundPayment)
 	m.HandleFunc("POST "+options.BaseURL+"/void", wrapper.VoidPayment)
 
@@ -612,6 +642,41 @@ func (response GetPaymentByOrder500JSONResponse) VisitGetPaymentByOrderResponse(
 	return json.NewEncoder(w).Encode(response)
 }
 
+type GetPaymentByIDRequestObject struct {
+	PaymentID openapi_types.UUID `json:"paymentID"`
+}
+
+type GetPaymentByIDResponseObject interface {
+	VisitGetPaymentByIDResponse(w http.ResponseWriter) error
+}
+
+type GetPaymentByID200JSONResponse PaymentResponse
+
+func (response GetPaymentByID200JSONResponse) VisitGetPaymentByIDResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetPaymentByID404JSONResponse ErrorResponse
+
+func (response GetPaymentByID404JSONResponse) VisitGetPaymentByIDResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetPaymentByID500JSONResponse ErrorResponse
+
+func (response GetPaymentByID500JSONResponse) VisitGetPaymentByIDResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type RefundPaymentRequestObject struct {
 	Params RefundPaymentParams
 	Body   *RefundPaymentJSONRequestBody
@@ -752,6 +817,9 @@ type StrictServerInterface interface {
 	// Get Payment by Order ID
 	// (GET /payments/order/{orderID})
 	GetPaymentByOrder(ctx context.Context, request GetPaymentByOrderRequestObject) (GetPaymentByOrderResponseObject, error)
+	// Get Payment by ID
+	// (GET /payments/{paymentID})
+	GetPaymentByID(ctx context.Context, request GetPaymentByIDRequestObject) (GetPaymentByIDResponseObject, error)
 	// Refund Payment
 	// (POST /refund)
 	RefundPayment(ctx context.Context, request RefundPaymentRequestObject) (RefundPaymentResponseObject, error)
@@ -901,6 +969,32 @@ func (sh *strictHandler) GetPaymentByOrder(w http.ResponseWriter, r *http.Reques
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetPaymentByOrderResponseObject); ok {
 		if err := validResponse.VisitGetPaymentByOrderResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetPaymentByID operation middleware
+func (sh *strictHandler) GetPaymentByID(w http.ResponseWriter, r *http.Request, paymentID openapi_types.UUID) {
+	var request GetPaymentByIDRequestObject
+
+	request.PaymentID = paymentID
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetPaymentByID(ctx, request.(GetPaymentByIDRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetPaymentByID")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetPaymentByIDResponseObject); ok {
+		if err := validResponse.VisitGetPaymentByIDResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

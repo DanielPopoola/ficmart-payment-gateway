@@ -9,6 +9,30 @@ import (
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/interfaces/rest"
 )
 
+func (h *Handlers) GetPaymentByID(
+	ctx context.Context,
+	request api.GetPaymentByIDRequestObject,
+) (api.GetPaymentByIDResponseObject, error) {
+
+	paymentID := request.PaymentID.String()
+
+	payment, err := h.queryService.FindByID(ctx, paymentID)
+	if err != nil {
+		mapIdServiceErrorToAPIResponse(ctx, err)
+	}
+
+	apiPayment, err := rest.ToAPIPayment(payment)
+	if err != nil {
+		mapIdServiceErrorToAPIResponse(ctx, err)
+	}
+
+	return api.GetPaymentByID200JSONResponse{
+		Success: true,
+		Data:    apiPayment,
+	}, nil
+
+}
+
 func (h *Handlers) GetPaymentsByCustomer(
 	ctx context.Context,
 	request api.GetPaymentsByCustomerRequestObject,
@@ -55,6 +79,31 @@ func (h *Handlers) GetPaymentByOrder(
 		Success: true,
 		Data:    apiPayment,
 	}, nil
+}
+
+func mapIdServiceErrorToAPIResponse(ctx context.Context, err error) (api.GetPaymentByIDResponseObject, error) {
+	statusCode := application.ToHTTPStatus(err)
+	errorCode := application.ToErrorCode(err)
+
+	errorResponse := api.ErrorResponse{
+		Success: false,
+		Error: struct {
+			Code    api.ErrorResponseErrorCode `json:"code"`
+			Message string                     `json:"message"`
+		}{
+			Code:    api.ErrorResponseErrorCode(errorCode),
+			Message: err.Error(),
+		},
+	}
+
+	switch statusCode {
+	case http.StatusNotFound:
+		return api.GetPaymentByID404JSONResponse(errorResponse), nil
+	case http.StatusInternalServerError:
+		return api.GetPaymentByID500JSONResponse(errorResponse), nil
+	default:
+		return api.GetPaymentByID500JSONResponse(errorResponse), nil
+	}
 }
 
 func mapOrderServiceErrorToAPIResponse(ctx context.Context, err error) (api.GetPaymentByOrderResponseObject, error) {

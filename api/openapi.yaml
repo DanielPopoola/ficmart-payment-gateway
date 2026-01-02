@@ -311,6 +311,42 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /payments/{paymentID}:
+    get:
+      summary: Get Payment by ID
+      description: Retrieves payment information by its unique payment ID
+      operationId: getPaymentByID
+      tags:
+        - Queries
+      parameters:
+        - name: paymentID
+          in: path
+          required: true
+          description: The unique payment ID (UUID)
+          schema:
+            type: string
+            format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+      responses:
+        '200':
+          description: Payment found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentResponse'
+        '404':
+          description: Payment not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /payments/order/{orderID}:
     get:
       summary: Get Payment by Order ID
