@@ -60,9 +60,9 @@ func (s *CaptureService) Capture(ctx context.Context, cmd CaptureCommand, idempo
 	if err != nil {
 		return nil, application.NewInternalError(err)
 	}
-	if authResp.Status != "approved" {
+	if authResp.Status == "authorization_expired" {
 		if err := payment.MarkExpired(); err != nil {
-			return nil, application.NewInvalidStateError(err)
+			return nil, application.NewInvalidTransitionError(err)
 		}
 
 		tx, err := s.db.Begin(ctx)
@@ -82,7 +82,7 @@ func (s *CaptureService) Capture(ctx context.Context, cmd CaptureCommand, idempo
 		if err := tx.Commit(ctx); err != nil {
 			return nil, application.NewInternalError(err)
 		}
-		return payment, nil
+		return nil, application.NewPaymentExpiredError(err)
 	}
 
 	tx, err := s.db.Begin(ctx)
@@ -108,7 +108,7 @@ func (s *CaptureService) Capture(ctx context.Context, cmd CaptureCommand, idempo
 	}
 
 	if err := payment.MarkCapturing(); err != nil {
-		return nil, application.NewInvalidStateError(err)
+		return nil, application.NewInvalidTransitionError(err)
 	}
 
 	if err := s.paymentRepo.Update(ctx, tx, payment); err != nil {
@@ -129,7 +129,7 @@ func (s *CaptureService) Capture(ctx context.Context, cmd CaptureCommand, idempo
 		category := application.CategorizeError(err)
 		if category == application.CategoryPermanent {
 			if failErr := payment.Fail(); failErr != nil {
-				return nil, application.NewInvalidStateError(failErr)
+				return nil, application.NewInvalidTransitionError(err)
 			}
 
 			tx, err := s.db.Begin(ctx)

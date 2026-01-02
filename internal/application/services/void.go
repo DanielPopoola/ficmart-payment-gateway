@@ -59,7 +59,7 @@ func (s *VoidService) Void(ctx context.Context, cmd VoidCommand, idempotencyKey 
 	if err != nil {
 		return nil, application.NewInternalError(err)
 	}
-	if authResp.Status != "approved" {
+	if authResp.Status == "authorization_expired" {
 		if err := payment.MarkExpired(); err != nil {
 			return nil, application.NewInvalidStateError(err)
 		}
@@ -81,7 +81,7 @@ func (s *VoidService) Void(ctx context.Context, cmd VoidCommand, idempotencyKey 
 		if err := tx.Commit(ctx); err != nil {
 			return nil, application.NewInternalError(err)
 		}
-		return payment, nil
+		return nil, application.NewPaymentExpiredError(err)
 	}
 
 	tx, err := s.db.Begin(ctx)

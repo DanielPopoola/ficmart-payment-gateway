@@ -8,18 +8,17 @@ import (
 
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/domain"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/infrastructure/persistence/postgres"
-	"github.com/jackc/pgx/v5"
 )
 
 // ErrorCategory represents the nature of an error for retry logic
 type ErrorCategory string
 
 const (
-	CategoryTransient      ErrorCategory = "TRANSIENT"      // Retry safe (network, 5xx, rate limits)
-	CategoryPermanent      ErrorCategory = "PERMANENT"      // Don't retry (bad card, invalid data)
-	CategoryBusinessRule   ErrorCategory = "BUSINESS_RULE"  // Domain validation failed
-	CategoryClientError    ErrorCategory = "CLIENT_ERROR"   // Bad request (missing fields, not found)
-	CategoryInfrastructure ErrorCategory = "INFRASTRUCTURE" // External service down
+	CategoryTransient      ErrorCategory = "TRANSIENT"
+	CategoryPermanent      ErrorCategory = "PERMANENT"
+	CategoryBusinessRule   ErrorCategory = "BUSINESS_RULE"
+	CategoryClientError    ErrorCategory = "CLIENT_ERROR"
+	CategoryInfrastructure ErrorCategory = "INFRASTRUCTURE"
 )
 
 // CategorizeError determines error category for retry and logging purposes
@@ -60,7 +59,7 @@ func CategorizeError(err error) ErrorCategory {
 		switch svcErr.Code {
 		case ErrCodeIdempotencyMismatch, ErrCodeInvalidInput:
 			return CategoryClientError
-		case ErrCodeMissingDependency, ErrCodeInternal:
+		case ErrCodeInternal:
 			return CategoryInfrastructure
 		case ErrCodeRequestProcessing, ErrCodeTimeout:
 			return CategoryTransient
@@ -139,7 +138,6 @@ func ToHTTPStatus(err error) int {
 		return svcErr.HTTPStatus
 	}
 
-	// Domain errors map to 4xx
 	switch {
 	case errors.Is(err, domain.ErrInvalidAmount),
 		errors.Is(err, domain.ErrAmountMismatch),
@@ -148,43 +146,28 @@ func ToHTTPStatus(err error) int {
 	case errors.Is(err, domain.ErrInvalidTransition),
 		errors.Is(err, domain.ErrInvalidState),
 		errors.Is(err, postgres.ErrDuplicateIdempotencyKey),
-		errors.Is(err, domain.ErrPaymentExpired): // Expired is a conflict (cannot proceed)
+		errors.Is(err, domain.ErrPaymentExpired):
 		return http.StatusConflict
 
 	case errors.Is(err, postgres.ErrPaymentNotFound):
 		return http.StatusNotFound
 
-	case errors.Is(err, context.DeadlineExceeded): // Context deadline exceeded is a timeout
+	case errors.Is(err, context.DeadlineExceeded):
 		return http.StatusRequestTimeout
 
-	case errors.Is(err, context.Canceled): // Context canceled can also be a timeout if due to server-side timeout
+	case errors.Is(err, context.Canceled):
 		return http.StatusRequestTimeout
 	}
 
-	// Bank errors
 	if bankErr, ok := IsBankError(err); ok {
 		return bankErr.StatusCode
-	}
-
-	// Database errors
-	if errors.Is(err, pgx.ErrNoRows) {
-		return http.StatusNotFound
-	}
-
-	// Context errors
-	if errors.Is(err, context.DeadlineExceeded) {
-		return http.StatusRequestTimeout
-	}
-
-	if errors.Is(err, context.Canceled) {
-		return http.StatusRequestTimeout
 	}
 
 	// Default to 500
 	return http.StatusInternalServerError
 }
 
-// ToErrorCode returns machine-readable error code for API responses
+// ToErrorCode clear error code for API responses
 func ToErrorCode(err error) string {
 	if svcErr, ok := IsServiceError(err); ok {
 		return svcErr.Code
@@ -224,7 +207,6 @@ func ToErrorCode(err error) string {
 	}
 
 	if svcErr, ok := IsServiceError(err); ok {
-		// Directly map ServiceError codes to API error codes
 		return svcErr.Code
 	}
 

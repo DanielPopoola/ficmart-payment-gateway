@@ -30,7 +30,6 @@ const (
 	ErrCodeIdempotencyMismatch = "IDEMPOTENCY_MISMATCH"
 	ErrCodeRequestProcessing   = "REQUEST_PROCESSING"
 	ErrCodeTimeout             = "TIMEOUT"
-	ErrCodeMissingDependency   = "MISSING_DEPENDENCY"
 	ErrCodeInternal            = "INTERNAL_ERROR"
 	ErrCodeInvalidInput        = "INVALID_INPUT"
 	ErrCodeInvalidState        = "INVALID_STATE"
@@ -60,14 +59,6 @@ func NewTimeoutError(paymentID string) *ServiceError {
 	}
 }
 
-func NewMissingDependencyError(dependency string) *ServiceError {
-	return &ServiceError{
-		Code:       ErrCodeMissingDependency,
-		Message:    fmt.Sprintf("Missing required dependency: %s", dependency),
-		HTTPStatus: http.StatusBadRequest,
-	}
-}
-
 func NewInternalError(err error) *ServiceError {
 	return &ServiceError{
 		Code:       ErrCodeInternal,
@@ -88,8 +79,27 @@ func NewInvalidInputError(err error) *ServiceError {
 func NewInvalidStateError(err error) *ServiceError {
 	return &ServiceError{
 		Code:       ErrCodeInvalidState,
-		Message:    "Invalid state transition or unallowed state",
+		Message:    "Invalid state",
 		HTTPStatus: http.StatusConflict,
+		Err:        err,
+	}
+}
+
+func NewInvalidTransitionError(err error) *ServiceError {
+	return &ServiceError{
+		Code:       ErrCodeInvalidState,
+		Message:    "Invalid transition",
+		HTTPStatus: http.StatusConflict,
+		Err:        err,
+	}
+}
+
+func NewPaymentExpiredError(err error) *ServiceError {
+	return &ServiceError{
+		Code:       ErrCodeInvalidState,
+		Message:    "payment has expired",
+		HTTPStatus: http.StatusConflict,
+		Err:        err,
 	}
 }
 
@@ -116,12 +126,10 @@ func (e *BankError) Error() string {
 	return fmt.Sprintf("bank error [%s]: %s (status: %d)", e.Code, e.Message, e.StatusCode)
 }
 
-// IsRetryable checks if the bank error is transient (5xx) or permanent (4xx)
 func (e *BankError) IsRetryable() bool {
 	return e.StatusCode >= 500
 }
 
-// Helper to check if error is a BankError
 func IsBankError(err error) (*BankError, bool) {
 	var bankErr *BankError
 	ok := errors.As(err, &bankErr)
