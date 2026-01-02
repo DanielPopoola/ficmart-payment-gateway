@@ -511,11 +511,29 @@ func (response CapturePayment404JSONResponse) VisitCapturePaymentResponse(w http
 	return json.NewEncoder(w).Encode(response)
 }
 
+type CapturePayment408JSONResponse ErrorResponse
+
+func (response CapturePayment408JSONResponse) VisitCapturePaymentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(408)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type CapturePayment409JSONResponse ErrorResponse
 
 func (response CapturePayment409JSONResponse) VisitCapturePaymentResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CapturePayment500JSONResponse ErrorResponse
+
+func (response CapturePayment500JSONResponse) VisitCapturePaymentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
 
 	return json.NewEncoder(w).Encode(response)
 }
@@ -537,6 +555,24 @@ type GetPaymentsByCustomer200JSONResponse struct {
 func (response GetPaymentsByCustomer200JSONResponse) VisitGetPaymentsByCustomerResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetPaymentsByCustomer404JSONResponse ErrorResponse
+
+func (response GetPaymentsByCustomer404JSONResponse) VisitGetPaymentsByCustomerResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetPaymentsByCustomer500JSONResponse ErrorResponse
+
+func (response GetPaymentsByCustomer500JSONResponse) VisitGetPaymentsByCustomerResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
 
 	return json.NewEncoder(w).Encode(response)
 }
@@ -563,6 +599,15 @@ type GetPaymentByOrder404JSONResponse ErrorResponse
 func (response GetPaymentByOrder404JSONResponse) VisitGetPaymentByOrderResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetPaymentByOrder500JSONResponse ErrorResponse
+
+func (response GetPaymentByOrder500JSONResponse) VisitGetPaymentByOrderResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
 
 	return json.NewEncoder(w).Encode(response)
 }
@@ -603,11 +648,29 @@ func (response RefundPayment404JSONResponse) VisitRefundPaymentResponse(w http.R
 	return json.NewEncoder(w).Encode(response)
 }
 
+type RefundPayment408JSONResponse ErrorResponse
+
+func (response RefundPayment408JSONResponse) VisitRefundPaymentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(408)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type RefundPayment409JSONResponse ErrorResponse
 
 func (response RefundPayment409JSONResponse) VisitRefundPaymentResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RefundPayment500JSONResponse ErrorResponse
+
+func (response RefundPayment500JSONResponse) VisitRefundPaymentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
 
 	return json.NewEncoder(w).Encode(response)
 }
@@ -648,11 +711,29 @@ func (response VoidPayment404JSONResponse) VisitVoidPaymentResponse(w http.Respo
 	return json.NewEncoder(w).Encode(response)
 }
 
+type VoidPayment408JSONResponse ErrorResponse
+
+func (response VoidPayment408JSONResponse) VisitVoidPaymentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(408)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type VoidPayment409JSONResponse ErrorResponse
 
 func (response VoidPayment409JSONResponse) VisitVoidPaymentResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type VoidPayment500JSONResponse ErrorResponse
+
+func (response VoidPayment500JSONResponse) VisitVoidPaymentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
 
 	return json.NewEncoder(w).Encode(response)
 }

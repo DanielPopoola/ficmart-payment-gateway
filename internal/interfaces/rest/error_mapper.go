@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/DanielPopoola/ficmart-payment-gateway/internal/api"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/application"
 )
 
@@ -43,4 +44,13 @@ func WriteError(w http.ResponseWriter, err error) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
 	json.NewEncoder(w).Encode(response)
+}
+
+// ErrorResponseFactory contains the response constructors for each status code
+type ErrorResponseFactory struct {
+	BadRequest    func(api.ErrorResponse) interface{}
+	Timeout       func(api.ErrorResponse) interface{}
+	Conflict      func(api.ErrorResponse) interface{}
+	NotFound      func(api.ErrorResponse) interface{}
+	InternalError func(api.ErrorResponse) interface{}
 }
