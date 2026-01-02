@@ -46,7 +46,7 @@ func (s *AuthorizeService) Authorize(ctx context.Context, cmd AuthorizeCommand, 
 			payment, _ := s.paymentRepo.FindByID(ctx, existingKey.PaymentID)
 			return payment, nil
 		}
-		return s.waitForCompletion(ctx, idempotencyKey, cmd)
+		return s.waitForCompletion(ctx, idempotencyKey)
 	}
 
 	tx, err := s.db.Begin(ctx)
@@ -70,7 +70,7 @@ func (s *AuthorizeService) Authorize(ctx context.Context, cmd AuthorizeCommand, 
 	if err := s.idempotencyRepo.AcquireLock(ctx, tx, idempotencyKey, paymentID, requestHash); err != nil {
 		if errors.Is(err, postgres.ErrDuplicateIdempotencyKey) {
 			tx.Rollback(ctx)
-			return s.waitForCompletion(ctx, idempotencyKey, cmd)
+			return s.waitForCompletion(ctx, idempotencyKey)
 		}
 		return nil, application.NewInternalError(err)
 	}
@@ -145,8 +145,7 @@ func (s *AuthorizeService) Authorize(ctx context.Context, cmd AuthorizeCommand, 
 	return payment, nil
 }
 
-func (s *AuthorizeService) waitForCompletion(ctx context.Context, idempotencyKey string, cmd AuthorizeCommand) (*domain.Payment, error) {
-	requestHash := ComputeHash(cmd)
+func (s *AuthorizeService) waitForCompletion(ctx context.Context, idempotencyKey string) (*domain.Payment, error) {
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 	timeout := time.After(30 * time.Second)
@@ -161,10 +160,6 @@ func (s *AuthorizeService) waitForCompletion(ctx context.Context, idempotencyKey
 			key, err := s.idempotencyRepo.FindByKey(ctx, idempotencyKey)
 			if err != nil {
 				return nil, application.NewInternalError(err)
-			}
-
-			if key.RequestHash != requestHash {
-				return nil, application.NewIdempotencyMismatchError()
 			}
 
 			if key.LockedAt == nil {

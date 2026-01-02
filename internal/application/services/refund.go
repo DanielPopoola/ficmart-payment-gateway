@@ -42,10 +42,13 @@ func (s *RefundService) Refund(ctx context.Context, cmd RefundCommand, idempoten
 		}
 
 		if existingKey.ResponsePayload != nil {
-			payment, _ := s.paymentRepo.FindByID(ctx, existingKey.PaymentID)
+			payment, err := s.paymentRepo.FindByID(ctx, existingKey.PaymentID)
+			if err != nil {
+				return nil, application.NewInternalError(err)
+			}
 			return payment, nil
 		}
-		return s.waitForCompletion(ctx, idempotencyKey, cmd)
+		return s.waitForCompletion(ctx, idempotencyKey)
 	}
 
 	tx, err := s.db.Begin(ctx)
@@ -62,7 +65,7 @@ func (s *RefundService) Refund(ctx context.Context, cmd RefundCommand, idempoten
 	if err := s.idempotencyRepo.AcquireLock(ctx, tx, idempotencyKey, cmd.PaymentID, requestHash); err != nil {
 		if errors.Is(err, postgres.ErrDuplicateIdempotencyKey) {
 			tx.Rollback(ctx)
-			return s.waitForCompletion(ctx, idempotencyKey, cmd)
+			return s.waitForCompletion(ctx, idempotencyKey)
 		}
 		return nil, application.NewInternalError(err)
 	}
@@ -141,8 +144,7 @@ func (s *RefundService) Refund(ctx context.Context, cmd RefundCommand, idempoten
 	return payment, nil
 }
 
-func (s *RefundService) waitForCompletion(ctx context.Context, idempotencyKey string, cmd RefundCommand) (*domain.Payment, error) {
-	requestHash := ComputeHash(cmd)
+func (s *RefundService) waitForCompletion(ctx context.Context, idempotencyKey string) (*domain.Payment, error) {
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 	timeout := time.After(30 * time.Second)
@@ -157,10 +159,6 @@ func (s *RefundService) waitForCompletion(ctx context.Context, idempotencyKey st
 			key, err := s.idempotencyRepo.FindByKey(ctx, idempotencyKey)
 			if err != nil {
 				return nil, application.NewInternalError(err)
-			}
-
-			if key.RequestHash != requestHash {
-				return nil, application.NewIdempotencyMismatchError()
 			}
 
 			if key.LockedAt == nil {
