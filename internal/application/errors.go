@@ -27,23 +27,14 @@ func (e *ServiceError) Unwrap() error {
 }
 
 const (
-	ErrCodeDuplicateBusinessRequest = "DUPLICATE_BUSINESS_REQUEST"
-	ErrCodeIdempotencyMismatch      = "IDEMPOTENCY_MISMATCH"
-	ErrCodeRequestProcessing        = "REQUEST_PROCESSING"
-	ErrCodeTimeout                  = "TIMEOUT"
-	ErrCodeMissingDependency        = "MISSING_DEPENDENCY"
-	ErrCodeInternal                 = "INTERNAL_ERROR"
-	ErrCodeInvalidInput             = "INVALID_INPUT"
-	ErrCodeInvalidState             = "INVALID_STATE"
+	ErrCodeIdempotencyMismatch = "IDEMPOTENCY_MISMATCH"
+	ErrCodeRequestProcessing   = "REQUEST_PROCESSING"
+	ErrCodeTimeout             = "TIMEOUT"
+	ErrCodeMissingDependency   = "MISSING_DEPENDENCY"
+	ErrCodeInternal            = "INTERNAL_ERROR"
+	ErrCodeInvalidInput        = "INVALID_INPUT"
+	ErrCodeInvalidState        = "INVALID_STATE"
 )
-
-func NewDuplicateBusinessRequestError(paymentID, originalKey string) *ServiceError {
-	return &ServiceError{
-		Code:       ErrCodeDuplicateBusinessRequest,
-		Message:    fmt.Sprintf("Payment already processed. Original payment: %s", paymentID),
-		HTTPStatus: http.StatusConflict,
-	}
-}
 
 func NewIdempotencyMismatchError() *ServiceError {
 	return &ServiceError{

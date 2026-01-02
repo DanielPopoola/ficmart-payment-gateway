@@ -58,7 +58,7 @@ func CategorizeError(err error) ErrorCategory {
 	// Service/Application Errors
 	if svcErr, ok := IsServiceError(err); ok {
 		switch svcErr.Code {
-		case ErrCodeIdempotencyMismatch, ErrCodeInvalidInput, ErrCodeDuplicateBusinessRequest:
+		case ErrCodeIdempotencyMismatch, ErrCodeInvalidInput:
 			return CategoryClientError
 		case ErrCodeMissingDependency, ErrCodeInternal:
 			return CategoryInfrastructure

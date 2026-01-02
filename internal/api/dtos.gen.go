@@ -11,21 +11,20 @@ import (
 
 // Defines values for ErrorResponseErrorCode.
 const (
-	AMOUNTMISMATCH           ErrorResponseErrorCode = "AMOUNT_MISMATCH"
-	DUPLICATEBUSINESSREQUEST ErrorResponseErrorCode = "DUPLICATE_BUSINESS_REQUEST"
-	DUPLICATEIDEMPOTENCYKEY  ErrorResponseErrorCode = "DUPLICATE_IDEMPOTENCY_KEY"
-	IDEMPOTENCYMISMATCH      ErrorResponseErrorCode = "IDEMPOTENCY_MISMATCH"
-	INTERNALERROR            ErrorResponseErrorCode = "INTERNAL_ERROR"
-	INVALIDAMOUNT            ErrorResponseErrorCode = "INVALID_AMOUNT"
-	INVALIDSTATE             ErrorResponseErrorCode = "INVALID_STATE"
-	INVALIDTRANSITION        ErrorResponseErrorCode = "INVALID_TRANSITION"
-	MISSINGDEPENDENCY        ErrorResponseErrorCode = "MISSING_DEPENDENCY"
-	MISSINGREQUIREDFIELD     ErrorResponseErrorCode = "MISSING_REQUIRED_FIELD"
-	PAYMENTEXPIRED           ErrorResponseErrorCode = "PAYMENT_EXPIRED"
-	PAYMENTNOTFOUND          ErrorResponseErrorCode = "PAYMENT_NOT_FOUND"
-	REQUESTPROCESSING        ErrorResponseErrorCode = "REQUEST_PROCESSING"
-	TIMEOUT                  ErrorResponseErrorCode = "TIMEOUT"
-	VALIDATIONERROR          ErrorResponseErrorCode = "VALIDATION_ERROR"
+	AMOUNTMISMATCH          ErrorResponseErrorCode = "AMOUNT_MISMATCH"
+	DUPLICATEIDEMPOTENCYKEY ErrorResponseErrorCode = "DUPLICATE_IDEMPOTENCY_KEY"
+	IDEMPOTENCYMISMATCH     ErrorResponseErrorCode = "IDEMPOTENCY_MISMATCH"
+	INTERNALERROR           ErrorResponseErrorCode = "INTERNAL_ERROR"
+	INVALIDAMOUNT           ErrorResponseErrorCode = "INVALID_AMOUNT"
+	INVALIDSTATE            ErrorResponseErrorCode = "INVALID_STATE"
+	INVALIDTRANSITION       ErrorResponseErrorCode = "INVALID_TRANSITION"
+	MISSINGDEPENDENCY       ErrorResponseErrorCode = "MISSING_DEPENDENCY"
+	MISSINGREQUIREDFIELD    ErrorResponseErrorCode = "MISSING_REQUIRED_FIELD"
+	PAYMENTEXPIRED          ErrorResponseErrorCode = "PAYMENT_EXPIRED"
+	PAYMENTNOTFOUND         ErrorResponseErrorCode = "PAYMENT_NOT_FOUND"
+	REQUESTPROCESSING       ErrorResponseErrorCode = "REQUEST_PROCESSING"
+	TIMEOUT                 ErrorResponseErrorCode = "TIMEOUT"
+	VALIDATIONERROR         ErrorResponseErrorCode = "VALIDATION_ERROR"
 )
 
 // Defines values for PaymentStatus.

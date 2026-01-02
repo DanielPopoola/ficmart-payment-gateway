@@ -168,46 +168,6 @@ func (suite *AuthorizeServiceTestSuite) Test_Authorize_DifferentRequestSameKey_R
 	assert.Contains(suite.T(), err.Error(), "reused with different")
 }
 
-func (suite *AuthorizeServiceTestSuite) Test_Authorize_SameBusinessRequestDifferentKey_ReturnsError() {
-	ctx := context.Background()
-
-	cmd := services.AuthorizeCommand{
-		OrderID:     "order-same",
-		CustomerID:  "cust-same",
-		Amount:      5000,
-		Currency:    "USD",
-		CardNumber:  "4111111111111111",
-		CVV:         "123",
-		ExpiryMonth: 12,
-		ExpiryYear:  2030,
-	}
-
-	bankResp := &application.BankAuthorizationResponse{
-		Amount:          5000,
-		Currency:        "USD",
-		Status:          "AUTHORIZED",
-		AuthorizationID: "auth-123",
-		CreatedAt:       time.Now(),
-		ExpiresAt:       time.Now().Add(7 * 24 * time.Hour),
-	}
-
-	suite.mockBank.EXPECT().
-		Authorize(mock.Anything, mock.Anything, "key-1").
-		Return(bankResp, nil).
-		Once()
-
-	_, err := suite.service.Authorize(ctx, cmd, "key-1")
-	require.NoError(suite.T(), err)
-
-	_, err = suite.service.Authorize(ctx, cmd, "key-2")
-
-	require.Error(suite.T(), err)
-
-	svcErr, ok := application.IsServiceError(err)
-	require.True(suite.T(), ok)
-	assert.Equal(suite.T(), application.ErrCodeDuplicateBusinessRequest, svcErr.Code)
-}
-
 // ============================================================================
 // FAILURE RECOVERY TESTS
 // ============================================================================

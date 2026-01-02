@@ -116,12 +116,6 @@ paths:
                     error:
                       code: "IDEMPOTENCY_MISMATCH"
                       message: "idempotency key reused with different parameters"
-                duplicate_business_request:
-                  value:
-                    success: false
-                    error:
-                      code: "DUPLICATE_BUSINESS_REQUEST"
-                      message: "duplicate business request for order-123 with key-456"
         '500':
           description: Internal server error
           content:
@@ -644,7 +638,6 @@ components:
                 - DUPLICATE_IDEMPOTENCY_KEY
                 - REQUEST_PROCESSING
                 - MISSING_REQUIRED_FIELD
-                - DUPLICATE_BUSINESS_REQUEST
                 - INVALID_STATE
                 - AMOUNT_MISMATCH
                 - MISSING_DEPENDENCY

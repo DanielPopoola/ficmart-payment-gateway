@@ -31,8 +31,7 @@ I mark authorizations as `EXPIRED` after 7 days with a 1-hour grace period, but 
 
 ### How did I implement it?
 
-I implemented it in a similar pattern to the bank API. Each request from FicMart must include an
-idempotency key header. Then I have an idempotency table in my db with fields: key, requestHash, response_payload, status_code, locked_at. The requestHash, response_payload and status_code help with returning the results for duplicate keys faster instead of going to the payments table
+I made it that each POST request from FicMart to the gateway requires an idempotency key in the request header. This key is in turn stored and sent to the bank. The key have a `UNIQUE` constraint at the db level which ensures no duplicate keys are stored, and on concurrent requests with the same key, the second request polls the db waiting for the first request to complete then returns the same response.
 
 ### Edge cases I considered:
 - Two requests, request A and B, reaching my gateway almost at the same time with the same credentials

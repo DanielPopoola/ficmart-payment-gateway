@@ -31,15 +31,6 @@ func WriteError(w http.ResponseWriter, err error) {
 		},
 	}
 
-	// Add extra details for specific error types
-	if svcErr, ok := application.IsServiceError(err); ok {
-		if svcErr.Code == application.ErrCodeDuplicateBusinessRequest {
-			response.Error.Details = map[string]string{
-				"hint": "Query existing payment using GET /payments/order/{order_id}",
-			}
-		}
-	}
-
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
 	json.NewEncoder(w).Encode(response)

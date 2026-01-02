@@ -48,13 +48,6 @@ func (s *RefundService) Refund(ctx context.Context, cmd RefundCommand, idempoten
 		return s.waitForCompletion(ctx, idempotencyKey, cmd)
 	}
 
-	existingHash, err := s.idempotencyRepo.FindByRequestHash(ctx, requestHash)
-	if err == nil && existingHash.Key != idempotencyKey {
-		payment, _ := s.paymentRepo.FindByID(ctx, existingHash.PaymentID)
-		if payment != nil && payment.Status != domain.StatusCaptured && payment.Status != domain.StatusRefunding {
-			return nil, application.NewDuplicateBusinessRequestError(existingHash.PaymentID, existingHash.Key)
-		}
-	}
 	tx, err := s.db.Begin(ctx)
 	if err != nil {
 		return nil, application.NewInternalError(err)

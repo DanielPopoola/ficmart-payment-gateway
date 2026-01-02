@@ -48,14 +48,6 @@ func (s *CaptureService) Capture(ctx context.Context, cmd CaptureCommand, idempo
 		return s.waitForCompletion(ctx, idempotencyKey, existingKey.PaymentID)
 	}
 
-	existingHash, err := s.idempotencyRepo.FindByRequestHash(ctx, requestHash)
-	if err == nil && existingHash.Key != idempotencyKey {
-		payment, _ := s.paymentRepo.FindByID(ctx, existingHash.PaymentID)
-		if payment != nil && payment.Status != domain.StatusAuthorized {
-			return nil, application.NewDuplicateBusinessRequestError(existingHash.PaymentID, existingHash.Key)
-		}
-	}
-
 	tx, err := s.db.Begin(ctx)
 	if err != nil {
 		return nil, application.NewInternalError(err)

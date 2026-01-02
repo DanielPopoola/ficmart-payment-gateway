@@ -163,7 +163,7 @@ func (suite *voidServiceTestSuite) Test_Void_CannotVoidAlreadyVoidedPayment() {
 
 	svcErr, ok := application.IsServiceError(err)
 	require.True(suite.T(), ok)
-	assert.Equal(suite.T(), application.ErrCodeDuplicateBusinessRequest, svcErr.Code)
+	assert.Equal(suite.T(), application.ErrCodeInvalidState, svcErr.Code)
 }
 
 func (suite *voidServiceTestSuite) Test_Void_IdempotencyReturnsCache() {
