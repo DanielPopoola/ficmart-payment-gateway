@@ -43,14 +43,12 @@ func NewRetryWorker(
 }
 
 func (w *RetryWorker) Start(ctx context.Context) {
-	w.logger.Info("retry worker started", "interval", w.interval)
 	ticker := time.NewTicker(w.interval)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
-			w.logger.Info("retry worker stopping")
 			return
 		case <-ticker.C:
 			if err := w.ProcessRetries(ctx); err != nil {
@@ -84,7 +82,7 @@ func (w *RetryWorker) ProcessRetries(ctx context.Context) error {
 			AND i.locked_at < NOW() - $1::interval
 		ORDER BY p.created_at ASC
 		LIMIT $2
-		FOR UPDATE
+		FOR UPDATE SKIP LOCKED
 	`
 
 	rows, err := w.db.Query(ctx, query, w.interval, w.batchSize)
