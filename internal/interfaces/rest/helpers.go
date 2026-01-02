@@ -58,3 +58,15 @@ func ToAPIPayment(p *domain.Payment) (api.Payment, error) {
 
 	return apiPayment, nil
 }
+
+func ToAPIPayments(payments []*domain.Payment) ([]api.Payment, error) {
+	apiPayments := make([]api.Payment, 0, len(payments))
+	for _, p := range payments {
+		apiPayment, err := ToAPIPayment(p)
+		if err != nil {
+			return nil, err
+		}
+		apiPayments = append(apiPayments, apiPayment)
+	}
+	return apiPayments, nil
+}

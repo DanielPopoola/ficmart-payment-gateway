@@ -23,7 +23,7 @@ func (h *Handlers) GetPaymentsByCustomer(
 		return mapCustomerServiceErrorToAPIResponse(ctx, err)
 	}
 
-	apiPayment, err := rest.ToAPIPayment(customerPayment)
+	apiPayment, err := rest.ToAPIPayments(customerPayment)
 	if err != nil {
 		return mapCustomerServiceErrorToAPIResponse(ctx, err)
 	}
