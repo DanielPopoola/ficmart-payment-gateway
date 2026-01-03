@@ -1,20 +1,31 @@
 .PHONY: up down shell test lint migrate-create
 
 up:
-	docker compose -f docker/docker-compose.yml up --build
+	@cd docker && docker compose up -d --build
 
 down:
-	docker compose -f docker/docker-compose.yml down
+	@cd docker && docker compose down
 
-# Run commands inside the running gateway container
+logs:
+	@cd docker && docker compose logs gateway
+
+restart:
+	@cd docker && docker compose restart gateway
+
 shell:
-	docker compose -f docker/docker-compose.yml exec gateway sh
+	@cd docker && docker compose exec gateway sh
 
 test:
-	docker compose -f docker/docker-compose.yml exec gateway go test ./...
+	@cd docker && docker compose exec gateway sh -c "go test -v \$$(go list ./... | grep -v /tests) && go test -v -count=1 -p 1 ./tests/..."
+
+test-cover:
+	@cd docker && docker compose exec gateway go test -v -cover ./...
 
 lint:
-	docker compose -f docker/docker-compose.yml exec gateway golangci-lint run ./...
+	@cd docker && docker compose exec gateway golangci-lint run
+
+fmt:
+	@cd docker && docker compose exec gateway gofmt -w .
 
 build:
-	docker compose -f docker/docker-compose.yml exec gateway go build -o tmp/main ./cmd/gateway
+	@cd docker && docker compose exec gateway go build -o tmp/main ./cmd/gateway

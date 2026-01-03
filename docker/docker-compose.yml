@@ -22,7 +22,8 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile
-    container_name: payment-gateway-app
+    container_name: payment-gateway
+    entrypoint: ["/usr/local/bin/init.sh", "air", "-c", ".air.toml"]
     environment:
       - GATEWAY_PRIMARY__ENV=development
       - GATEWAY_SERVER__PORT=8080
@@ -48,8 +49,6 @@ services:
       - GATEWAY_LOGGER__LEVEL=info
     ports:
       - "8081:8080"
-    entrypoint: ["./init.sh"]
-    command: ["air", "-c", ".air.toml"]
     volumes:
       - ..:/app
       - gateway_tmp:/app/tmp
