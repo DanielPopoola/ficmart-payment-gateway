@@ -65,7 +65,11 @@ func main() {
 
 	strictHandler := api.NewStrictHandler(h, nil)
 
-	router := api.Handler(strictHandler)
+	mux := http.NewServeMux()
+	api.RegisterDocsRoutes(mux)
+	api.HandlerFromMux(strictHandler, mux)
+
+	router := http.Handler(mux)
 
 	handler := middleware.Recovery(logger)(router)
 	handler = middleware.Logging(logger)(handler)
