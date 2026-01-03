@@ -1,56 +1,31 @@
-# Build stage
-FROM golang:1.25-alpine AS builder
+FROM golang:1.25-alpine
 
-# Install build dependencies
-RUN apk add --no-cache git gcc musl-dev
+ENV AIR_VERSION=v1.63.0 \
+    GOLANGCI_LINT_VERSION=v2.7.2 \
+    MIGRATE_VERSION=v4.19.1 \
+    MOCKERY_VERSION=v3.6.1
 
-# Set working directory
-WORKDIR /build
+RUN apk add --no-cache git postgresql-client tzdata curl libc6-compat
 
-# Copy go mod files
-COPY go.mod go.sum ./
-
-# Download dependencies
-RUN go mod download
-
-# Copy source code
-COPY . .
-
-# Build the application
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o gateway ./cmd/gateway
-
-# Final stage
-FROM alpine:latest
-
-# Install runtime dependencies
-RUN apk --no-cache add ca-certificates postgresql-client tzdata
-
-# Create non-root user
-RUN addgroup -g 1000 appuser && \
-    adduser -D -u 1000 -G appuser appuser
-
-# Set working directory
 WORKDIR /app
 
-# Copy binary from builder
-COPY --from=builder /build/gateway .
+COPY go.mod go.sum ./
+RUN go mod download
 
-# Copy migration files
-COPY --from=builder /build/internal/db/migrations ./migrations
+RUN go install github.com/air-verse/air@${AIR_VERSION}
 
-
-COPY ./docker/init.sh .
-RUN chmod +x init.sh
+RUN curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin ${GOLANGCI_LINT_VERSION}
 
 
-# Change ownership
-RUN chown -R appuser:appuser /app
+RUN curl -L https://github.com/golang-migrate/migrate/releases/download/${MIGRATE_VERSION}/migrate.linux-amd64.tar.gz | tar xvz && \
+    mv migrate /usr/local/bin/migrate
 
-# Switch to non-root user
-USER appuser
+RUN go install github.com/vektra/mockery/v3@${MOCKERY_VERSION}
 
-# Expose port
+
+COPY ./docker/init.sh /usr/local/bin/init.sh
+RUN chmod +x /usr/local/bin/init.sh
+
 EXPOSE 8080
 
-# Run init script
-CMD ["./init.sh"]
+CMD ["air", "-c", ".air.toml"]

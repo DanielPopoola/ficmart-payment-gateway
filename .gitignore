@@ -18,17 +18,13 @@ coverage.html
 vendor/
 
 .env
-GUIDE.md
-GEMINI.md
-settings.json
+.env.local
 
-.gemini/
-thoughts/
 # Go workspace file
 go.work
 go.work.sum
 
 # Air (hot reload)
 tmp/
-build-errors.log
+build-errors.log    
 

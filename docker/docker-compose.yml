@@ -13,8 +13,8 @@ services:
     networks:
       - payment-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 5s
+      test: ["CMD-SHELL", "pg_isready -U postgres -d payment_gateway_db"]
+      interval: 10s
       timeout: 5s
       retries: 5
 
@@ -48,6 +48,11 @@ services:
       - GATEWAY_LOGGER__LEVEL=info
     ports:
       - "8081:8080"
+    entrypoint: ["./init.sh"]
+    command: ["air", "-c", ".air.toml"]
+    volumes:
+      - ..:/app
+      - gateway_tmp:/app/tmp
     depends_on:
       payment-postgres:
         condition: service_healthy
@@ -57,6 +62,7 @@ services:
       - "host.docker.internal:host-gateway" 
     restart: unless-stopped
 
+
 networks:
   payment-network:
     driver: bridge
@@ -64,3 +70,4 @@ networks:
 volumes:
   postgres_data:
     name: payment-gateway-postgres-data
+  gateway_tmp:

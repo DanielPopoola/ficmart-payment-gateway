@@ -74,6 +74,7 @@ func main() {
 	handler := middleware.Recovery(logger)(router)
 	handler = middleware.Logging(logger)(handler)
 	handler = middleware.Timeout(cfg.Server.ReadTimeout)(handler)
+	handler = middleware.CORS()(handler)
 
 	server := &http.Server{
 		Addr:         "0.0.0.0:" + cfg.Server.Port,

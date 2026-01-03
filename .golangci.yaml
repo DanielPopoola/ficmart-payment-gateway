@@ -1,0 +1,55 @@
+version: "2"
+
+run:
+  timeout: 5m
+  go: '1.25'
+
+linters:
+  enable:
+    - errcheck      # Check for unchecked errors
+    - govet         # Vet examines Go source code
+    - ineffassign   # Detect ineffectual assignments
+    - staticcheck   # Advanced Go linter
+    - unused        # Check for unused code
+    - misspell      # Check for misspelled words
+    - revive        # Fast, configurable, extensible, flexible linter
+    - gosec         # Security checks
+    - gocritic      # Opinionated Go linter
+    - bodyclose     # Check HTTP response body is closed
+    - nilerr        # Find code returning nil even if it checks err != nil
+    - errorlint     # Find misuses of errors
+    - exhaustive    # Check exhaustiveness of enum switch statements
+
+  settings:
+    errcheck:
+      check-type-assertions: true
+      check-blank: true
+
+    govet:
+      enable-all: true
+
+    revive:
+      confidence: 0.8
+
+    gosec:
+      excludes:
+        - G104 # Audit errors not checked (errcheck handles this)
+
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - style
+        - performance
+      disabled-checks:
+        - commentedOutCode
+
+  exclusions:
+    rules:
+      # Less strict linting for test files
+      - path: '_test\.go$'
+        linters:
+          - gocritic  # Style checks less important in tests
+      # Exclude linting for generated or temporary files
+      - path: '(^|/)tmp/'
+        linters:
+          - all
