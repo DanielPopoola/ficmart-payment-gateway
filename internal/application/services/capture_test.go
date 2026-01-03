@@ -147,7 +147,7 @@ func (suite *CaptureServiceTestSuite) Test_Capture_CannotCaptureAlreadyCapturedP
 		Currency:        "USD",
 		AuthorizationID: *payment.BankAuthID,
 		CaptureID:       "cap-123",
-		Status:          "CAPTURED",
+		Status:          "captured",
 		CapturedAt:      time.Now(),
 	}
 
@@ -186,7 +186,7 @@ func (suite *CaptureServiceTestSuite) Test_Capture_IdempotencyReturnsCache() {
 		Currency:        "USD",
 		AuthorizationID: *payment.BankAuthID,
 		CaptureID:       "cap-123",
-		Status:          "CAPTURED",
+		Status:          "captured",
 		CapturedAt:      time.Now(),
 	}
 
@@ -306,7 +306,7 @@ func (suite *CaptureServiceTestSuite) Test_Capture_ConcurrentRequests_OnlyOneSuc
 		Currency:        "USD",
 		AuthorizationID: *payment.BankAuthID,
 		CaptureID:       "cap-123",
-		Status:          "CAPTURED",
+		Status:          "captured",
 		CapturedAt:      time.Now(),
 	}
 

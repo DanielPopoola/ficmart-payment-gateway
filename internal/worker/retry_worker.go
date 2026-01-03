@@ -225,7 +225,7 @@ func (w *RetryWorker) resumeCapture(ctx context.Context, payment *domain.Payment
 	}
 	defer tx.Rollback(ctx)
 
-	if err = payment.Capture(resp.CaptureID, resp.CapturedAt); err != nil {
+	if err = payment.Capture(resp.Status, resp.CaptureID, resp.CapturedAt); err != nil {
 		return err
 	}
 
@@ -296,7 +296,7 @@ func (w *RetryWorker) resumeVoid(ctx context.Context, payment *domain.Payment, i
 	}
 	defer tx.Rollback(ctx)
 
-	if err = payment.Void(resp.VoidID, resp.VoidedAt); err != nil {
+	if err = payment.Void(resp.Status, resp.VoidID, resp.VoidedAt); err != nil {
 		return err
 	}
 
@@ -369,7 +369,7 @@ func (w *RetryWorker) resumeRefund(ctx context.Context, payment *domain.Payment,
 	}
 	defer tx.Rollback(ctx)
 
-	if err = payment.Refund(resp.RefundID, resp.RefundedAt); err != nil {
+	if err = payment.Refund(resp.Status, resp.RefundID, resp.RefundedAt); err != nil {
 		return err
 	}
 

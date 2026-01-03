@@ -45,7 +45,7 @@ const swaggerUIHTML = `<!DOCTYPE html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Bank API - Swagger UI</title>
+  <title>Ficmart API Gateway- Swagger UI</title>
   <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css">
   <style>body { margin: 0; padding: 0; }</style>
 </head>

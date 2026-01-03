@@ -38,7 +38,7 @@ func CreateAuthorizedPayment(
 	authResp := &application.BankAuthorizationResponse{
 		Amount:          100,
 		Currency:        "USD",
-		Status:          "AUTHORIZED",
+		Status:          "authorized",
 		AuthorizationID: "auth-" + uuid.New().String(),
 		CreatedAt:       time.Now(),
 		ExpiresAt:       time.Now().Add(7 * 24 * time.Hour),
@@ -143,7 +143,7 @@ func CreateRefundedPayment(
 	refundResp := &application.BankRefundResponse{
 		Amount:     payment.AmountCents,
 		Currency:   payment.Currency,
-		Status:     "captured",
+		Status:     "refunded",
 		CaptureID:  "cap-123",
 		RefundID:   "ref-123",
 		RefundedAt: time.Now(),
@@ -171,13 +171,5 @@ func DefaultAuthorizeCommand() services.AuthorizeCommand {
 		CVV:         "123",
 		ExpiryMonth: 12,
 		ExpiryYear:  2030,
-	}
-}
-
-// DefaultCaptureCommand returns a valid capture command for testing
-func DefaultCaptureCommand(paymentID string) services.CaptureCommand {
-	return services.CaptureCommand{
-		PaymentID: paymentID,
-		Amount:    100,
 	}
 }

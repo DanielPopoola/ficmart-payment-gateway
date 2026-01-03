@@ -121,7 +121,7 @@ func (s *RefundService) Refund(ctx context.Context, cmd RefundCommand, idempoten
 	}
 	defer tx.Rollback(ctx)
 
-	if err := payment.Refund(bankResp.RefundID, bankResp.RefundedAt); err != nil {
+	if err := payment.Refund(bankResp.Status, bankResp.RefundID, bankResp.RefundedAt); err != nil {
 		return nil, application.NewInvalidStateError(err)
 	}
 

@@ -64,7 +64,7 @@ func TestPayment_StateTransitions(t *testing.T) {
 	t.Run("CAPTURING -> CAPTURED transition", func(t *testing.T) {
 		payment := createCapturingPayment(t)
 
-		err := payment.Capture("cap-123", time.Now())
+		err := payment.Capture("captured", "cap-123", time.Now())
 
 		require.NoError(t, err)
 		assert.Equal(t, domain.StatusCaptured, payment.Status)
@@ -84,7 +84,7 @@ func TestPayment_StateTransitions(t *testing.T) {
 	t.Run("VOIDING -> VOIDED transition", func(t *testing.T) {
 		payment := createVoidingPayment(t)
 
-		err := payment.Void("void-123", time.Now())
+		err := payment.Void("voided", "void-123", time.Now())
 
 		require.NoError(t, err)
 		assert.Equal(t, domain.StatusVoided, payment.Status)
@@ -104,7 +104,7 @@ func TestPayment_StateTransitions(t *testing.T) {
 	t.Run("REFUNDING -> REFUNDED transition", func(t *testing.T) {
 		payment := createRefundingPayment(t)
 
-		err := payment.Refund("ref-123", time.Now())
+		err := payment.Refund("refunded", "ref-123", time.Now())
 
 		require.NoError(t, err)
 		assert.Equal(t, domain.StatusRefunded, payment.Status)
@@ -225,7 +225,7 @@ func createCapturingPayment(t *testing.T) *domain.Payment {
 func createCapturedPayment(t *testing.T) *domain.Payment {
 	t.Helper()
 	payment := createCapturingPayment(t)
-	err := payment.Capture("cap-123", time.Now())
+	err := payment.Capture("captured", "cap-123", time.Now())
 	require.NoError(t, err)
 	return payment
 }
@@ -240,7 +240,7 @@ func createVoidingPayment(t *testing.T) *domain.Payment {
 func createVoidedPayment(t *testing.T) *domain.Payment {
 	t.Helper()
 	payment := createVoidingPayment(t)
-	err := payment.Void("void-123", time.Now())
+	err := payment.Void("voided", "void-123", time.Now())
 	require.NoError(t, err)
 	return payment
 }

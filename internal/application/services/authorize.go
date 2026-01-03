@@ -42,7 +42,7 @@ func (s *AuthorizeService) Authorize(ctx context.Context, cmd AuthorizeCommand, 
 			return nil, application.NewIdempotencyMismatchError()
 		}
 
-		if existingKey.ResponsePayload != nil {
+		if existingKey.LockedAt != nil {
 			payment, _ := s.paymentRepo.FindByID(ctx, existingKey.PaymentID)
 			return payment, nil
 		}
