@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"log/slog"
+
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/api"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/application/services"
 )
@@ -12,6 +14,7 @@ type Handlers struct {
 	voidService    *services.VoidService
 	refundService  *services.RefundService
 	queryService   *services.QueryService
+	logger         *slog.Logger
 }
 
 func NewHandlers(
@@ -20,6 +23,7 @@ func NewHandlers(
 	voidService *services.VoidService,
 	refundService *services.RefundService,
 	queryService *services.QueryService,
+	logger *slog.Logger,
 ) *Handlers {
 	return &Handlers{
 		authService:    authService,
@@ -27,6 +31,7 @@ func NewHandlers(
 		voidService:    voidService,
 		refundService:  refundService,
 		queryService:   queryService,
+		logger:         logger,
 	}
 }
 

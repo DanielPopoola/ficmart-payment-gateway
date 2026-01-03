@@ -5,9 +5,10 @@ services:
     environment:
       POSTGRES_USER: ${GATEWAY_DATABASE__USER:-postgres}
       POSTGRES_PASSWORD: ${GATEWAY_DATABASE__PASSWORD:-postgres}
-      POSTGRES_DB: postgres
+      POSTGRES_HOST: ${GATEWAY_DATABASE__HOST:-localhost}
+      POSTGRES_DB: ${GATEWAY_DATABASE__NAME:-payment_gateway_db}
     ports:
-      - "5433:5432"  # Use 5433 to avoid conflict with local PostgreSQL
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
