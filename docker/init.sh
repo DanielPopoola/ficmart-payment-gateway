@@ -26,7 +26,7 @@ psql -h "${GATEWAY_DATABASE__HOST}" -p "${GATEWAY_DATABASE__PORT}" -U "${GATEWAY
 echo "Database ready!"
 
 echo "Running migrations..."
-for migration_file in /app/internal/db/migrations/*.sql; do
+for migration_file in /app/migrations/*.sql; do
   [ -f "$migration_file" ] || continue
   echo "Applying migration: $(basename "$migration_file")"
   PGPASSWORD="${GATEWAY_DATABASE__PASSWORD}" \
