@@ -72,7 +72,7 @@ func main() {
 	handler = middleware.Timeout(cfg.Server.ReadTimeout)(handler)
 
 	server := &http.Server{
-		Addr:         ":" + cfg.Server.Port,
+		Addr:         "0.0.0.0:" + cfg.Server.Port,
 		Handler:      handler,
 		ReadTimeout:  cfg.Server.ReadTimeout,
 		WriteTimeout: cfg.Server.WriteTimeout,

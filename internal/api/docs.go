@@ -13,9 +13,9 @@ import (
 //
 // GET /docs/openapi → OpenAPI spec (JSON)
 func RegisterDocsRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("GET /{$}", handleRootRedirect)
-	mux.HandleFunc("GET /docs", handleSwaggerUI)
-	mux.HandleFunc("GET /docs/openapi", handleOpenAPISpec)
+	mux.HandleFunc("/", handleRootRedirect)
+	mux.HandleFunc("/docs", handleSwaggerUI)
+	mux.HandleFunc("/docs/openapi", handleOpenAPISpec)
 }
 
 func handleRootRedirect(w http.ResponseWriter, r *http.Request) {

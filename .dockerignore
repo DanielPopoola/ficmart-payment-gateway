@@ -1,52 +1,41 @@
 # Binaries
 bin/
 *.exe
-*.exe~
 *.dll
 *.so
 *.dylib
 
-# Test files
-*.test
-*.out
-coverage.out
-coverage.html
-
-# Vendor
-vendor/
-
-# Environment files
-.env
-.env.local
-
-# Documentation
-GUIDE.md
-GEMINI.md
-README.md
-TRADEOFFS.md
-
-# Git
-.git
-.gitignore
-
-# IDE
+# workspace
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
 
-# Temporary files
-tmp/
-build-errors.log
+# Env files
+.env
+.env.local
 
-# Docker files
-docker/
-Dockerfile
-docker-compose*.yml
+# Git
+.git/
+.gitignore
+
+# Documentation
+*.md
+!README.md
 
 # CI/CD
 .github/
 
-# Generated docs
-docs/
+# Docker
+Dockerfile
+.dockerignore
+docker-compose.yml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temp files
+tmp/
+temp/

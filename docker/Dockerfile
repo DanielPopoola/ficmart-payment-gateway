@@ -1,5 +1,5 @@
 # Build stage
-FROM golang:1.23-alpine AS builder
+FROM golang:1.25-alpine AS builder
 
 # Install build dependencies
 RUN apk add --no-cache git gcc musl-dev
@@ -36,11 +36,12 @@ WORKDIR /app
 COPY --from=builder /build/gateway .
 
 # Copy migration files
-COPY --from=builder /build/migrations ./migrations
+COPY --from=builder /build/internal/db/migrations ./migrations
 
-# Copy init script (FIX: correct path since build context is parent directory)
-COPY --from=builder /build/docker/init.sh .
+
+COPY ./docker/init.sh .
 RUN chmod +x init.sh
+
 
 # Change ownership
 RUN chown -R appuser:appuser /app
