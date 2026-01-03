@@ -53,6 +53,7 @@ I don't retry 4xx errors (like invalid card or insufficient funds) at all since 
 
 ### How I handled partial failures:
 
+Firstly I record intent before calling bank as I'v mentioned earlier, then I use background workers to poll the database at intervals for payments stuck in intermediate states, which when found, the worker proceeds to call the bank to verify the state of the stuck payments.
 
 ---
 
@@ -83,8 +84,7 @@ Future additions would include:
 
 ### Performance Optimization
 
-I'd move the idempotency table to Redis for faster reads since they are temporary
-
+I'd move the idempotency table to Redis for faster reads since reads
 ---
 
 ## Biggest Limitation
