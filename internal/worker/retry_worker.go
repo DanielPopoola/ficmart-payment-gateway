@@ -2,16 +2,13 @@ package worker
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"time"
 
-	"github.com/DanielPopoola/ficmart-payment-gateway/internal/application"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/domain"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/infrastructure/bank"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/infrastructure/persistence/postgres"
-	"github.com/jackc/pgx/v5"
 )
 
 type RetryWorker struct {
@@ -179,246 +176,58 @@ func (w *RetryWorker) retryPayment(ctx context.Context, sp stuckPayment) error {
 }
 
 func (w *RetryWorker) resumeCapture(ctx context.Context, payment *domain.Payment, idempotencyKey string) error {
-	captureReq := bank.CaptureRequest{
-		Amount:          payment.AmountCents,
-		AuthorizationID: *payment.BankAuthID,
-	}
-
-	resp, err := w.bankClient.Capture(ctx, captureReq, idempotencyKey)
-	if err != nil {
-		category := application.CategorizeError(err)
-		w.logger.Error("capture retry failed",
-			"payment_id", payment.ID,
-			"category", category,
-			"error", err)
-
-		if category == application.CategoryPermanent {
-			if failErr := payment.Fail(); failErr != nil {
-				return failErr
+	return w.resumeOperation(
+		ctx,
+		payment,
+		idempotencyKey,
+		func(ctx context.Context, key string) (interface{}, error) {
+			req := bank.CaptureRequest{
+				Amount:          payment.AmountCents,
+				AuthorizationID: *payment.BankAuthID,
 			}
-
-			tx, err := w.db.BeginTx(ctx, pgx.TxOptions{
-				IsoLevel: pgx.Serializable,
-			})
-
-			if err != nil {
-				return err
-			}
-			defer tx.Rollback(ctx)
-
-			if updateErr := w.paymentRepo.Update(ctx, tx, payment); updateErr != nil {
-				return updateErr
-			}
-
-			responsePayload, _ := json.Marshal(err)
-			if storeErr := w.idempotencyRepo.StoreResponse(ctx, tx, idempotencyKey, responsePayload); storeErr != nil {
-				return storeErr
-			}
-
-			if err := tx.Commit(ctx); err != nil {
-				return err
-			}
-
-			return err
-		}
-		return w.scheduleRetry(ctx, payment, err)
-	}
-
-	tx, err := w.db.BeginTx(ctx, pgx.TxOptions{
-		IsoLevel: pgx.Serializable,
-	})
-
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback(ctx)
-
-	if err = payment.Capture(resp.Status, resp.CaptureID, resp.CapturedAt); err != nil {
-		return err
-	}
-
-	if updateErr := w.paymentRepo.Update(ctx, tx, payment); updateErr != nil {
-		return updateErr
-	}
-
-	responsePayload, _ := json.Marshal(resp)
-	if err := w.idempotencyRepo.StoreResponse(ctx, tx, idempotencyKey, responsePayload); err != nil {
-		return err
-	}
-
-	if err := w.idempotencyRepo.ReleaseLock(ctx, tx, idempotencyKey); err != nil {
-		return err
-	}
-
-	if err := tx.Commit(ctx); err != nil {
-		return err
-	}
-
-	return nil
+			return w.bankClient.Capture(ctx, req, key)
+		},
+		func(p *domain.Payment, resp interface{}) error {
+			r := resp.(*bank.CaptureResponse)
+			return p.Capture(r.Status, r.CaptureID, r.CapturedAt)
+		},
+	)
 }
 
 func (w *RetryWorker) resumeVoid(ctx context.Context, payment *domain.Payment, idempotencyKey string) error {
-	voidReq := bank.VoidRequest{
-		AuthorizationID: *payment.BankAuthID,
-	}
-
-	resp, err := w.bankClient.Void(ctx, voidReq, idempotencyKey)
-	if err != nil {
-		category := application.CategorizeError(err)
-		w.logger.Error("void retry failed",
-			"payment_id", payment.ID,
-			"category", category,
-			"error", err)
-
-		if category == application.CategoryPermanent {
-			if failErr := payment.Fail(); failErr != nil {
-				return failErr
+	return w.resumeOperation(
+		ctx,
+		payment,
+		idempotencyKey,
+		func(ctx context.Context, key string) (interface{}, error) {
+			req := bank.VoidRequest{
+				AuthorizationID: *payment.BankAuthID,
 			}
+			return w.bankClient.Void(ctx, req, key)
+		},
+		func(p *domain.Payment, resp interface{}) error {
+			r := resp.(*bank.VoidResponse)
+			return p.Void(r.Status, r.VoidID, r.VoidedAt)
+		},
+	)
 
-			tx, err := w.db.BeginTx(ctx, pgx.TxOptions{
-				IsoLevel: pgx.Serializable,
-			})
-
-			if err != nil {
-				return err
-			}
-			defer tx.Rollback(ctx)
-
-			if updateErr := w.paymentRepo.Update(ctx, tx, payment); updateErr != nil {
-				return updateErr
-			}
-
-			responsePayload, _ := json.Marshal(err)
-			if storeErr := w.idempotencyRepo.StoreResponse(ctx, tx, idempotencyKey, responsePayload); storeErr != nil {
-				return storeErr
-			}
-
-			if err := tx.Commit(ctx); err != nil {
-				return err
-			}
-
-			return err
-		}
-		return w.scheduleRetry(ctx, payment, err)
-	}
-	tx, err := w.db.BeginTx(ctx, pgx.TxOptions{
-		IsoLevel: pgx.Serializable,
-	})
-
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback(ctx)
-
-	if err = payment.Void(resp.Status, resp.VoidID, resp.VoidedAt); err != nil {
-		return err
-	}
-
-	if updateErr := w.paymentRepo.Update(ctx, tx, payment); updateErr != nil {
-		return updateErr
-	}
-
-	responsePayload, _ := json.Marshal(resp)
-	if err := w.idempotencyRepo.StoreResponse(ctx, tx, idempotencyKey, responsePayload); err != nil {
-		return err
-	}
-
-	if err := w.idempotencyRepo.ReleaseLock(ctx, tx, idempotencyKey); err != nil {
-		return err
-	}
-
-	if err := tx.Commit(ctx); err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func (w *RetryWorker) resumeRefund(ctx context.Context, payment *domain.Payment, idempotencyKey string) error {
-	refundReq := bank.RefundRequest{
-		Amount:    payment.AmountCents,
-		CaptureID: *payment.BankCaptureID,
-	}
-
-	resp, err := w.bankClient.Refund(ctx, refundReq, idempotencyKey)
-	if err != nil {
-		category := application.CategorizeError(err)
-		w.logger.Error("refund retry failed",
-			"payment_id", payment.ID,
-			"category", category,
-			"error", err)
-
-		if category == application.CategoryPermanent {
-			if failErr := payment.Fail(); failErr != nil {
-				return failErr
+	return w.resumeOperation(
+		ctx,
+		payment,
+		idempotencyKey,
+		func(ctx context.Context, key string) (interface{}, error) {
+			req := bank.RefundRequest{
+				Amount:    payment.AmountCents,
+				CaptureID: *payment.BankCaptureID,
 			}
-
-			tx, err := w.db.BeginTx(ctx, pgx.TxOptions{
-				IsoLevel: pgx.Serializable,
-			})
-
-			if err != nil {
-				return err
-			}
-			defer tx.Rollback(ctx)
-
-			if updateErr := w.paymentRepo.Update(ctx, tx, payment); updateErr != nil {
-				return updateErr
-			}
-
-			responsePayload, _ := json.Marshal(err)
-			if storeErr := w.idempotencyRepo.StoreResponse(ctx, tx, idempotencyKey, responsePayload); storeErr != nil {
-				return storeErr
-			}
-
-			if err := tx.Commit(ctx); err != nil {
-				return err
-			}
-
-			return err
-		}
-		return w.scheduleRetry(ctx, payment, err)
-	}
-
-	tx, err := w.db.BeginTx(ctx, pgx.TxOptions{
-		IsoLevel: pgx.Serializable,
-	})
-
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback(ctx)
-
-	if err = payment.Refund(resp.Status, resp.RefundID, resp.RefundedAt); err != nil {
-		return err
-	}
-
-	if updateErr := w.paymentRepo.Update(ctx, tx, payment); updateErr != nil {
-		return updateErr
-	}
-
-	responsePayload, _ := json.Marshal(resp)
-	if err := w.idempotencyRepo.StoreResponse(ctx, tx, idempotencyKey, responsePayload); err != nil {
-		return err
-	}
-
-	if err := w.idempotencyRepo.ReleaseLock(ctx, tx, idempotencyKey); err != nil {
-		return err
-	}
-
-	if err := tx.Commit(ctx); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (w *RetryWorker) scheduleRetry(ctx context.Context, payment *domain.Payment, lastErr error) error {
-	category := application.CategorizeError(lastErr)
-
-	payment.ScheduleRetry(
-		time.Duration(1<<payment.AttemptCount)*time.Minute,
-		string(category),
+			return w.bankClient.Refund(ctx, req, key)
+		},
+		func(p *domain.Payment, resp interface{}) error {
+			r := resp.(*bank.RefundResponse)
+			return p.Capture(r.Status, r.RefundID, r.RefundedAt)
+		},
 	)
-	return w.paymentRepo.Update(ctx, nil, payment)
 }

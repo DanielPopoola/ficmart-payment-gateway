@@ -73,7 +73,7 @@ func (s *VoidService) Void(ctx context.Context, cmd VoidCommand, idempotencyKey 
 
 	bankResp, err := s.bankClient.Void(ctx, bankReq, idempotencyKey)
 	if err != nil {
-		return payment, handleBankFailure(
+		return payment, HandleBankFailure(
 			ctx,
 			s.db,
 			s.paymentRepo,
@@ -87,7 +87,7 @@ func (s *VoidService) Void(ctx context.Context, cmd VoidCommand, idempotencyKey 
 		return nil, application.NewInvalidStateError(err)
 	}
 
-	if err := finalizePaymentSuccess(ctx, s.db, s.paymentRepo, s.idempotencyRepo, payment, idempotencyKey, bankResp); err != nil {
+	if err := FinalizePaymentSuccess(ctx, s.db, s.paymentRepo, s.idempotencyRepo, payment, idempotencyKey, bankResp); err != nil {
 		return payment, err
 	}
 

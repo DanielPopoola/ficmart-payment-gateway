@@ -82,7 +82,7 @@ func (s *AuthorizeService) Authorize(ctx context.Context, cmd AuthorizeCommand, 
 
 	bankResp, err := s.bankClient.Authorize(ctx, bankReq, idempotencyKey)
 	if err != nil {
-		return payment, handleBankFailure(
+		return payment, HandleBankFailure(
 			ctx,
 			s.db,
 			s.paymentRepo,
@@ -96,7 +96,7 @@ func (s *AuthorizeService) Authorize(ctx context.Context, cmd AuthorizeCommand, 
 	if err := payment.Authorize(bankResp.AuthorizationID, bankResp.CreatedAt, bankResp.ExpiresAt); err != nil {
 		return nil, application.NewInvalidStateError(err)
 	}
-	if err := finalizePaymentSuccess(ctx, s.db, s.paymentRepo, s.idempotencyRepo, payment, idempotencyKey, bankResp); err != nil {
+	if err := FinalizePaymentSuccess(ctx, s.db, s.paymentRepo, s.idempotencyRepo, payment, idempotencyKey, bankResp); err != nil {
 		return payment, err
 	}
 

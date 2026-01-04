@@ -96,7 +96,7 @@ func acquireIdempotencyLock(
 	idempotencyKey string,
 	requestHash string,
 ) error {
-	tx, err := db.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.Serializable})
+	tx, err := db.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.ReadCommitted})
 	if err != nil {
 		return application.NewInternalError(err)
 	}
@@ -128,7 +128,7 @@ func markPaymentTransitioning(
 	requestHash string,
 	transitionFn func(*domain.Payment) error,
 ) (*domain.Payment, error) {
-	tx, err := db.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.Serializable})
+	tx, err := db.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.ReadCommitted})
 	if err != nil {
 		return nil, application.NewInternalError(err)
 	}
@@ -161,8 +161,8 @@ func markPaymentTransitioning(
 	return payment, nil
 }
 
-// handleBankFailure handles permanent bank errors by marking payment as failed
-func handleBankFailure(
+// HandleBankFailure handles permanent bank errors by marking payment as failed
+func HandleBankFailure(
 	ctx context.Context,
 	db *postgres.DB,
 	paymentRepo *postgres.PaymentRepository,
@@ -180,7 +180,7 @@ func handleBankFailure(
 		return application.NewInvalidStateError(err)
 	}
 
-	tx, err := db.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.Serializable})
+	tx, err := db.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.ReadCommitted})
 	if err != nil {
 		return application.NewInternalError(err)
 	}
@@ -202,8 +202,8 @@ func handleBankFailure(
 	return bankErr
 }
 
-// finalizePaymentSuccess stores successful bank response and releases lock
-func finalizePaymentSuccess(
+// FinalizePaymentSuccess stores successful bank response and releases lock
+func FinalizePaymentSuccess(
 	ctx context.Context,
 	db *postgres.DB,
 	paymentRepo *postgres.PaymentRepository,
@@ -212,7 +212,7 @@ func finalizePaymentSuccess(
 	idempotencyKey string,
 	bankResponse interface{},
 ) error {
-	tx, err := db.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.Serializable})
+	tx, err := db.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.ReadCommitted})
 	if err != nil {
 		return application.NewInternalError(err)
 	}

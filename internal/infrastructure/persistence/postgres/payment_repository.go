@@ -8,6 +8,7 @@ import (
 
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/domain"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 var ErrPaymentNotFound = errors.New("payment not found")
@@ -177,8 +178,14 @@ func (r *PaymentRepository) Update(ctx context.Context, tx pgx.Tx, payment *doma
 			attempt_count = $11, next_retry_at = $12
 		WHERE id = $13
 	`
+	var q interface {
+		Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+	} = r.db
+	if tx != nil {
+		q = tx
+	}
 
-	results, err := tx.Exec(ctx, query,
+	results, err := q.Exec(ctx, query,
 		payment.Status,
 		payment.BankAuthID,
 		payment.BankCaptureID,
