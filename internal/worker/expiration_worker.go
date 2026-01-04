@@ -5,21 +5,21 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/DanielPopoola/ficmart-payment-gateway/internal/application"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/domain"
+	"github.com/DanielPopoola/ficmart-payment-gateway/internal/infrastructure/bank"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/infrastructure/persistence/postgres"
 )
 
 type ExpirationWorker struct {
 	paymentRepo *postgres.PaymentRepository
-	bankClient  application.BankClient
+	bankClient  bank.BankClient
 	interval    time.Duration
 	logger      *slog.Logger
 }
 
 func NewExpirationWorker(
 	paymentRepo *postgres.PaymentRepository,
-	bankClient application.BankClient,
+	bankClient bank.BankClient,
 	interval time.Duration,
 	logger *slog.Logger,
 ) *ExpirationWorker {
@@ -85,7 +85,7 @@ func (w *ExpirationWorker) checkAndMarkExpired(ctx context.Context, payment *dom
 	bankAuth, err := w.bankClient.GetAuthorization(ctx, *payment.BankAuthID)
 
 	if err != nil {
-		if bankErr, ok := application.IsBankError(err); ok {
+		if bankErr, ok := bank.IsBankError(err); ok {
 			if bankErr.Code == "authorization_expired" {
 				return w.markAsExpired(ctx, payment)
 			}

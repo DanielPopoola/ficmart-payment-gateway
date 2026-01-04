@@ -2,16 +2,13 @@ package services
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"time"
 
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/application"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/domain"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/infrastructure/bank"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/infrastructure/persistence/postgres"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 )
 
 type AuthorizeService struct {
@@ -38,48 +35,40 @@ func NewAuthorizeService(
 func (s *AuthorizeService) Authorize(ctx context.Context, cmd AuthorizeCommand, idempotencyKey string) (*domain.Payment, error) {
 	requestHash := ComputeHash(cmd)
 
-	existingKey, err := s.idempotencyRepo.FindByKey(ctx, idempotencyKey)
-	if err == nil {
-		if existingKey.RequestHash != requestHash {
-			return nil, application.NewIdempotencyMismatchError()
-		}
-
-		if existingKey.LockedAt != nil {
-			payment, _ := s.paymentRepo.FindByID(ctx, existingKey.PaymentID)
-			return payment, nil
-		}
-		return s.waitForCompletion(ctx, idempotencyKey)
-	}
-
-	tx, err := s.db.BeginTx(ctx, pgx.TxOptions{
-		IsoLevel: pgx.Serializable,
-	})
+	cachedPayment, isCached, err := checkIdempotency(
+		ctx,
+		s.idempotencyRepo,
+		s.paymentRepo,
+		idempotencyKey,
+		requestHash,
+	)
 	if err != nil {
-		return nil, application.NewInternalError(err)
+		return nil, err
 	}
-	defer tx.Rollback(ctx)
+
+	if isCached {
+		return cachedPayment, nil
+	}
 
 	paymentID := uuid.New().String()
-	var payment *domain.Payment
-
-	payment, err = domain.NewPayment(paymentID, cmd.OrderID, cmd.CustomerID, cmd.Amount, cmd.Currency)
+	payment, err := domain.NewPayment(paymentID, cmd.OrderID, cmd.CustomerID, cmd.Amount, cmd.Currency)
 	if err != nil {
 		return nil, application.NewInvalidInputError(err)
 	}
 
-	if err := s.paymentRepo.Create(ctx, tx, payment); err != nil {
-		return nil, application.NewInternalError(err)
-	}
-
-	if err := s.idempotencyRepo.AcquireLock(ctx, tx, idempotencyKey, paymentID, requestHash); err != nil {
+	err = acquireIdempotencyLock(
+		ctx,
+		s.db,
+		s.paymentRepo,
+		s.idempotencyRepo,
+		payment,
+		idempotencyKey,
+		requestHash,
+	)
+	if err != nil {
 		if errors.Is(err, postgres.ErrDuplicateIdempotencyKey) {
-			tx.Rollback(ctx)
-			return s.waitForCompletion(ctx, idempotencyKey)
+			return waitForCompletion(ctx, s.idempotencyRepo, s.paymentRepo, idempotencyKey)
 		}
-		return nil, application.NewInternalError(err)
-	}
-
-	if err := tx.Commit(ctx); err != nil {
 		return nil, application.NewInternalError(err)
 	}
 
@@ -93,93 +82,23 @@ func (s *AuthorizeService) Authorize(ctx context.Context, cmd AuthorizeCommand, 
 
 	bankResp, err := s.bankClient.Authorize(ctx, bankReq, idempotencyKey)
 	if err != nil {
-		category := application.CategorizeError(err)
-		if category == application.CategoryPermanent {
-			if failErr := payment.Fail(); failErr != nil {
-				return nil, application.NewInvalidStateError(failErr)
-			}
-
-			tx, err := s.db.BeginTx(ctx, pgx.TxOptions{
-				IsoLevel: pgx.Serializable,
-			})
-
-			if err != nil {
-				return nil, application.NewInternalError(err)
-			}
-			defer tx.Rollback(ctx)
-
-			if updateErr := s.paymentRepo.Update(ctx, tx, payment); updateErr != nil {
-				return nil, application.NewInternalError(updateErr)
-			}
-			responsePayload, _ := json.Marshal(err)
-			if storeErr := s.idempotencyRepo.StoreResponse(ctx, tx, idempotencyKey, responsePayload); storeErr != nil {
-				return nil, application.NewInternalError(storeErr)
-			}
-			if err := tx.Commit(ctx); err != nil {
-				return nil, application.NewInternalError(err)
-			}
-		}
-		return payment, err
+		return payment, handleBankFailure(
+			ctx,
+			s.db,
+			s.paymentRepo,
+			s.idempotencyRepo,
+			payment,
+			idempotencyKey,
+			err,
+		)
 	}
-
-	tx, err = s.db.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.Serializable})
-	if err != nil {
-		return payment, application.NewInternalError(err)
-	}
-	defer tx.Rollback(ctx)
 
 	if err := payment.Authorize(bankResp.AuthorizationID, bankResp.CreatedAt, bankResp.ExpiresAt); err != nil {
 		return nil, application.NewInvalidStateError(err)
 	}
-
-	if err := s.paymentRepo.Update(ctx, tx, payment); err != nil {
-		return nil, application.NewInternalError(err)
-	}
-
-	responsePayload, _ := json.Marshal(bankResp)
-	if err := s.idempotencyRepo.StoreResponse(ctx, tx, idempotencyKey, responsePayload); err != nil {
-		return nil, application.NewInternalError(err)
-	}
-
-	if err := s.idempotencyRepo.ReleaseLock(ctx, tx, idempotencyKey); err != nil {
-		return nil, application.NewInternalError(err)
-	}
-
-	if err := tx.Commit(ctx); err != nil {
-		return nil, application.NewInternalError(err)
+	if err := finalizePaymentSuccess(ctx, s.db, s.paymentRepo, s.idempotencyRepo, payment, idempotencyKey, bankResp); err != nil {
+		return payment, err
 	}
 
 	return payment, nil
-}
-
-func (s *AuthorizeService) waitForCompletion(ctx context.Context, idempotencyKey string) (*domain.Payment, error) {
-	ticker := time.NewTicker(100 * time.Millisecond)
-	defer ticker.Stop()
-	timeout := time.After(30 * time.Second)
-
-	for {
-		select {
-		case <-ctx.Done():
-			return nil, application.NewTimeoutError("")
-		case <-timeout:
-			return nil, application.NewTimeoutError("")
-		case <-ticker.C:
-			key, err := s.idempotencyRepo.FindByKey(ctx, idempotencyKey)
-			if err != nil {
-				return nil, application.NewInternalError(err)
-			}
-
-			if key.LockedAt == nil {
-				payment, err := s.paymentRepo.FindByID(ctx, key.PaymentID)
-				if err != nil {
-					return nil, application.NewInternalError(err)
-				}
-				return payment, nil
-			}
-
-			if time.Since(*key.LockedAt) > 5*time.Minute {
-				return nil, application.NewRequestProcessingError()
-			}
-		}
-	}
 }

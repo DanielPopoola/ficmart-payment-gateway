@@ -51,10 +51,10 @@ func NewRequestProcessingError() *ServiceError {
 	}
 }
 
-func NewTimeoutError(paymentID string) *ServiceError {
+func NewTimeoutError() *ServiceError {
 	return &ServiceError{
 		Code:       ErrCodeTimeout,
-		Message:    fmt.Sprintf("Request timed out waiting for completion: %s", paymentID),
+		Message:    "Request timed out waiting for completion",
 		HTTPStatus: http.StatusRequestTimeout,
 	}
 }

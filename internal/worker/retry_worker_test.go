@@ -7,12 +7,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DanielPopoola/ficmart-payment-gateway/internal/application"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/application/services"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/application/services/testhelpers"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/domain"
+	"github.com/DanielPopoola/ficmart-payment-gateway/internal/infrastructure/bank"
+	"github.com/DanielPopoola/ficmart-payment-gateway/internal/infrastructure/bank/mocks"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/infrastructure/persistence/postgres"
-	"github.com/DanielPopoola/ficmart-payment-gateway/internal/mocks"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/worker"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -45,7 +45,7 @@ func TestRetryWorker_RecoversStuckCapture(t *testing.T) {
 		mock.Anything,
 		mock.Anything,
 		idempotencyKey,
-	).Return(&application.BankAuthorizationResponse{
+	).Return(&bank.AuthorizationResponse{
 		Amount:          authCmd.Amount,
 		Currency:        authCmd.Currency,
 		Status:          "authorized",
@@ -74,7 +74,7 @@ func TestRetryWorker_RecoversStuckCapture(t *testing.T) {
 		mock.Anything,
 		mock.Anything,
 		idempotencyKey,
-	).Return(&application.BankCaptureResponse{
+	).Return(&bank.CaptureResponse{
 		Amount:          payment.AmountCents,
 		Currency:        payment.Currency,
 		AuthorizationID: *payment.BankAuthID,
@@ -135,7 +135,7 @@ func TestRetryWorker_SchedulesRetryOnTransientError(t *testing.T) {
 		mock.Anything,
 		mock.Anything,
 		idempotencyKey,
-	).Return(&application.BankAuthorizationResponse{
+	).Return(&bank.AuthorizationResponse{
 		Amount:          authCmd.Amount,
 		Currency:        authCmd.Currency,
 		Status:          "authorized",
@@ -164,7 +164,7 @@ func TestRetryWorker_SchedulesRetryOnTransientError(t *testing.T) {
 		mock.Anything,
 		mock.Anything,
 		idempotencyKey,
-	).Return(nil, &application.BankError{
+	).Return(nil, &bank.BankError{
 		Code:       "internal_error",
 		Message:    "Bank internal error",
 		StatusCode: 500}).Once()
@@ -220,7 +220,7 @@ func TestRetryWorker_FailsOnPermanentError(t *testing.T) {
 		mock.Anything,
 		mock.Anything,
 		idempotencyKey,
-	).Return(&application.BankAuthorizationResponse{
+	).Return(&bank.AuthorizationResponse{
 		Amount:          authCmd.Amount,
 		Currency:        authCmd.Currency,
 		Status:          "authorized",
@@ -249,7 +249,7 @@ func TestRetryWorker_FailsOnPermanentError(t *testing.T) {
 		mock.Anything,
 		mock.Anything,
 		idempotencyKey,
-	).Return(nil, &application.BankError{
+	).Return(nil, &bank.BankError{
 		Code:       "authorization_expired",
 		Message:    "Authorization has expired",
 		StatusCode: 400}).Once()
