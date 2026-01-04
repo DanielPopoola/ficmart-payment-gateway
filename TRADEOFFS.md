@@ -1,107 +1,43 @@
-# TRADEOFFS.md
+# Payment Gateway Design & Tradeoffs
 
-## Architecture
+## 1. Architecture: Why structure it this way?
+I implemented this gateway using **Domain-Driven Design (DDD)** principles, organizing the code into four distinct layers: domain, application, infrastructure, and interfaces. 
 
-### Why did I structure it this way?
+*   **Dependency Isolation:** The domain layer is the core of the system and has zero dependencies. This ensures that business rules (like state transitions) remain stable and are never coupled to external APIs or database schemas.
+*   **Service Granularity:** Instead of a monolithic `PaymentService`, I split operations into dedicated services (`AuthorizeService`, `CaptureService`, etc.). This makes mapping services to HTTP handlers easy.
 
-Since the project is domain-driven, I researched DDD architecture in Go and this is the standard template across board with clean separation of concerns. It's readable and easy to follow
+*   **Testability via Abstractions:** By using interfaces like `BankClient`, I can mock the bank during unit tests. Similarly, separating the REST interface ensures I could swap HTTP for gRPC without modifying business logic.
+*   **Tradeoff:** I consciously chose a higher degree of initial complexity (more files and indirection) to gain long-term flexibility and testability.
 
+## 2. State Management: How and why?
+I use a **Write-Ahead Pattern** and a robust state machine to track payments.
 
-### Gateway-Owned State
+*   **Intent-First Persistence:** Every payment is saved as `PENDING` before the bank is called. This ensures that if the system crashes mid-call, we have a record to reconcile later.
+*   **Intermediate States:** I use states like `CAPTURING`, `VOIDING`, and `REFUNDING`. These act as "signals of intent." If a background worker finds a payment stuck in `CAPTURING`, it knows exactly which operation to retry.
+*   **Domain-Level Enforcement:** State transitions are guarded within `domain/payment.go`. This prevents invalid business flows (e.g., voiding a captured payment) from ever reaching the bank.
+*   **Source of Truth:** While the gateway tracks state, the bank is the ultimate authority. I implement a **Lazy Expiration** policy with a 48-hour grace period (marking auths expired at 9 days instead of the bank’s 7) to account for distributed clock skew while still checking the bank API before a final state change.
 
-I'm storing payment state in my own database instead of always querying the bank. The database acts as my state machine and helps me enforce valid state transitions. This is part of the "smart assistant" role - invalid state transitions aren't sent to the bank. The tradeoff is that I must keep my state synchronized with the bank's state, which requires careful handling of failures and a reconciliation strategy.
+## 3. Failure Handling: Retries and Partial Failures
+My strategy focuses on **Error Classification** to avoid "poison pill" retries.
 
----
+*   **Categorization:** Errors are split into **Transient** (500s/timeouts), **Permanent** (400s/insufficient funds), and **Business Rules** (invalid transitions). 
+*   **Retry Logic:** I only retry transient errors using **Exponential Backoff with Jitter** (1s → 2s → 4s). This prevents a "thundering herd" effect on the bank's API.
+*   **Handling Partial Failures:** If the gateway crashes after a bank call but before updating our DB, background workers handle recovery:
+    *   **Scenario (Capture/Void):** The worker finds the stuck intermediate state and retries the operation. Because of idempotency, the bank returns the cached success, and our DB eventually syncs.
+    *   **Scenario (Authorize):** Since card details aren't stored, we cannot retry authorizations. These are marked `FAILED` for manual reconciliation to prevent holding customer funds indefinitely.
+*   **Efficient Processing:** Workers use `FOR UPDATE SKIP LOCKED` to allow multiple instances to process stuck payments concurrently without blocking each other.
 
-## State Management
+## 4. Idempotency: Implementation and Edge Cases
+Idempotency is enforced at the database level using a dedicated `idempotency_keys` table in PostgreSQL.
 
+*   **Mechanism:** I store a `request_hash` (SHA256) alongside the key. This allows the system to detect if a client reuses a key with different request parameters—a critical edge case that triggers an `IDEMPOTENCY_MISMATCH` error.
+*   **Concurrency Control:** A `locked_at` column manages concurrent requests. If a second request arrives while the first is processing, it enters a `waitForCompletion()` loop, polling every 100ms until the result is ready or it times out.
+*   **Persistence:** Unlike Redis, using PostgreSQL ensures idempotency data survives system restarts. I cache both successes and failures indefinitely, as idempotency keys should never be recycled for different operations.
 
-### How I track payment states:
+## 5. What I'd Do Differently in Production
+With more time, I would address the following limitations:
 
-I save the payment to the database with something to show the intent of the action before calling the bank(e.g of intent - `CAPTURING`, `VOIDING`) as result solving the crash scenario of my service crashing before saving the bank's response. Without this I'd have lost the bank's response forever and FicMart wouldn't be able to proceed with that payment.
-I also used background workers for reonciling states. The background worker checks for stuck `PENDING` payments and reconciles them with the bank's state. The worker uses `FOR UPDATE SKIP LOCKED` to prevent multiple worker instances from fighting over the same payment.
-
-### Lazy Expiration with Grace Period
-
-I mark authorizations as `EXPIRED` after 7 days with a 1-hour grace period, but only through the background worker after confirming with the bank. **I do not enforce strict rejection at my API Gateway** When FicMart tries to capture a payment that appears close to expiration based on local timestamps, I attempt the capture anyway and let the bank be the source of truth for the rejection. It is better to waste an API call than to block a valid payment due to clock skew. The background worker proactively marks obviously expired payments (8+ days old) to improve query performance, but API handlers defer to the bank for edge cases.
-
----
-
-## Idempotency
-
-### How did I implement it?
-
-I made it that each POST request from FicMart to the gateway requires an idempotency key in the request header. This key is in turn stored and sent to the bank. The key have a `UNIQUE` constraint at the db level which ensures no duplicate keys are stored, and on concurrent requests with the same key, the second request polls the db waiting for the first request to complete then returns the same response.
-
-### Edge cases I considered:
-- Two requests, request A and B, reaching my gateway almost at the same time with the same credentials
-- When my gateway sends request to the bank api, and I didn't save the idempotency key from the Ficmart request, if the bank crashes or my gateway crashes before getting a response, I'd have lost the payment info which is could lead to customer's being double charged and nobody wants that.
-
-
----
-
-## Failure Handling
-
-### Retry strategy:
-
-For network timeouts, I retry aggressively to verify the bank's response and retrieve it.
-
-For 5xx errors, the bank explicitly told me "I failed, nothing happened." I use exponential backoff with jitter and stop after 3 attempts before marking the payment as FAILED.
-
-I don't retry 4xx errors (like invalid card or insufficient funds) at all since they're client errors
-
-
-### How I handled partial failures:
-
-Firstly I record intent before calling bank as I'v mentioned earlier, then I use background workers to poll the database at intervals for payments stuck in intermediate states, which when found, the worker proceeds to call the bank to verify the state of the stuck payments.
-
----
-
-## What I'd Do Differently In Production:
-
-
-## State Management
-
-I'd represent only states exposed to FicMart in my domain layer; Then I'd add a `operation_type` column to the `idempotency_keys` table to separate operation intent from payment state
-
-## Others
-
-I'd add something like a payment_events or payment_lifecycle table to show transitions of various payments from one state to the other. This is particularly useful cos in my project, I mark pending payments that timed out as failed so if a authorize call was made to the bank for a new payment and my gateway for any reason didn't receive the response of `authorized`, I can show that this payment went from pending -> failed and if the bank authorized it, I can use it to tell the bank to release the customer's funds.
-
-
-
-### Testing Strategy
-
-For this implementation, I must include:
-- **Concurrent double-spend test:** Two goroutines simultaneously try to capture the same payment; exactly one succeeds
-- **Idempotency verification:** Same request with same key returns cached response
-- **Crash simulation:** Insert PENDING, kill process, verify worker recovers state
-
-Future additions would include:
-- **Chaos testing** with network failures injected at specific points
-- **Time-based tests** to verify expiration logic works correctly
-- **Contract tests** against the actual bank API
-
-### Performance Optimization
-
-I'd move the idempotency table to Redis for faster reads since reads
----
-
-## Biggest Limitation
-
-The biggest risk in my current design is **data inconsistency**. If my gateway's state diverges from the bank's state (due to bugs in the reconciliation worker, clock skew exceeding the grace period, or database connection pool exhaustion causing failed updates), it could lead to:
-- FicMart shipping goods on an expired authorization
-- Double-charging customers if the worker retries outside the idempotency window
-- Lost money if a valid authorization is incorrectly marked as expired
-
-The reconciliation worker is critical, and any bugs in that component have direct financial impact. The "commit first, then call bank" pattern creates a deliberate window of inconsistency that the worker must resolve. This is an acceptable tradeoff because holding database connections during bank calls would exhaust the connection pool and cause cascading failures under load.
-
----
-
-## Key Implementation Constraints
-
-1. **Never hold database transactions during network calls** - Always commit the intent, call external APIs, then update in a new transaction
-2. **Respect context cancellation** - All operations must check `ctx.Done()`
-3. **Database-level uniqueness enforcement** - Idempotency is enforced by UNIQUE constraints, not application logic
-4. **Bank is source of truth for edge cases** - Don't reject requests based purely on local state near expiration boundaries
-5. **Required test coverage** - Must prove idempotency works under concurrent load
+*   **Separate Operation Intent:** Currently, the payment state encodes intent (e.g., `CAPTURING`). In production, I’d add an `operation_type` column to the idempotency table. This would keep the domain state clean (only `AUTHORIZED`, `CAPTURED`) while explicitly tracking what the worker needs to do.
+*   **Event Sourcing:** I would move to a `payment_events` table. Storing every transition (e.g., `PENDING` -> `CAPTURING` -> `CAPTURED`) provides a full audit trail and makes it easier to debug "orphaned" authorizations where the bank says "Yes" but our gateway marked "Failed" due to timeout.
+*   **Infrastructure Optimization:** For a high-scale environment, I’d move idempotency lookups to **Redis** for sub-millisecond latency, keeping PostgreSQL as a durable fallback.
+*   **Advanced Chaos Testing:** I would implement failure-injection testing to simulate crashes at the exact millisecond between the bank response and the database commit to further harden the recovery workers.
