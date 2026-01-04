@@ -10,8 +10,9 @@ import (
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/application/services"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/application/services/testhelpers"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/domain"
+	"github.com/DanielPopoola/ficmart-payment-gateway/internal/infrastructure/bank"
+	"github.com/DanielPopoola/ficmart-payment-gateway/internal/infrastructure/bank/mocks"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/infrastructure/persistence/postgres"
-	"github.com/DanielPopoola/ficmart-payment-gateway/internal/mocks"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -71,7 +72,7 @@ func (suite *AuthorizeServiceTestSuite) Test_Authorize_Success() {
 	idempotencyKey := "idem-" + uuid.New().String()
 
 	// Mock bank success response
-	expectedBankResp := &application.BankAuthorizationResponse{
+	expectedBankResp := &bank.AuthorizationResponse{
 		Amount:          cmd.Amount,
 		Currency:        cmd.Currency,
 		Status:          "AUTHORIZED",
@@ -113,7 +114,7 @@ func (suite *AuthorizeServiceTestSuite) Test_Authorize_DuplicateIdempotencyKey_R
 	idempotencyKey := "idem-" + uuid.New().String()
 
 	// Mock bank success response
-	bankResp := &application.BankAuthorizationResponse{
+	bankResp := &bank.AuthorizationResponse{
 		Amount:          cmd.Amount,
 		Currency:        cmd.Currency,
 		Status:          "AUTHORIZED",
@@ -142,7 +143,7 @@ func (suite *AuthorizeServiceTestSuite) Test_Authorize_DifferentRequestSameKey_R
 	cmd1 := testhelpers.DefaultAuthorizeCommand()
 	idempotencyKey := "idem-" + uuid.New().String()
 
-	bankResp := &application.BankAuthorizationResponse{
+	bankResp := &bank.AuthorizationResponse{
 		Amount:          cmd1.Amount,
 		Currency:        cmd1.Currency,
 		Status:          "AUTHORIZED",
@@ -177,7 +178,7 @@ func (suite *AuthorizeServiceTestSuite) Test_Authorize_BankReturns500_PaymentSta
 	cmd := testhelpers.DefaultAuthorizeCommand()
 	idempotencyKey := "idem-" + uuid.New().String()
 
-	bankErr := &application.BankError{
+	bankErr := &bank.BankError{
 		Code:       "internal_error",
 		Message:    "Bank internal error",
 		StatusCode: 500,
@@ -228,7 +229,7 @@ func (suite *AuthorizeServiceTestSuite) Test_Authorize_ConcurrentRequests_OnlyOn
 	cmd := testhelpers.DefaultAuthorizeCommand()
 	idempotencyKey := "idem-same-key"
 
-	bankResp := &application.BankAuthorizationResponse{
+	bankResp := &bank.AuthorizationResponse{
 		Amount:          cmd.Amount,
 		Currency:        cmd.Currency,
 		Status:          "AUTHORIZED",

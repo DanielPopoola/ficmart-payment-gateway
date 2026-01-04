@@ -8,7 +8,6 @@ import (
 
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/domain"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 )
 
 var ErrPaymentNotFound = errors.New("payment not found")
@@ -30,13 +29,7 @@ func (r *PaymentRepository) Create(ctx context.Context, tx pgx.Tx, payment *doma
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
 	`
 
-	var q interface {
-		Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
-	} = r.db
-	if tx != nil {
-		q = tx
-	}
-	_, err := q.Exec(ctx, query,
+	_, err := tx.Exec(ctx, query,
 		payment.ID,
 		payment.OrderID,
 		payment.CustomerID,
@@ -86,14 +79,8 @@ func (r *PaymentRepository) FindByIDForUpdate(ctx context.Context, tx pgx.Tx, id
 		FROM payments WHERE id = $1
 		FOR UPDATE
 	`
-	var q interface {
-		QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
-	} = r.db
-	if tx != nil {
-		q = tx
-	}
 
-	row := q.QueryRow(ctx, query, id)
+	row := tx.QueryRow(ctx, query, id)
 	return scanPayment(ctx, row)
 }
 
@@ -191,13 +178,7 @@ func (r *PaymentRepository) Update(ctx context.Context, tx pgx.Tx, payment *doma
 		WHERE id = $13
 	`
 
-	var q interface {
-		Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
-	} = r.db
-	if tx != nil {
-		q = tx
-	}
-	results, err := q.Exec(ctx, query,
+	results, err := tx.Exec(ctx, query,
 		payment.Status,
 		payment.BankAuthID,
 		payment.BankCaptureID,

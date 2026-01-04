@@ -5,12 +5,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DanielPopoola/ficmart-payment-gateway/internal/application"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/application/services"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/application/services/testhelpers"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/domain"
+	"github.com/DanielPopoola/ficmart-payment-gateway/internal/infrastructure/bank"
+	"github.com/DanielPopoola/ficmart-payment-gateway/internal/infrastructure/bank/mocks"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/infrastructure/persistence/postgres"
-	"github.com/DanielPopoola/ficmart-payment-gateway/internal/mocks"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -75,7 +75,7 @@ func (suite *QueryServiceTestSuite) createAuthorizedPayment(ctx context.Context,
 	idempotencyKey := "idem-" + uuid.New().String()
 
 	// Mock bank response
-	authResp := &application.BankAuthorizationResponse{
+	authResp := &bank.AuthorizationResponse{
 		Amount:          cmd.Amount,
 		Currency:        cmd.Currency,
 		Status:          "AUTHORIZED",

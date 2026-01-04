@@ -9,13 +9,15 @@ import (
 
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/application"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/domain"
+	"github.com/DanielPopoola/ficmart-payment-gateway/internal/infrastructure/bank"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/infrastructure/persistence/postgres"
+	"github.com/jackc/pgx/v5"
 )
 
 type RetryWorker struct {
 	paymentRepo     *postgres.PaymentRepository
 	idempotencyRepo *postgres.IdempotencyRepository
-	bankClient      application.BankClient
+	bankClient      bank.BankClient
 	interval        time.Duration
 	batchSize       int
 	db              *postgres.DB
@@ -25,7 +27,7 @@ type RetryWorker struct {
 func NewRetryWorker(
 	paymentRepo *postgres.PaymentRepository,
 	idempotencyRepo *postgres.IdempotencyRepository,
-	bankClient application.BankClient,
+	bankClient bank.BankClient,
 	db *postgres.DB,
 	interval time.Duration,
 	batchSize int,
@@ -177,7 +179,7 @@ func (w *RetryWorker) retryPayment(ctx context.Context, sp stuckPayment) error {
 }
 
 func (w *RetryWorker) resumeCapture(ctx context.Context, payment *domain.Payment, idempotencyKey string) error {
-	captureReq := application.BankCaptureRequest{
+	captureReq := bank.CaptureRequest{
 		Amount:          payment.AmountCents,
 		AuthorizationID: *payment.BankAuthID,
 	}
@@ -195,7 +197,10 @@ func (w *RetryWorker) resumeCapture(ctx context.Context, payment *domain.Payment
 				return failErr
 			}
 
-			tx, err := w.db.Begin(ctx)
+			tx, err := w.db.BeginTx(ctx, pgx.TxOptions{
+				IsoLevel: pgx.Serializable,
+			})
+
 			if err != nil {
 				return err
 			}
@@ -219,7 +224,10 @@ func (w *RetryWorker) resumeCapture(ctx context.Context, payment *domain.Payment
 		return w.scheduleRetry(ctx, payment, err)
 	}
 
-	tx, err := w.db.Begin(ctx)
+	tx, err := w.db.BeginTx(ctx, pgx.TxOptions{
+		IsoLevel: pgx.Serializable,
+	})
+
 	if err != nil {
 		return err
 	}
@@ -250,7 +258,7 @@ func (w *RetryWorker) resumeCapture(ctx context.Context, payment *domain.Payment
 }
 
 func (w *RetryWorker) resumeVoid(ctx context.Context, payment *domain.Payment, idempotencyKey string) error {
-	voidReq := application.BankVoidRequest{
+	voidReq := bank.VoidRequest{
 		AuthorizationID: *payment.BankAuthID,
 	}
 
@@ -267,7 +275,10 @@ func (w *RetryWorker) resumeVoid(ctx context.Context, payment *domain.Payment, i
 				return failErr
 			}
 
-			tx, err := w.db.Begin(ctx)
+			tx, err := w.db.BeginTx(ctx, pgx.TxOptions{
+				IsoLevel: pgx.Serializable,
+			})
+
 			if err != nil {
 				return err
 			}
@@ -290,7 +301,10 @@ func (w *RetryWorker) resumeVoid(ctx context.Context, payment *domain.Payment, i
 		}
 		return w.scheduleRetry(ctx, payment, err)
 	}
-	tx, err := w.db.Begin(ctx)
+	tx, err := w.db.BeginTx(ctx, pgx.TxOptions{
+		IsoLevel: pgx.Serializable,
+	})
+
 	if err != nil {
 		return err
 	}
@@ -321,7 +335,7 @@ func (w *RetryWorker) resumeVoid(ctx context.Context, payment *domain.Payment, i
 }
 
 func (w *RetryWorker) resumeRefund(ctx context.Context, payment *domain.Payment, idempotencyKey string) error {
-	refundReq := application.BankRefundRequest{
+	refundReq := bank.RefundRequest{
 		Amount:    payment.AmountCents,
 		CaptureID: *payment.BankCaptureID,
 	}
@@ -339,7 +353,10 @@ func (w *RetryWorker) resumeRefund(ctx context.Context, payment *domain.Payment,
 				return failErr
 			}
 
-			tx, err := w.db.Begin(ctx)
+			tx, err := w.db.BeginTx(ctx, pgx.TxOptions{
+				IsoLevel: pgx.Serializable,
+			})
+
 			if err != nil {
 				return err
 			}
@@ -363,7 +380,10 @@ func (w *RetryWorker) resumeRefund(ctx context.Context, payment *domain.Payment,
 		return w.scheduleRetry(ctx, payment, err)
 	}
 
-	tx, err := w.db.Begin(ctx)
+	tx, err := w.db.BeginTx(ctx, pgx.TxOptions{
+		IsoLevel: pgx.Serializable,
+	})
+
 	if err != nil {
 		return err
 	}

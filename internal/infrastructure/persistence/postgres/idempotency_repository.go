@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 )
 
 var ErrDuplicateIdempotencyKey = errors.New("duplicate transaction")
@@ -27,14 +26,7 @@ func (r *IdempotencyRepository) AcquireLock(ctx context.Context, tx pgx.Tx, key 
 		VALUES ($1, $2, $3, $4)
 	`
 
-	var q interface {
-		Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
-	} = r.db
-	if tx != nil {
-		q = tx
-	}
-
-	_, err := q.Exec(ctx, query, key, paymentID, requestHash, time.Now())
+	_, err := tx.Exec(ctx, query, key, paymentID, requestHash, time.Now())
 	if err != nil {
 		if IsUniqueViolation(err) {
 			return ErrDuplicateIdempotencyKey
@@ -104,13 +96,7 @@ func (r *IdempotencyRepository) StoreResponse(ctx context.Context, tx pgx.Tx, ke
 		SET response_payload = $1
 		WHERE key = $2
 	`
-	var q interface {
-		Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
-	} = r.db
-	if tx != nil {
-		q = tx
-	}
-	_, err := q.Exec(ctx, query, responsePayload, key)
+	_, err := tx.Exec(ctx, query, responsePayload, key)
 	if err != nil {
 		return fmt.Errorf("failed to store idempotency response: %w", err)
 	}
@@ -125,14 +111,7 @@ func (r *IdempotencyRepository) ReleaseLock(ctx context.Context, tx pgx.Tx, key 
         WHERE key = $1
     `
 
-	var q interface {
-		Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
-	} = r.db
-	if tx != nil {
-		q = tx
-	}
-
-	_, err := q.Exec(ctx, query, key)
+	_, err := tx.Exec(ctx, query, key)
 	if err != nil {
 		return fmt.Errorf("failed to release idempotency lock: %w", err)
 	}

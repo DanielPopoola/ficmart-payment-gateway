@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/domain"
+	"github.com/DanielPopoola/ficmart-payment-gateway/internal/infrastructure/bank"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/infrastructure/persistence/postgres"
 )
 
@@ -67,7 +68,7 @@ func CategorizeError(err error) ErrorCategory {
 	}
 
 	// Bank Errors (External API)
-	if bankErr, ok := IsBankError(err); ok {
+	if bankErr, ok := bank.IsBankError(err); ok {
 		if bankErr.StatusCode >= 500 {
 			return CategoryTransient
 		}
@@ -159,7 +160,7 @@ func ToHTTPStatus(err error) int {
 		return http.StatusRequestTimeout
 	}
 
-	if bankErr, ok := IsBankError(err); ok {
+	if bankErr, ok := bank.IsBankError(err); ok {
 		return bankErr.StatusCode
 	}
 
@@ -198,7 +199,7 @@ func ToErrorCode(err error) string {
 		return "PAYMENT_NOT_FOUND"
 	}
 
-	if bankErr, ok := IsBankError(err); ok {
+	if bankErr, ok := bank.IsBankError(err); ok {
 		return strings.ToUpper(bankErr.Code)
 	}
 

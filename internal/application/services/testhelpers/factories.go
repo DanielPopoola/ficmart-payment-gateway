@@ -5,10 +5,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DanielPopoola/ficmart-payment-gateway/internal/application"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/application/services"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/domain"
-	"github.com/DanielPopoola/ficmart-payment-gateway/internal/mocks"
+	"github.com/DanielPopoola/ficmart-payment-gateway/internal/infrastructure/bank"
+	"github.com/DanielPopoola/ficmart-payment-gateway/internal/infrastructure/bank/mocks"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -35,7 +35,7 @@ func CreateAuthorizedPayment(
 
 	idempotencyKey := "idem-auth-" + uuid.New().String()
 
-	authResp := &application.BankAuthorizationResponse{
+	authResp := &bank.AuthorizationResponse{
 		Amount:          100,
 		Currency:        "USD",
 		Status:          "authorized",
@@ -72,7 +72,7 @@ func CreateCapturedPayment(
 	}
 	idempotencyKey := "idem-capt" + uuid.New().String()
 
-	captureResp := &application.BankCaptureResponse{
+	captureResp := &bank.CaptureResponse{
 		Amount:          payment.AmountCents,
 		Currency:        payment.Currency,
 		AuthorizationID: *payment.BankAuthID,
@@ -106,7 +106,7 @@ func CreateVoidedPayment(
 	}
 	idempotencyKey := "idem-void" + uuid.New().String()
 
-	voidResp := &application.BankVoidResponse{
+	voidResp := &bank.VoidResponse{
 		AuthorizationID: *payment.BankAuthID,
 		Status:          "voided",
 		VoidID:          "void-123",
@@ -140,7 +140,7 @@ func CreateRefundedPayment(
 	}
 	idempotencyKey := "idem-refund" + uuid.New().String()
 
-	refundResp := &application.BankRefundResponse{
+	refundResp := &bank.RefundResponse{
 		Amount:     payment.AmountCents,
 		Currency:   payment.Currency,
 		Status:     "refunded",

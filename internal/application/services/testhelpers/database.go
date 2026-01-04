@@ -101,7 +101,7 @@ func getProjectRoot() string {
 
 func runMigrations(ctx context.Context, db *postgres.DB) error {
 	root := getProjectRoot()
-	migrationPath := filepath.Join(root, "db", "migrations", "001_initial_schema.sql")
+	migrationPath := filepath.Join(root, "db", "migrations", "001_init.up.sql")
 
 	migrationSQL, err := os.ReadFile(migrationPath)
 	if err != nil {

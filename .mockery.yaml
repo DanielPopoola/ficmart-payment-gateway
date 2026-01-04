@@ -1,9 +1,10 @@
 # .mockery.yaml
 with-expecter: true
-dir: "internal/mocks"
+
 packages:
-  github.com/DanielPopoola/ficmart-payment-gateway/internal/application:
+  github.com/DanielPopoola/ficmart-payment-gateway/internal/infrastructure/bank:
     config:
       outpkg: mocks
+      dir: internal/infrastructure/bank/mocks
     interfaces:
       BankClient:

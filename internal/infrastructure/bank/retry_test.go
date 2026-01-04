@@ -6,10 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DanielPopoola/ficmart-payment-gateway/internal/application"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/config"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/infrastructure/bank"
-	"github.com/DanielPopoola/ficmart-payment-gateway/internal/mocks"
+	"github.com/DanielPopoola/ficmart-payment-gateway/internal/infrastructure/bank/mocks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -22,7 +21,7 @@ func TestRetryBankClient_Authorize_Success(t *testing.T) {
 		MaxRetries: 3,
 	})
 
-	req := application.BankAuthorizationRequest{
+	req := bank.AuthorizationRequest{
 		Amount:      5000,
 		CardNumber:  "4111111111111111",
 		Cvv:         "123",
@@ -30,7 +29,7 @@ func TestRetryBankClient_Authorize_Success(t *testing.T) {
 		ExpiryYear:  2030,
 	}
 
-	expectedResp := &application.BankAuthorizationResponse{
+	expectedResp := &bank.AuthorizationResponse{
 		Amount:          5000,
 		Currency:        "USD",
 		Status:          "AUTHORIZED",
@@ -57,7 +56,7 @@ func TestRetryBankClient_Authorize_RetriesOn5xx(t *testing.T) {
 		MaxRetries: 3,
 	})
 
-	req := application.BankAuthorizationRequest{
+	req := bank.AuthorizationRequest{
 		Amount:      5000,
 		CardNumber:  "4111111111111111",
 		Cvv:         "123",
@@ -65,14 +64,14 @@ func TestRetryBankClient_Authorize_RetriesOn5xx(t *testing.T) {
 		ExpiryYear:  2030,
 	}
 
-	expectedResp := &application.BankAuthorizationResponse{
+	expectedResp := &bank.AuthorizationResponse{
 		AuthorizationID: "auth-123",
 	}
 
 	// First two calls fail with 500
 	mockClient.EXPECT().
 		Authorize(mock.Anything, req, "idem-key").
-		Return(nil, &application.BankError{
+		Return(nil, &bank.BankError{
 			Code:       "internal_error",
 			Message:    "Internal server error",
 			StatusCode: 500,
@@ -98,7 +97,7 @@ func TestRetryBankClient_Authorize_DoesNotRetryOn4xx(t *testing.T) {
 		MaxRetries: 3,
 	})
 
-	req := application.BankAuthorizationRequest{
+	req := bank.AuthorizationRequest{
 		Amount:      5000,
 		CardNumber:  "4111111111111111",
 		Cvv:         "123",
@@ -106,7 +105,7 @@ func TestRetryBankClient_Authorize_DoesNotRetryOn4xx(t *testing.T) {
 		ExpiryYear:  2030,
 	}
 
-	expectedErr := &application.BankError{
+	expectedErr := &bank.BankError{
 		Code:       "invalid_card",
 		Message:    "Invalid card number",
 		StatusCode: 400,
@@ -123,7 +122,7 @@ func TestRetryBankClient_Authorize_DoesNotRetryOn4xx(t *testing.T) {
 	require.Error(t, err)
 	assert.Nil(t, resp)
 
-	var bankErr *application.BankError
+	var bankErr *bank.BankError
 	assert.True(t, errors.As(err, &bankErr))
 	assert.Equal(t, expectedErr.Code, bankErr.Code)
 }
@@ -135,7 +134,7 @@ func TestRetryBankClient_Authorize_ExhaustsRetries(t *testing.T) {
 		MaxRetries: 3,
 	})
 
-	req := application.BankAuthorizationRequest{
+	req := bank.AuthorizationRequest{
 		Amount:      5000,
 		CardNumber:  "4111111111111111",
 		Cvv:         "123",
@@ -143,7 +142,7 @@ func TestRetryBankClient_Authorize_ExhaustsRetries(t *testing.T) {
 		ExpiryYear:  2030,
 	}
 
-	expectedErr := &application.BankError{
+	expectedErr := &bank.BankError{
 		Code:       "internal_error",
 		Message:    "Internal server error",
 		StatusCode: 500,
@@ -169,12 +168,12 @@ func TestRetryBankClient_Capture_Success(t *testing.T) {
 		MaxRetries: 3,
 	})
 
-	req := application.BankCaptureRequest{
+	req := bank.CaptureRequest{
 		Amount:          5000,
 		AuthorizationID: "auth-123",
 	}
 
-	expectedResp := &application.BankCaptureResponse{
+	expectedResp := &bank.CaptureResponse{
 		Amount:          5000,
 		Currency:        "USD",
 		AuthorizationID: "auth-123",
@@ -201,11 +200,11 @@ func TestRetryBankClient_Void_Success(t *testing.T) {
 		MaxRetries: 3,
 	})
 
-	req := application.BankVoidRequest{
+	req := bank.VoidRequest{
 		AuthorizationID: "auth-123",
 	}
 
-	expectedResp := &application.BankVoidResponse{
+	expectedResp := &bank.VoidResponse{
 		AuthorizationID: "auth-123",
 		Status:          "VOIDED",
 		VoidID:          "void-123",
@@ -230,12 +229,12 @@ func TestRetryBankClient_Refund_Success(t *testing.T) {
 		MaxRetries: 3,
 	})
 
-	req := application.BankRefundRequest{
+	req := bank.RefundRequest{
 		Amount:    5000,
 		CaptureID: "cap-123",
 	}
 
-	expectedResp := &application.BankRefundResponse{
+	expectedResp := &bank.RefundResponse{
 		Amount:     5000,
 		Currency:   "USD",
 		Status:     "REFUNDED",
@@ -262,7 +261,7 @@ func TestRetryBankClient_RespectsContextCancellation(t *testing.T) {
 		MaxRetries: 10, // High retry count
 	})
 
-	req := application.BankAuthorizationRequest{
+	req := bank.AuthorizationRequest{
 		Amount:      5000,
 		CardNumber:  "4111111111111111",
 		Cvv:         "123",
@@ -273,7 +272,7 @@ func TestRetryBankClient_RespectsContextCancellation(t *testing.T) {
 	// First call fails
 	mockClient.EXPECT().
 		Authorize(mock.Anything, req, "idem-key").
-		Return(nil, &application.BankError{
+		Return(nil, &bank.BankError{
 			Code:       "internal_error",
 			StatusCode: 500,
 		}).

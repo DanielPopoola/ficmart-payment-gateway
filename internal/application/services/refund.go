@@ -8,20 +8,22 @@ import (
 
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/application"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/domain"
+	"github.com/DanielPopoola/ficmart-payment-gateway/internal/infrastructure/bank"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/infrastructure/persistence/postgres"
+	"github.com/jackc/pgx/v5"
 )
 
 type RefundService struct {
 	paymentRepo     *postgres.PaymentRepository
 	idempotencyRepo *postgres.IdempotencyRepository
-	bankClient      application.BankClient
+	bankClient      bank.BankClient
 	db              *postgres.DB
 }
 
 func NewRefundService(
 	paymentRepo *postgres.PaymentRepository,
 	idempotencyRepo *postgres.IdempotencyRepository,
-	bankClient application.BankClient,
+	bankClient bank.BankClient,
 	db *postgres.DB,
 ) *RefundService {
 	return &RefundService{
@@ -51,7 +53,10 @@ func (s *RefundService) Refund(ctx context.Context, cmd RefundCommand, idempoten
 		return s.waitForCompletion(ctx, idempotencyKey)
 	}
 
-	tx, err := s.db.Begin(ctx)
+	tx, err := s.db.BeginTx(ctx, pgx.TxOptions{
+		IsoLevel: pgx.Serializable,
+	})
+
 	if err != nil {
 		return nil, application.NewInternalError(err)
 	}
@@ -82,7 +87,7 @@ func (s *RefundService) Refund(ctx context.Context, cmd RefundCommand, idempoten
 		return nil, application.NewInternalError(err)
 	}
 
-	bankReq := application.BankRefundRequest{
+	bankReq := bank.RefundRequest{
 		Amount:    cmd.Amount,
 		CaptureID: *payment.BankCaptureID,
 	}
@@ -95,7 +100,10 @@ func (s *RefundService) Refund(ctx context.Context, cmd RefundCommand, idempoten
 				return nil, application.NewInvalidStateError(failErr)
 			}
 
-			tx, err := s.db.Begin(ctx)
+			tx, err := s.db.BeginTx(ctx, pgx.TxOptions{
+				IsoLevel: pgx.Serializable,
+			})
+
 			if err != nil {
 				return nil, application.NewInternalError(err)
 			}
@@ -115,7 +123,7 @@ func (s *RefundService) Refund(ctx context.Context, cmd RefundCommand, idempoten
 		return payment, err
 	}
 
-	tx, err = s.db.Begin(ctx)
+	tx, err = s.db.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.Serializable})
 	if err != nil {
 		return payment, application.NewInternalError(err)
 	}

@@ -7,17 +7,16 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/DanielPopoola/ficmart-payment-gateway/internal/application"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/config"
 )
 
 type RetryBankClient struct {
-	inner      application.BankClient
+	inner      BankClient
 	baseDelay  time.Duration
 	maxRetries int
 }
 
-func NewRetryBankClient(inner application.BankClient, cfg config.RetryConfig) application.BankClient {
+func NewRetryBankClient(inner BankClient, cfg config.RetryConfig) BankClient {
 	return &RetryBankClient{
 		inner:      inner,
 		baseDelay:  time.Duration(cfg.BaseDelay) * time.Second,
@@ -26,54 +25,54 @@ func NewRetryBankClient(inner application.BankClient, cfg config.RetryConfig) ap
 }
 
 // Authorize with retry logic
-func (r *RetryBankClient) Authorize(ctx context.Context, req application.BankAuthorizationRequest, idempotencyKey string) (*application.BankAuthorizationResponse, error) {
+func (r *RetryBankClient) Authorize(ctx context.Context, req AuthorizationRequest, idempotencyKey string) (*AuthorizationResponse, error) {
 	return retry(
 		r,
 		ctx,
-		func(ctx context.Context) (*application.BankAuthorizationResponse, error) {
+		func(ctx context.Context) (*AuthorizationResponse, error) {
 			return r.inner.Authorize(ctx, req, idempotencyKey)
 		},
 	)
 }
 
 // Capture with retry logic
-func (r *RetryBankClient) Capture(ctx context.Context, req application.BankCaptureRequest, idempotencyKey string) (*application.BankCaptureResponse, error) {
+func (r *RetryBankClient) Capture(ctx context.Context, req CaptureRequest, idempotencyKey string) (*CaptureResponse, error) {
 	return retry(
 		r,
 		ctx,
-		func(ctx context.Context) (*application.BankCaptureResponse, error) {
+		func(ctx context.Context) (*CaptureResponse, error) {
 			return r.inner.Capture(ctx, req, idempotencyKey)
 		},
 	)
 }
 
 // Void with retry logic
-func (r *RetryBankClient) Void(ctx context.Context, req application.BankVoidRequest, idempotencyKey string) (*application.BankVoidResponse, error) {
+func (r *RetryBankClient) Void(ctx context.Context, req VoidRequest, idempotencyKey string) (*VoidResponse, error) {
 	return retry(
 		r,
 		ctx,
-		func(ctx context.Context) (*application.BankVoidResponse, error) {
+		func(ctx context.Context) (*VoidResponse, error) {
 			return r.inner.Void(ctx, req, idempotencyKey)
 		},
 	)
 }
 
 // Refund with retry logic
-func (r *RetryBankClient) Refund(ctx context.Context, req application.BankRefundRequest, idempotencyKey string) (*application.BankRefundResponse, error) {
+func (r *RetryBankClient) Refund(ctx context.Context, req RefundRequest, idempotencyKey string) (*RefundResponse, error) {
 	return retry(
 		r,
 		ctx,
-		func(ctx context.Context) (*application.BankRefundResponse, error) {
+		func(ctx context.Context) (*RefundResponse, error) {
 			return r.inner.Refund(ctx, req, idempotencyKey)
 		},
 	)
 }
 
-func (r *RetryBankClient) GetAuthorization(ctx context.Context, authID string) (*application.BankAuthorizationResponse, error) {
+func (r *RetryBankClient) GetAuthorization(ctx context.Context, authID string) (*AuthorizationResponse, error) {
 	return retry(
 		r,
 		ctx,
-		func(ctx context.Context) (*application.BankAuthorizationResponse, error) {
+		func(ctx context.Context) (*AuthorizationResponse, error) {
 			return r.inner.GetAuthorization(ctx, authID)
 		},
 	)
@@ -111,7 +110,7 @@ func retry[T any](r *RetryBankClient, ctx context.Context, operation func(ctx co
 
 // Helper: to check retryable errors
 func isRetryable(err error) bool {
-	var bankErr *application.BankError
+	var bankErr *BankError
 	if errors.As(err, &bankErr) {
 		if bankErr.StatusCode >= 500 {
 			return true

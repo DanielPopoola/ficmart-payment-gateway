@@ -8,21 +8,23 @@ import (
 
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/application"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/domain"
+	"github.com/DanielPopoola/ficmart-payment-gateway/internal/infrastructure/bank"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/infrastructure/persistence/postgres"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 )
 
 type AuthorizeService struct {
 	paymentRepo     *postgres.PaymentRepository
 	idempotencyRepo *postgres.IdempotencyRepository
-	bankClient      application.BankClient
+	bankClient      bank.BankClient
 	db              *postgres.DB
 }
 
 func NewAuthorizeService(
 	paymentRepo *postgres.PaymentRepository,
 	idempotencyRepo *postgres.IdempotencyRepository,
-	bankClient application.BankClient,
+	bankClient bank.BankClient,
 	db *postgres.DB,
 ) *AuthorizeService {
 	return &AuthorizeService{
@@ -49,7 +51,9 @@ func (s *AuthorizeService) Authorize(ctx context.Context, cmd AuthorizeCommand, 
 		return s.waitForCompletion(ctx, idempotencyKey)
 	}
 
-	tx, err := s.db.Begin(ctx)
+	tx, err := s.db.BeginTx(ctx, pgx.TxOptions{
+		IsoLevel: pgx.Serializable,
+	})
 	if err != nil {
 		return nil, application.NewInternalError(err)
 	}
@@ -79,7 +83,7 @@ func (s *AuthorizeService) Authorize(ctx context.Context, cmd AuthorizeCommand, 
 		return nil, application.NewInternalError(err)
 	}
 
-	bankReq := application.BankAuthorizationRequest{
+	bankReq := bank.AuthorizationRequest{
 		Amount:      cmd.Amount,
 		CardNumber:  cmd.CardNumber,
 		Cvv:         cmd.CVV,
@@ -95,7 +99,10 @@ func (s *AuthorizeService) Authorize(ctx context.Context, cmd AuthorizeCommand, 
 				return nil, application.NewInvalidStateError(failErr)
 			}
 
-			tx, err := s.db.Begin(ctx)
+			tx, err := s.db.BeginTx(ctx, pgx.TxOptions{
+				IsoLevel: pgx.Serializable,
+			})
+
 			if err != nil {
 				return nil, application.NewInternalError(err)
 			}
@@ -115,7 +122,7 @@ func (s *AuthorizeService) Authorize(ctx context.Context, cmd AuthorizeCommand, 
 		return payment, err
 	}
 
-	tx, err = s.db.Begin(ctx)
+	tx, err = s.db.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.Serializable})
 	if err != nil {
 		return payment, application.NewInternalError(err)
 	}

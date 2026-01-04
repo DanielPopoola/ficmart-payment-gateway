@@ -10,8 +10,9 @@ import (
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/application/services"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/application/services/testhelpers"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/domain"
+	"github.com/DanielPopoola/ficmart-payment-gateway/internal/infrastructure/bank"
+	"github.com/DanielPopoola/ficmart-payment-gateway/internal/infrastructure/bank/mocks"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/infrastructure/persistence/postgres"
-	"github.com/DanielPopoola/ficmart-payment-gateway/internal/mocks"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -102,7 +103,7 @@ func (suite *CaptureServiceTestSuite) Test_Capture_CannotCapturePendingPayment()
 	cmd := testhelpers.DefaultAuthorizeCommand()
 	idempotencyKey := "idem-" + uuid.New().String()
 
-	bankErr := &application.BankError{
+	bankErr := &bank.BankError{
 		Code:       "internal_error",
 		Message:    "Bank error",
 		StatusCode: 500,
@@ -142,7 +143,7 @@ func (suite *CaptureServiceTestSuite) Test_Capture_CannotCaptureAlreadyCapturedP
 	}
 	firstKey := "idem-first-" + uuid.New().String()
 
-	captureResp := &application.BankCaptureResponse{
+	captureResp := &bank.CaptureResponse{
 		Amount:          cmd.Amount,
 		Currency:        "USD",
 		AuthorizationID: *payment.BankAuthID,
@@ -181,7 +182,7 @@ func (suite *CaptureServiceTestSuite) Test_Capture_IdempotencyReturnsCache() {
 	}
 	idempotencyKey := "idem-same-key"
 
-	captureResp := &application.BankCaptureResponse{
+	captureResp := &bank.CaptureResponse{
 		Amount:          cmd.Amount,
 		Currency:        "USD",
 		AuthorizationID: *payment.BankAuthID,
@@ -236,7 +237,7 @@ func (suite *CaptureServiceTestSuite) Test_Capture_BankReturns500_PaymentStaysCa
 	}
 	idempotencyKey := "idem-" + uuid.New().String()
 
-	bankErr := &application.BankError{
+	bankErr := &bank.BankError{
 		Code:       "internal_error",
 		Message:    "Bank internal error",
 		StatusCode: 500,
@@ -271,7 +272,7 @@ func (suite *CaptureServiceTestSuite) Test_Capture_BankReturnsPermanentError_IsF
 	}
 	idempotencyKey := "idem-" + uuid.New().String()
 
-	bankErr := &application.BankError{
+	bankErr := &bank.BankError{
 		Code:       "authorization_expired",
 		Message:    "Authorization has expired",
 		StatusCode: 400,
@@ -301,7 +302,7 @@ func (suite *CaptureServiceTestSuite) Test_Capture_ConcurrentRequests_OnlyOneSuc
 	}
 	idempotencyKey := "idem-same-key"
 
-	captureResp := &application.BankCaptureResponse{
+	captureResp := &bank.CaptureResponse{
 		Amount:          cmd.Amount,
 		Currency:        "USD",
 		AuthorizationID: *payment.BankAuthID,

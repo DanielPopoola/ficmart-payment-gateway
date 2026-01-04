@@ -12,5 +12,4 @@ type IdempotencyKey struct {
 	RequestHash     string
 	LockedAt        *time.Time
 	ResponsePayload *[]byte
-	StatusCode      *int
 }

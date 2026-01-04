@@ -10,16 +10,24 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/DanielPopoola/ficmart-payment-gateway/internal/application"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/config"
 )
+
+type BankClient interface {
+	Authorize(ctx context.Context, req AuthorizationRequest, idempotencyKey string) (*AuthorizationResponse, error)
+	Capture(ctx context.Context, req CaptureRequest, idempotencyKey string) (*CaptureResponse, error)
+	Void(ctx context.Context, req VoidRequest, idempotencyKey string) (*VoidResponse, error)
+	Refund(ctx context.Context, req RefundRequest, idempotencyKey string) (*RefundResponse, error)
+
+	GetAuthorization(ctx context.Context, authID string) (*AuthorizationResponse, error)
+}
 
 type HTTPBankClient struct {
 	baseURL    string
 	httpClient *http.Client
 }
 
-func NewBankClient(cfg config.BankConfig) application.BankClient {
+func NewBankClient(cfg config.BankConfig) BankClient {
 	return &HTTPBankClient{
 		baseURL: cfg.BankBaseURL,
 		httpClient: &http.Client{
@@ -28,29 +36,29 @@ func NewBankClient(cfg config.BankConfig) application.BankClient {
 	}
 }
 
-func (c *HTTPBankClient) Authorize(ctx context.Context, req application.BankAuthorizationRequest, idempotencyKey string) (*application.BankAuthorizationResponse, error) {
+func (c *HTTPBankClient) Authorize(ctx context.Context, req AuthorizationRequest, idempotencyKey string) (*AuthorizationResponse, error) {
 	url := fmt.Sprintf("%s/api/v1/authorizations", c.baseURL)
-	return sendRequest[application.BankAuthorizationRequest, application.BankAuthorizationResponse](c, ctx, http.MethodPost, url, &req, idempotencyKey)
+	return sendRequest[AuthorizationRequest, AuthorizationResponse](c, ctx, http.MethodPost, url, &req, idempotencyKey)
 }
 
-func (c *HTTPBankClient) Capture(ctx context.Context, req application.BankCaptureRequest, idempotencyKey string) (*application.BankCaptureResponse, error) {
+func (c *HTTPBankClient) Capture(ctx context.Context, req CaptureRequest, idempotencyKey string) (*CaptureResponse, error) {
 	url := fmt.Sprintf("%s/api/v1/captures", c.baseURL)
-	return sendRequest[application.BankCaptureRequest, application.BankCaptureResponse](c, ctx, http.MethodPost, url, &req, idempotencyKey)
+	return sendRequest[CaptureRequest, CaptureResponse](c, ctx, http.MethodPost, url, &req, idempotencyKey)
 }
 
-func (c *HTTPBankClient) Void(ctx context.Context, req application.BankVoidRequest, idempotencyKey string) (*application.BankVoidResponse, error) {
+func (c *HTTPBankClient) Void(ctx context.Context, req VoidRequest, idempotencyKey string) (*VoidResponse, error) {
 	url := fmt.Sprintf("%s/api/v1/voids", c.baseURL)
-	return sendRequest[application.BankVoidRequest, application.BankVoidResponse](c, ctx, http.MethodPost, url, &req, idempotencyKey)
+	return sendRequest[VoidRequest, VoidResponse](c, ctx, http.MethodPost, url, &req, idempotencyKey)
 }
 
-func (c *HTTPBankClient) Refund(ctx context.Context, req application.BankRefundRequest, idempotencyKey string) (*application.BankRefundResponse, error) {
+func (c *HTTPBankClient) Refund(ctx context.Context, req RefundRequest, idempotencyKey string) (*RefundResponse, error) {
 	url := fmt.Sprintf("%s/api/v1/refunds", c.baseURL)
-	return sendRequest[application.BankRefundRequest, application.BankRefundResponse](c, ctx, http.MethodPost, url, &req, idempotencyKey)
+	return sendRequest[RefundRequest, RefundResponse](c, ctx, http.MethodPost, url, &req, idempotencyKey)
 }
 
-func (c *HTTPBankClient) GetAuthorization(ctx context.Context, authID string) (*application.BankAuthorizationResponse, error) {
+func (c *HTTPBankClient) GetAuthorization(ctx context.Context, authID string) (*AuthorizationResponse, error) {
 	url := fmt.Sprintf("%s/api/v1/authorizations/%s", c.baseURL, authID)
-	return sendRequest[any, application.BankAuthorizationResponse](c, ctx, http.MethodGet, url, nil, "")
+	return sendRequest[any, AuthorizationResponse](c, ctx, http.MethodGet, url, nil, "")
 }
 
 func sendRequest[Req any, Resp any](c *HTTPBankClient, ctx context.Context, method, url string, reqBody *Req, idempotencyKey string) (*Resp, error) {
@@ -84,15 +92,15 @@ func sendRequest[Req any, Resp any](c *HTTPBankClient, ctx context.Context, meth
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		var bankErrResp application.BankErrorResponse
+		var bankErrResp BankErrorResponse
 		if err := json.Unmarshal(body, &bankErrResp); err != nil {
-			return nil, &application.BankError{
+			return nil, &BankError{
 				Code:       "UNKNOWN",
 				Message:    string(body),
 				StatusCode: resp.StatusCode,
 			}
 		}
-		return nil, &application.BankError{
+		return nil, &BankError{
 			Code:       bankErrResp.Err,
 			Message:    bankErrResp.Message,
 			StatusCode: resp.StatusCode,

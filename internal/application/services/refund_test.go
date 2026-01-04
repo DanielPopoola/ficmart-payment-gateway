@@ -9,8 +9,9 @@ import (
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/application/services"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/application/services/testhelpers"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/domain"
+	"github.com/DanielPopoola/ficmart-payment-gateway/internal/infrastructure/bank"
+	"github.com/DanielPopoola/ficmart-payment-gateway/internal/infrastructure/bank/mocks"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/infrastructure/persistence/postgres"
-	"github.com/DanielPopoola/ficmart-payment-gateway/internal/mocks"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -110,7 +111,7 @@ func (suite *RefundServiceTestSuite) Test_Refund_CannotRefundPendingPayment() {
 	cmd := testhelpers.DefaultAuthorizeCommand()
 	idempotencyKey := "idem-" + uuid.New().String()
 
-	bankErr := &application.BankError{
+	bankErr := &bank.BankError{
 		Code:       "internal_error",
 		Message:    "Bank error",
 		StatusCode: 500,
@@ -156,7 +157,7 @@ func (suite *RefundServiceTestSuite) Test_Refund_CannotRefundAlreadyRefundedPaym
 	}
 	firstKey := "idem-first-" + uuid.New().String()
 
-	refundResp := &application.BankRefundResponse{
+	refundResp := &bank.RefundResponse{
 		Amount:     payment.AmountCents,
 		Currency:   payment.Currency,
 		CaptureID:  *payment.BankCaptureID,
@@ -201,7 +202,7 @@ func (suite *RefundServiceTestSuite) Test_Refund_IdempotencyReturnsCache() {
 	}
 	idempotencyKey := "idem-same-key"
 
-	refundResp := &application.BankRefundResponse{
+	refundResp := &bank.RefundResponse{
 		Amount:     payment.AmountCents,
 		Currency:   payment.Currency,
 		CaptureID:  *payment.BankCaptureID,
@@ -262,7 +263,7 @@ func (suite *RefundServiceTestSuite) Test_Refund_BankReturns500_PaymentStaysRefu
 	}
 	idempotencyKey := "idem-" + uuid.New().String()
 
-	bankErr := &application.BankError{
+	bankErr := &bank.BankError{
 		Code:       "internal_error",
 		Message:    "Bank internal error",
 		StatusCode: 500,
@@ -303,7 +304,7 @@ func (suite *RefundServiceTestSuite) Test_Refund_BankReturnsPermanentError_Payme
 	}
 	idempotencyKey := "idem-" + uuid.New().String()
 
-	bankErr := &application.BankError{
+	bankErr := &bank.BankError{
 		Code:       "authorization_expired",
 		Message:    "Authorization has expired",
 		StatusCode: 400,
@@ -344,7 +345,7 @@ func (suite *RefundServiceTestSuite) Test_Refund_ConcurrentRequests_OnlyOneSucce
 
 	idempotencyKey := "idem-" + uuid.New().String()
 
-	refundResp := &application.BankRefundResponse{
+	refundResp := &bank.RefundResponse{
 		Amount:     payment.AmountCents,
 		Currency:   payment.Currency,
 		CaptureID:  *payment.BankCaptureID,
