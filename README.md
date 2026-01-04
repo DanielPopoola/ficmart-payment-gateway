@@ -1,179 +1,137 @@
 # FicMart Payment Gateway
 
-A payment gateway service built in Go that handles authorization, capture, void, and refund operations for FicMart's e-commerce platform. This gateway integrates with a mock banking API and implements robust state management, idempotency, and failure recovery patterns.
+A production-grade payment gateway built in Go that handles card payment operations with robust state management, automatic failure recovery, and guaranteed idempotency. This gateway integrates with a mock banking API and implements enterprise-level patterns for handling distributed system failures.
 
-## Table of Contents
+## Why This Exists
 
-- [Features](#features)
-- [Architecture](#architecture)
-- [Prerequisites](#prerequisites)
-- [Getting Started](#getting-started)
-- [API Documentation](#api-documentation)
-- [Project Structure](#project-structure)
-- [Configuration](#configuration)
-- [Testing](#testing)
-- [Design Decisions](#design-decisions)
-- [Contributing](#contributing)
+Payment processing is deceptively hard. When you authorize a payment, your request might succeed at the bank but fail to save in your database. Or the bank might return a 500 error even though the authorization succeeded. This gateway solves these problems:
 
-## Features
+- **State Consistency**: Your database always reflects reality, even across crashes
+- **Automatic Recovery**: Background workers detect and fix stuck payments
+- **Idempotency Guarantees**: Retry-safe operations that never double-charge customers
+- **Failure Classification**: Intelligent retry logic that knows when to give up
 
-- **Payment Operations**: Support for authorize, capture, void, and refund transactions
-- **State Machine**: Enforces valid payment state transitions
-- **Idempotency**: Prevents duplicate charges through idempotency key mechanism
-- **Failure Recovery**: Background reconciliation worker for stuck payments
-- **Concurrent Safety**: Database-level concurrency control with optimistic locking
-- **Query Support**: Retrieve payments by order ID or customer ID
-- **Comprehensive Logging**: Structured logging for debugging and monitoring
+## Core Features
+
+### 🎯 Complete Payment Lifecycle
+- **Authorize**: Reserve funds on a customer's card
+- **Capture**: Charge previously authorized funds
+- **Void**: Cancel authorization before capture
+- **Refund**: Return money after capture
+
+### 🔄 Automatic Failure Recovery
+- Background workers detect payments stuck in intermediate states (`CAPTURING`, `VOIDING`, `REFUNDING`)
+- Exponential backoff with jitter prevents API overload
+- Smart error classification: transient errors are retried, permanent errors fail fast
+
+### 🛡️ Idempotency Guarantees
+- Database-level idempotency enforcement using unique constraints
+- Request hash validation prevents key reuse with different parameters
+- Concurrent request handling with lock-based coordination
+
+### 📊 State Machine Enforcement
+```
+PENDING → AUTHORIZED → CAPTURED → REFUNDED
+              ↓
+           VOIDED
+```
+Invalid transitions (e.g., voiding after capture) are rejected at the domain level.
 
 ## Architecture
 
-The gateway follows Clean Architecture principles with clear separation of concerns:
-
 ```
-┌─────────────┐
-│   FicMart   │
-│  (Client)   │
-└──────┬──────┘
-       │
-       ▼
-┌─────────────────────────────────────┐
-│      Payment Gateway (This)         │
-│  ┌───────────────────────────────┐  │
-│  │  HTTP Handlers                │  │
-│  └───────────┬───────────────────┘  │
-│              │                       │
-│  ┌───────────▼───────────────────┐  │
-│  │  Service Layer                │  │
-│  │  (Business Logic)             │  │
-│  └───────────┬───────────────────┘  │
-│              │                       │
-│  ┌───────────▼───────────────────┐  │
-│  │  Repository (Data Access)     │  │
-│  └───────────┬───────────────────┘  │
-│              │                       │
-│  ┌───────────▼───────────────────┐  │
-│  │  PostgreSQL Database          │  │
-│  └───────────────────────────────┘  │
-│                                      │
-│  ┌───────────────────────────────┐  │
-│  │  Background Reconciler        │  │
-│  └───────────────────────────────┘  │
-└──────────────┬───────────────────────┘
-               │
-               ▼
-        ┌─────────────┐
-        │  Mock Bank  │
-        │     API     │
-        └─────────────┘
-```
-
-### Key Components
-
-- **HTTP Handlers**: REST API endpoints for payment operations
-- **Service Layer**: Business logic and state management
-- **Repository**: Data access abstraction over PostgreSQL
-- **Bank Client**: HTTP client with retry logic for bank API
-- **Reconciler**: Background worker for recovering stuck payments
-
-## Prerequisites
-
-- **Go**: 1.23 or higher
-- **Docker**: 20.10+ (with Docker Compose)
-- **PostgreSQL**: 16+ (provided via Docker)
-- **Mock Bank API**: Running on `localhost:8787`
-
-## Getting Started
-
-### 1. Clone the Repository
-
-```bash
-git clone <repository-url>
-cd ficmart-payment-gateway
+┌─────────────────────────────────────────────────────────┐
+│                    FicMart (Client)                     │
+└───────────────────────┬─────────────────────────────────┘
+                        │
+                        ▼
+┌─────────────────────────────────────────────────────────┐
+│              Payment Gateway (REST API)                 │
+│  ┌───────────────────────────────────────────────────┐  │
+│  │              HTTP Handlers Layer                  │  │
+│  └──────────────────────┬────────────────────────────┘  │
+│                         │                                │
+│  ┌──────────────────────▼────────────────────────────┐  │
+│  │           Application Services Layer              │  │
+│  │  • AuthorizeService  • CaptureService            │  │
+│  │  • VoidService       • RefundService             │  │
+│  └──────────────────────┬────────────────────────────┘  │
+│                         │                                │
+│  ┌──────────────────────▼────────────────────────────┐  │
+│  │              Domain Layer (Pure)                  │  │
+│  │  • Payment Entity   • State Machine              │  │
+│  │  • Business Rules   • Domain Errors              │  │
+│  └──────────────────────┬────────────────────────────┘  │
+│                         │                                │
+│  ┌──────────────────────▼────────────────────────────┐  │
+│  │         Infrastructure Layer                      │  │
+│  │  • PostgreSQL Repos  • Bank HTTP Client          │  │
+│  └───────────────────────────────────────────────────┘  │
+│                                                           │
+│  ┌───────────────────────────────────────────────────┐  │
+│  │          Background Workers                       │  │
+│  │  • RetryWorker (stuck payments)                  │  │
+│  │  • ExpirationWorker (expired auths)              │  │
+│  └───────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────┘
+                        │
+                        ▼
+              ┌──────────────────┐
+              │   Mock Bank API  │
+              └──────────────────┘
 ```
 
-### 2. Set Up Environment Variables
+**Key Design Decisions:**
 
-Copy the example environment file and configure it:
+1. **Domain-Driven Design**: Business logic lives in the domain layer, completely isolated from HTTP/database concerns
+2. **Write-Ahead Pattern**: Every payment is saved as `PENDING` before calling the bank, ensuring we have a record to reconcile
+3. **Intermediate States**: States like `CAPTURING` signal intent, allowing workers to resume operations after crashes
+4. **Database-Level Concurrency**: PostgreSQL's `FOR UPDATE SKIP LOCKED` enables multiple worker instances to process retries concurrently
 
-```bash
-cp .env.example .env
-```
+See [TRADEOFFS.md](./TRADEOFFS.md) for detailed rationale.
 
-Edit `.env` to match your local setup. The defaults work for Docker Compose.
+## Quick Start
 
-### 3. Start the Mock Bank API
+### Prerequisites
 
-The payment gateway requires the mock bank API to be running:
+- **Docker & Docker Compose**: 20.10+
+- **Go**: 1.23+ (for local development)
+- **Make**: Optional (macOS/Linux)
+
+### 1. Start the Mock Bank
+
+The gateway requires the mock bank to be running:
 
 ```bash
 cd bank
 make up
 ```
 
-Verify the bank is running at `http://localhost:8787/docs`
+Verify at: http://localhost:8787/docs
 
-### 4. Start the Payment Gateway
-
-#### Using Docker Compose (Recommended)
+### 2. Start the Payment Gateway
 
 ```bash
-cd docker
-./dev.sh
+make up
 ```
 
-This will:
-- Start PostgreSQL
-- Run database migrations
-- Start the payment gateway on port 8080
+The gateway will be available at: http://localhost:8081
 
-#### Running Locally (Development)
+### 3. Verify Installation
 
 ```bash
-# Install dependencies
-go mod download
-
-# Run migrations (requires PostgreSQL running)
-# See migrations/001_initial_schema.sql
-
-# Start the application
-go run cmd/gateway/main.go
+# View API docs
+open http://localhost:8081/docs
 ```
 
-### 5. Verify Installation
+## API Usage
 
-Check the health endpoint:
+### Complete Payment Flow
 
-```bash
-curl http://localhost:8080/health
-```
-
-View API documentation:
+#### 1. Authorize Payment (Reserve Funds)
 
 ```bash
-open http://localhost:8080/docs/index.html
-```
-
-## API Documentation
-
-### Swagger UI
-
-Interactive API documentation is available at `http://localhost:8080/docs/index.html` when the service is running.
-
-### Core Endpoints
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/authorize` | Reserve funds on a card |
-| POST | `/capture` | Charge previously authorized funds |
-| POST | `/void` | Cancel an authorization |
-| POST | `/refund` | Return money after capture |
-| GET | `/payments/order/{orderID}` | Get payment by order ID |
-| GET | `/payments/customer/{customerID}` | List payments by customer |
-
-### Example: Authorize a Payment
-
-```bash
-curl -X POST http://localhost:8080/authorize \
+curl -X POST http://localhost:8081/authorize \
   -H "Content-Type: application/json" \
   -H "Idempotency-Key: $(uuidgen)" \
   -d '{
@@ -187,81 +145,78 @@ curl -X POST http://localhost:8080/authorize \
   }'
 ```
 
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "status": "AUTHORIZED",
+    "amount_cents": 5000,
+    "bank_auth_id": "auth-abc123",
+    "expires_at": "2024-01-22T10:30:01Z"
+  }
+}
+```
+
+#### 2. Capture Payment (Charge the Card)
+
+```bash
+curl -X POST http://localhost:8081/capture \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: $(uuidgen)" \
+  -d '{
+    "payment_id": "550e8400-e29b-41d4-a716-446655440000",
+    "amount": 5000
+  }'
+```
+
+#### 3. Query Payment Status
+
+```bash
+# By payment ID
+curl http://localhost:8081/payments/550e8400-e29b-41d4-a716-446655440000
+
+# By order ID
+curl http://localhost:8081/payments/order/order-12345
+
+# By customer ID
+curl http://localhost:8081/payments/customer/cust-67890?limit=10&offset=0
+```
+
 ### Test Cards
 
-| Card Number | CVV | Expiry | Balance | Use Case |
-|-------------|-----|--------|---------|----------|
-| 4111111111111111 | 123 | 12/2030 | $10,000 | Happy path |
-| 4242424242424242 | 456 | 06/2030 | $500 | Limited balance |
-| 5555555555554444 | 789 | 09/2030 | $0 | Insufficient funds |
-| 5105105105105100 | 321 | 03/2020 | $5,000 | Expired card |
+| Card Number          | CVV | Expiry  | Balance  | Use Case              |
+|---------------------|-----|---------|----------|-----------------------|
+| 4111111111111111    | 123 | 12/2030 | $10,000  | Happy path            |
+| 4242424242424242    | 456 | 06/2030 | $500     | Limited balance       |
+| 5555555555554444    | 789 | 09/2030 | $0       | Insufficient funds    |
+| 5105105105105100    | 321 | 03/2020 | $5,000   | Expired card          |
 
-## Project Structure
+## Development
 
-```
-.
-├── cmd/
-│   └── gateway/
-│       └── main.go              # Application entry point
-├── internal/
-│   ├── adapters/
-│   │   ├── bank/                # Bank API client
-│   │   ├── handler/             # HTTP handlers
-│   │   └── postgres/            # PostgreSQL repository
-│   ├── config/                  # Configuration loading
-│   ├── core/
-│   │   ├── domain/              # Domain models and errors
-│   │   ├── ports/               # Interface definitions
-│   │   └── service/             # Business logic
-│   └── worker/                  # Background reconciliation
-├── migrations/                  # SQL migration files
-├── docker/                      # Docker configuration
-├── docs/                        # Swagger documentation
-├── tests/                       # Integration tests
-├── go.mod
-├── go.sum
-├── .env.example
-├── README.md
-└── TRADEOFFS.md                 # Design decisions document
-```
-
-## Configuration
-
-Configuration is loaded from environment variables prefixed with `GATEWAY_`. See `.env.example` for all available options.
-
-### Key Configuration Sections
-
-- **Server**: Port, timeouts
-- **Database**: Connection settings, pool configuration
-- **Bank Client**: Base URL, connection timeout
-- **Retry**: Base delay, max retries
-- **Worker**: Reconciliation interval, batch size
-
-## Testing
-
-### Run Unit Tests
+### Run Locally (Hot Reload)
 
 ```bash
+cd docker
+docker compose up
+
+# In another terminal, attach to the container
+docker compose exec gateway sh
+air  # Hot reload on file changes
+```
+
+### Run Tests
+
+```bash
+# Unit tests
 go test ./internal/... -v
-```
 
-### Run Integration Tests
+# Integration tests (requires DB)
+go test ./internal/application/services/... -v
 
-Integration tests require PostgreSQL and the mock bank to be running:
-
-```bash
-# Start dependencies
-cd bank && make up
-cd docker && docker-compose up -d postgres
-
-# Run tests
-go test ./internal/tests -v
-```
-
-### Run Specific Test
-
-```bash
-go test ./internal/core/service -run TestAuthorizeService_Authorize_Success -v
+# E2E tests (requires gateway + bank running)
+RUN_E2E_TESTS=true go test ./internal/tests/e2e/... -v
 ```
 
 ### Test Coverage
@@ -271,61 +226,131 @@ go test ./internal/... -coverprofile=coverage.out
 go tool cover -html=coverage.out
 ```
 
-## Design Decisions
-
-For detailed information about architecture, state management, failure handling, and idempotency implementation, see [TRADEOFFS.md](TRADEOFFS.md).
-
-### Key Design Choices
-
-1. **Write-Ahead Pattern**: Save payment intent before calling bank
-2. **Database-Level Concurrency**: Use PostgreSQL constraints instead of application locks
-3. **Background Reconciliation**: Worker process recovers stuck payments
-4. **Lazy Expiration**: Let bank be source of truth for expiration edge cases
-5. **Idempotency via Database**: Unique constraints prevent duplicate requests
-
-## Development
-
-### Hot Reload (Development Mode)
-
-The project uses [Air](https://github.com/cosmtrek/air) for hot reloading during development:
-
-```bash
-air
-```
-
-Configuration is in `.air.toml`.
-
 ### Database Migrations
 
-Migrations are applied automatically on startup. To create a new migration:
+Migrations run automatically on startup. Files are in `internal/db/migrations/`.
 
-1. Create a new SQL file in `migrations/` with a sequential number prefix
-2. Write forward migrations only (no rollback for this project)
-3. Restart the gateway to apply
+## Project Structure
 
-### Adding a New Endpoint
+```
+.
+├── cmd/gateway/              # Application entry point
+├── internal/
+│   ├── domain/              # Business logic & state machine (zero dependencies)
+│   ├── application/         # Service orchestration & error handling
+│   │   └── services/        # AuthorizeService, CaptureService, etc.
+│   ├── infrastructure/      # External integrations
+│   │   ├── bank/           # Bank API client with retry logic
+│   │   └── persistence/    # PostgreSQL repositories
+│   ├── interfaces/          # HTTP handlers & middleware
+│   └── worker/              # Background retry & expiration workers
+├── internal/db/migrations/  # SQL migration files
+├── docker/                  # Docker & docker-compose setup
+└── internal/tests/          # Integration & E2E tests
+```
 
-1. Define request/response types in `internal/adapters/handler/`
-2. Implement service logic in `internal/core/service/`
-3. Add handler in `internal/adapters/handler/`
-4. Register route in `RegisterRoutes()`
-5. Add Swagger annotations
-6. Regenerate docs: `swag init -g cmd/gateway/main.go`
+## Configuration
+
+Configuration is loaded from environment variables with the `GATEWAY_` prefix. Key settings:
+
+```bash
+# Server
+GATEWAY_SERVER__PORT=8080
+GATEWAY_SERVER__READ_TIMEOUT=15s
+
+# Database
+GATEWAY_DATABASE__HOST=localhost
+GATEWAY_DATABASE__PORT=5432
+GATEWAY_DATABASE__MAX_OPEN_CONNS=25
+
+# Bank API
+GATEWAY_BANK_CLIENT__BANK_BASE_URL=http://localhost:8787
+GATEWAY_BANK_CLIENT__BANK_CONN_TIMEOUT=30s
+
+# Retry Behavior
+GATEWAY_RETRY__BASE_DELAY=1        # Initial delay in seconds
+GATEWAY_RETRY__MAX_RETRIES=3       # Max retry attempts
+
+# Workers
+GATEWAY_WORKER__INTERVAL=30s       # How often to check for stuck payments
+GATEWAY_WORKER__BATCH_SIZE=100     # Max payments to process per cycle
+```
+
+See [`.env.example`](./.env.example) for the complete list.
+
+## How It Handles Failures
+
+### Scenario 1: Bank Returns 500 Error
+
+1. Gateway saves payment as `PENDING`
+2. Bank call fails with 500
+3. Payment stays `PENDING` (no state change)
+4. **Not retried** (authorization requires card details we don't store)
+5. Marked `FAILED` for manual reconciliation
+
+### Scenario 2: Gateway Crashes During Capture
+
+1. Payment transitions to `CAPTURING`
+2. Bank responds with success
+3. **Gateway crashes before updating DB**
+4. Retry worker finds payment stuck in `CAPTURING`
+5. Retries with same idempotency key
+6. Bank returns cached success (idempotent!)
+7. Gateway updates payment to `CAPTURED`
+
+### Scenario 3: Transient Network Error
+
+1. Payment is in `VOIDING`
+2. Void call times out
+3. Worker schedules retry with exponential backoff: 1s → 2s → 4s
+4. Retry succeeds on second attempt
+5. Payment marked `VOIDED`
+
+## Design Philosophy
+
+This gateway prioritizes **correctness over performance**:
+
+- ✅ Never double-charge a customer
+- ✅ Always reconcile with the bank's state
+- ✅ Prefer database transactions over in-memory state
+- ✅ Fail loud (return errors) rather than fail silent
+
+For a deep dive into architecture decisions, retry strategies, and production considerations, see [TRADEOFFS.md](./TRADEOFFS.md).
+
+## Common Tasks
+
+```bash
+# View logs
+make logs
+
+# Restart gateway
+make restart
+
+# Connect to database
+docker compose exec payment-postgres psql -U postgres -d payment_gateway_db
+
+# Run linter
+cd docker && docker compose exec gateway golangci-lint run
+
+# Generate mocks
+mockery --config .mockery.yaml
+```
+
+## Known Limitations
+
+1. **No Partial Captures/Refunds**: Must capture/refund the full authorized amount
+2. **Single Currency**: Only USD is supported
+3. **No Card Tokenization**: Card details are not stored (by design)
+4. **Authorize Retry Limitation**: Failed authorizations cannot be automatically retried (requires card details)
 
 ## Contributing
 
-This is a portfolio/assessment project and is not accepting external contributions. However, feedback and suggestions are welcome via issues.
+This is a portfolio project demonstrating payment gateway patterns. While it's not accepting external contributions, feedback via issues is welcome.
 
 ## License
 
-This project is part of the [Backend Engineer Path](https://github.com/benx421/backend-engineer-path) by benx421.
-
-## Acknowledgments
-
-- Mock Bank API provided as part of the project specification
-- Project specification by benx421
-- Built as part of the Backend Engineer Path assessment
+Part of the [Backend Engineer Path](https://github.com/benx421/backend-engineer-path) assessment by benx421.
 
 ---
 
-**Note**: This is a learning project demonstrating payment gateway patterns. It is not intended for production use with real payment processing.
+**⚠️ Note**: This is a learning project built with a mock bank. Not for production use with real payment processing.
