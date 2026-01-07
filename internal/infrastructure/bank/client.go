@@ -88,10 +88,20 @@ func sendRequest[Req any, Resp any](c *HTTPBankClient, ctx context.Context, meth
 	if err != nil {
 		return nil, fmt.Errorf("error making request: %w", err)
 	}
-	defer resp.Body.Close()
+
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, &BankError{
+				Code:       "READ_ERROR",
+				Message:    fmt.Sprintf("failed to read response body: %v", err),
+				StatusCode: resp.StatusCode,
+			}
+		}
 		var bankErrResp BankErrorResponse
 		if err := json.Unmarshal(body, &bankErrResp); err != nil {
 			return nil, &BankError{

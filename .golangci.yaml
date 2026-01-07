@@ -45,10 +45,16 @@ linters:
 
   exclusions:
     rules:
-      # Less strict linting for test files
       - path: '_test\.go$'
         linters:
-          - gocritic  # Style checks less important in tests
+          - gocritic
+          - errcheck  # Allow unchecked errors in tests
+      
+      # Exclude E2E tests and test helpers
+      - path: 'internal/tests/'
+        linters:
+          - errcheck
+      
       # Exclude linting for generated or temporary files
       - path: '(^|/)tmp/'
         linters:

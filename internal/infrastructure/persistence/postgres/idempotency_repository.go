@@ -63,33 +63,6 @@ func (r *IdempotencyRepository) FindByKey(ctx context.Context, key string) (*Ide
 	return &i, nil
 }
 
-func (r *IdempotencyRepository) FindByRequestHash(ctx context.Context, requestHash string) (*IdempotencyKey, error) {
-	query := `
-        SELECT key, payment_id, request_hash, locked_at, response_payload
-        FROM idempotency_keys
-        WHERE request_hash = $1
-        LIMIT 1
-    `
-
-	var i IdempotencyKey
-	err := r.db.QueryRow(ctx, query, requestHash).Scan(
-		&i.Key,
-		&i.PaymentID,
-		&i.RequestHash,
-		&i.LockedAt,
-		&i.ResponsePayload,
-	)
-
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, fmt.Errorf("no completed request found for hash: %w", err)
-		}
-		return nil, err
-	}
-
-	return &i, nil
-}
-
 func (r *IdempotencyRepository) StoreResponse(ctx context.Context, tx pgx.Tx, key string, responsePayload []byte) error {
 	query := `
 		UPDATE idempotency_keys

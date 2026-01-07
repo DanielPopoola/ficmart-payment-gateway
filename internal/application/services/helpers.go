@@ -100,7 +100,9 @@ func acquireIdempotencyLock(
 	if err != nil {
 		return application.NewInternalError(err)
 	}
-	defer tx.Rollback(ctx)
+	defer func() {
+		_ = tx.Rollback(ctx)
+	}()
 
 	if err := paymentRepo.Create(ctx, tx, payment); err != nil {
 		return application.NewInternalError(err)
@@ -132,7 +134,9 @@ func markPaymentTransitioning(
 	if err != nil {
 		return nil, application.NewInternalError(err)
 	}
-	defer tx.Rollback(ctx)
+	defer func() {
+		_ = tx.Rollback(ctx)
+	}()
 
 	if err := idempotencyRepo.AcquireLock(ctx, tx, idempotencyKey, paymentID, requestHash); err != nil {
 		if errors.Is(err, postgres.ErrDuplicateIdempotencyKey) {
@@ -216,7 +220,9 @@ func FinalizePaymentSuccess(
 	if err != nil {
 		return application.NewInternalError(err)
 	}
-	defer tx.Rollback(ctx)
+	defer func() {
+		_ = tx.Rollback(ctx)
+	}()
 
 	if err := paymentRepo.Update(ctx, tx, payment); err != nil {
 		return application.NewInternalError(err)
