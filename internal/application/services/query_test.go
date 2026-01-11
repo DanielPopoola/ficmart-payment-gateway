@@ -89,7 +89,7 @@ func (suite *QueryServiceTestSuite) createAuthorizedPayment(ctx context.Context,
 		Return(authResp, nil).
 		Once()
 
-	payment, err := suite.authorizeService.Authorize(ctx, cmd, idempotencyKey)
+	payment, err := suite.authorizeService.Authorize(ctx, &cmd, idempotencyKey)
 	require.NoError(suite.T(), err)
 	require.NotNil(suite.T(), payment)
 

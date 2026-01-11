@@ -103,7 +103,7 @@ func runMigrations(ctx context.Context, db *postgres.DB) error {
 	root := getProjectRoot()
 	migrationPath := filepath.Join(root, "db", "migrations", "001_init.up.sql")
 
-	migrationSQL, err := os.ReadFile(migrationPath)
+	migrationSQL, err := os.ReadFile(migrationPath) //nolint:gosec // test helper, controlled path
 	if err != nil {
 		return fmt.Errorf("read migration file from %s: %w", migrationPath, err)
 	}

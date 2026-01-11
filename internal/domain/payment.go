@@ -24,27 +24,24 @@ const (
 )
 
 type Payment struct {
-	ID          string
-	OrderID     string
-	CustomerID  string
-	AmountCents int64
-	Currency    string
-	Status      PaymentStatus
-
-	BankAuthID    *string
+	CreatedAt    time.Time
+	ID           string
+	OrderID      string
+	CustomerID   string
+	Currency     string
+	BankAuthID   *string
 	BankCaptureID *string
 	BankVoidID    *string
 	BankRefundID  *string
-
-	CreatedAt    time.Time
 	AuthorizedAt *time.Time
 	CapturedAt   *time.Time
 	VoidedAt     *time.Time
 	RefundedAt   *time.Time
 	ExpiresAt    *time.Time
-
-	AttemptCount int
 	NextRetryAt  *time.Time
+	AmountCents  int64
+	Status       PaymentStatus
+	AttemptCount int
 }
 
 func NewPayment(
@@ -60,7 +57,7 @@ func NewPayment(
 		return nil, ErrInvalidAmount
 	}
 	if currency == "" {
-		return nil, errors.New("Invalid currency type")
+		return nil, errors.New("invalid currency type")
 	}
 
 	return &Payment{
@@ -117,6 +114,8 @@ func (p *Payment) canTransitionTo(target PaymentStatus) error {
 		return p.allow(target, StatusRefunded, StatusFailed)
 	case StatusVoiding:
 		return p.allow(target, StatusVoided, StatusFailed)
+	case StatusFailed, StatusRefunded, StatusVoided, StatusExpired:
+		return ErrInvalidTransition
 	}
 	return ErrInvalidTransition
 }
@@ -184,9 +183,10 @@ func (p *Payment) IsTerminal() bool {
 	switch p.Status {
 	case StatusVoided, StatusRefunded, StatusExpired, StatusFailed:
 		return true
-	default:
+	case StatusPending, StatusAuthorized, StatusCapturing, StatusCaptured, StatusRefunding, StatusVoiding:
 		return false
 	}
+	return false
 }
 
 func (p *Payment) ScheduleRetry(backoff time.Duration, errorCategory string) {

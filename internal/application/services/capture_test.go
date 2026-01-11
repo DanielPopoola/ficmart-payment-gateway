@@ -114,7 +114,7 @@ func (suite *CaptureServiceTestSuite) Test_Capture_CannotCapturePendingPayment()
 		Return(nil, bankErr).
 		Once()
 
-	payment, err := suite.authorizeService.Authorize(ctx, cmd, idempotencyKey)
+	payment, err := suite.authorizeService.Authorize(ctx, &cmd, idempotencyKey)
 	require.Error(suite.T(), err)
 	require.NotNil(suite.T(), payment)
 	require.Equal(suite.T(), domain.StatusPending, payment.Status)

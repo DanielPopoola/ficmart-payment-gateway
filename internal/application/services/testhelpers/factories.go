@@ -49,7 +49,7 @@ func CreateAuthorizedPayment(
 		Return(authResp, nil).
 		Once()
 
-	payment, err := authService.Authorize(ctx, cmd, idempotencyKey)
+	payment, err := authService.Authorize(ctx, &cmd, idempotencyKey)
 	require.NoError(t, err)
 	require.NotNil(t, payment)
 	require.Equal(t, domain.StatusAuthorized, payment.Status)

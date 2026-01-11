@@ -32,7 +32,7 @@ func NewAuthorizeService(
 	}
 }
 
-func (s *AuthorizeService) Authorize(ctx context.Context, cmd AuthorizeCommand, idempotencyKey string) (*domain.Payment, error) {
+func (s *AuthorizeService) Authorize(ctx context.Context, cmd *AuthorizeCommand, idempotencyKey string) (*domain.Payment, error) {
 	requestHash := ComputeHash(cmd)
 
 	cachedPayment, isCached, err := checkIdempotency(

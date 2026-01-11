@@ -90,11 +90,11 @@ func sendRequest[Req any, Resp any](c *HTTPBankClient, ctx context.Context, meth
 	}
 
 	defer func() {
-		_ = resp.Body.Close()
+		_ = resp.Body.Close() //nolint:errcheck // Closing the response body; error can be ignored here.
 	}()
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return nil, &BankError{
 				Code:       "READ_ERROR",

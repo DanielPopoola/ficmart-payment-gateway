@@ -54,7 +54,7 @@ func TestRetryWorker_RecoversStuckCapture(t *testing.T) {
 		ExpiresAt:       time.Now().Add(7 * 24 * time.Hour),
 	}, nil).Once()
 
-	payment, err := authService.Authorize(ctx, authCmd, idempotencyKey)
+	payment, err := authService.Authorize(ctx, &authCmd, idempotencyKey)
 	require.NoError(t, err)
 
 	err = payment.MarkCapturing()
@@ -144,7 +144,7 @@ func TestRetryWorker_SchedulesRetryOnTransientError(t *testing.T) {
 		ExpiresAt:       time.Now().Add(7 * 24 * time.Hour),
 	}, nil).Once()
 
-	payment, err := authService.Authorize(ctx, authCmd, idempotencyKey)
+	payment, err := authService.Authorize(ctx, &authCmd, idempotencyKey)
 	require.NoError(t, err)
 
 	err = payment.MarkCapturing()
@@ -229,7 +229,7 @@ func TestRetryWorker_FailsOnPermanentError(t *testing.T) {
 		ExpiresAt:       time.Now().Add(7 * 24 * time.Hour),
 	}, nil).Once()
 
-	payment, err := authService.Authorize(ctx, authCmd, idempotencyKey)
+	payment, err := authService.Authorize(ctx, &authCmd, idempotencyKey)
 	require.NoError(t, err)
 
 	err = payment.MarkCapturing()

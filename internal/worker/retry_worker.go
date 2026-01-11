@@ -136,15 +136,22 @@ func (w *RetryWorker) timeoutUnauthorizedPayments(ctx context.Context) error {
 	for rows.Next() {
 		var id, orderID, key string
 		var createdAt time.Time
-		rows.Scan(&id, &orderID, &key, &createdAt)
+		if err := rows.Scan(&id, &orderID, &key, &createdAt); err != nil {
+			w.logger.Error("scan failed", "error", err)
+			continue
+		}
 
 		payment, err := w.paymentRepo.FindByID(ctx, id)
 		if err != nil {
 			continue
 		}
 
-		payment.Fail()
-		w.paymentRepo.Update(ctx, nil, payment)
+		if err := payment.Fail(); err != nil {
+			w.logger.Error("failed to mark payment as failed", "error", err)
+		}
+		if err := w.paymentRepo.Update(ctx, nil, payment); err != nil {
+			return err
+		}
 
 		w.logger.Error("ORPHANED_AUTHORIZATION_RISK",
 			"payment_id", id,
@@ -170,6 +177,8 @@ func (w *RetryWorker) retryPayment(ctx context.Context, sp stuckPayment) error {
 		return w.resumeVoid(ctx, payment, sp.idempotencyKey)
 	case domain.StatusRefunding:
 		return w.resumeRefund(ctx, payment, sp.idempotencyKey)
+	case domain.StatusPending, domain.StatusAuthorized, domain.StatusCaptured, domain.StatusFailed, domain.StatusRefunded, domain.StatusVoided, domain.StatusExpired:
+		return fmt.Errorf("unexpected status %s for retry: %w", sp.status, domain.ErrInvalidState)
 	default:
 		return fmt.Errorf("unexpected status %s: %w", sp.status, domain.ErrInvalidState)
 	}
@@ -188,7 +197,10 @@ func (w *RetryWorker) resumeCapture(ctx context.Context, payment *domain.Payment
 			return w.bankClient.Capture(ctx, req, key)
 		},
 		func(p *domain.Payment, resp interface{}) error {
-			r := resp.(*bank.CaptureResponse)
+			r, ok := resp.(*bank.CaptureResponse)
+			if !ok {
+				return fmt.Errorf("expected *bank.CaptureResponse, got %T", resp)
+			}
 			return p.Capture(r.Status, r.CaptureID, r.CapturedAt)
 		},
 	)
@@ -206,7 +218,10 @@ func (w *RetryWorker) resumeVoid(ctx context.Context, payment *domain.Payment, i
 			return w.bankClient.Void(ctx, req, key)
 		},
 		func(p *domain.Payment, resp interface{}) error {
-			r := resp.(*bank.VoidResponse)
+			r, ok := resp.(*bank.VoidResponse)
+			if !ok {
+				return fmt.Errorf("expected *bank.VoidResponse, got %T", resp)
+			}
 			return p.Void(r.Status, r.VoidID, r.VoidedAt)
 		},
 	)
@@ -226,7 +241,10 @@ func (w *RetryWorker) resumeRefund(ctx context.Context, payment *domain.Payment,
 			return w.bankClient.Refund(ctx, req, key)
 		},
 		func(p *domain.Payment, resp interface{}) error {
-			r := resp.(*bank.RefundResponse)
+			r, ok := resp.(*bank.RefundResponse)
+			if !ok {
+				return fmt.Errorf("expected *bank.RefundResponse, got %T", resp)
+			}
 			return p.Capture(r.Status, r.RefundID, r.RefundedAt)
 		},
 	)

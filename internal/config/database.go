@@ -20,8 +20,8 @@ func (c *DatabaseConfig) PgxConfig(ctx context.Context) (*pgxpool.Config, error)
 		return nil, err
 	}
 
-	cfg.MaxConns = int32(c.MaxOpenConns)
-	cfg.MinConns = int32(c.MaxIdleConns)
+	cfg.MaxConns = int32(c.MaxOpenConns) //nolint:gosec // config validation ensures safe range
+	cfg.MinConns = int32(c.MaxIdleConns) //nolint:gosec // config validation ensures safe range
 	cfg.MaxConnLifetime = c.ConnMaxLifetime
 	cfg.MaxConnIdleTime = c.ConnMaxIdleTime
 	cfg.HealthCheckPeriod = 30 * time.Second

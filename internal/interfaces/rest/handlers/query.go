@@ -18,12 +18,12 @@ func (h *Handlers) GetPaymentByID(
 
 	payment, err := h.queryService.FindByID(ctx, paymentID)
 	if err != nil {
-		mapIdServiceErrorToAPIResponse(ctx, err)
+		return mapIdServiceErrorToAPIResponse(ctx, err)
 	}
 
 	apiPayment, err := rest.ToAPIPayment(payment)
 	if err != nil {
-		mapIdServiceErrorToAPIResponse(ctx, err)
+		return mapIdServiceErrorToAPIResponse(ctx, err)
 	}
 
 	return api.GetPaymentByID200JSONResponse{

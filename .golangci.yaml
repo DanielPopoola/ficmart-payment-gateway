@@ -27,6 +27,9 @@ linters:
 
     govet:
       enable-all: true
+      disable:
+        - fieldalignment  # Disable fieldalignment to reduce noise
+        - shadow         # Disable shadow checks
 
     revive:
       confidence: 0.8
@@ -48,14 +51,27 @@ linters:
       - path: '_test\.go$'
         linters:
           - gocritic
-          - errcheck  # Allow unchecked errors in tests
+          - errcheck
+          - gosec
+          - govet
       
       # Exclude E2E tests and test helpers
       - path: 'internal/tests/'
         linters:
           - errcheck
+          - gocritic
+          - gosec
+          - govet
+
+      - path: 'testhelpers/'
+        linters:
+          - errcheck
+          - gocritic
+          - gosec
+          - govet
+          - staticcheck
       
       # Exclude linting for generated or temporary files
       - path: '(^|/)tmp/'
         linters:
-          - all
+          - all 

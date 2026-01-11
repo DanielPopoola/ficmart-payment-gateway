@@ -18,7 +18,7 @@ func (w *RetryWorker) resumeOperation(
 ) error {
 	resp, err := callBank(ctx, idempotencyKey)
 	if err != nil {
-		services.HandleBankFailure(
+		if err := services.HandleBankFailure(
 			ctx,
 			w.db,
 			w.paymentRepo,
@@ -26,7 +26,9 @@ func (w *RetryWorker) resumeOperation(
 			payment,
 			idempotencyKey,
 			err,
-		)
+		); err != nil {
+			return err
+		}
 
 		if application.IsRetryable(err) {
 			return w.scheduleRetry(ctx, payment, err)

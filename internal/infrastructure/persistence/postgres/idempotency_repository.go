@@ -20,7 +20,7 @@ func NewIdempotencyRepository(db *DB) *IdempotencyRepository {
 	return &IdempotencyRepository{db: db}
 }
 
-func (r *IdempotencyRepository) AcquireLock(ctx context.Context, tx pgx.Tx, key string, paymentID string, requestHash string) error {
+func (r *IdempotencyRepository) AcquireLock(ctx context.Context, tx pgx.Tx, key, paymentID, requestHash string) error {
 	query := `
 		INSERT INTO idempotency_keys (key, payment_id, request_hash, locked_at)
 		VALUES ($1, $2, $3, $4)

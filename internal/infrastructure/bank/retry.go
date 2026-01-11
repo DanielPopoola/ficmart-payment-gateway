@@ -134,7 +134,7 @@ func isRetryable(err error) bool {
 func (r *RetryBankClient) backoff(attempt int) time.Duration {
 	base := r.baseDelay * time.Duration(1<<attempt)
 
-	jitter := time.Duration(rand.Intn(1000)) * time.Millisecond
+	jitter := time.Duration(rand.Intn(1000)) * time.Millisecond //nolint:gosec // not cryptographic
 
 	return base + jitter
 }

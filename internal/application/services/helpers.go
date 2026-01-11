@@ -30,7 +30,7 @@ func checkIdempotency(
 ) (*domain.Payment, bool, error) {
 	existingKey, err := idempotencyRepo.FindByKey(ctx, idempotencyKey)
 	if err != nil {
-		return nil, false, nil
+		return nil, false, application.NewIdempotencyMismatchError()
 	}
 
 	if existingKey.RequestHash != requestHash {
@@ -101,7 +101,7 @@ func acquireIdempotencyLock(
 		return application.NewInternalError(err)
 	}
 	defer func() {
-		_ = tx.Rollback(ctx)
+		_ = tx.Rollback(ctx) //nolint:errcheck // rollback error is not critical in defer
 	}()
 
 	if err := paymentRepo.Create(ctx, tx, payment); err != nil {
@@ -135,10 +135,10 @@ func markPaymentTransitioning(
 		return nil, application.NewInternalError(err)
 	}
 	defer func() {
-		_ = tx.Rollback(ctx)
+		_ = tx.Rollback(ctx) //nolint:errcheck // rollback error is not critical in defer
 	}()
 
-	if err := idempotencyRepo.AcquireLock(ctx, tx, idempotencyKey, paymentID, requestHash); err != nil {
+	if err = idempotencyRepo.AcquireLock(ctx, tx, idempotencyKey, paymentID, requestHash); err != nil {
 		if errors.Is(err, postgres.ErrDuplicateIdempotencyKey) {
 			return nil, err
 		}
@@ -150,15 +150,15 @@ func markPaymentTransitioning(
 		return nil, application.NewInternalError(err)
 	}
 
-	if err := transitionFn(payment); err != nil {
+	if err = transitionFn(payment); err != nil {
 		return nil, application.NewInvalidStateError(err)
 	}
 
-	if err := paymentRepo.Update(ctx, tx, payment); err != nil {
+	if err = paymentRepo.Update(ctx, tx, payment); err != nil {
 		return nil, application.NewInternalError(err)
 	}
 
-	if err := tx.Commit(ctx); err != nil {
+	if err = tx.Commit(ctx); err != nil {
 		return nil, application.NewInternalError(err)
 	}
 
@@ -188,18 +188,24 @@ func HandleBankFailure(
 	if err != nil {
 		return application.NewInternalError(err)
 	}
-	defer tx.Rollback(ctx)
+	defer func() {
+		_ = tx.Rollback(ctx) //nolint:errcheck // rollback error is not critical in defer
+	}()
 
-	if err := paymentRepo.Update(ctx, tx, payment); err != nil {
+	if err = paymentRepo.Update(ctx, tx, payment); err != nil {
 		return application.NewInternalError(err)
 	}
 
-	responsePayload, _ := json.Marshal(bankErr)
-	if err := idempotencyRepo.StoreResponse(ctx, tx, idempotencyKey, responsePayload); err != nil {
+	responsePayload, err := json.Marshal(bankErr)
+	if err != nil {
 		return application.NewInternalError(err)
 	}
 
-	if err := tx.Commit(ctx); err != nil {
+	if err = idempotencyRepo.StoreResponse(ctx, tx, idempotencyKey, responsePayload); err != nil {
+		return application.NewInternalError(err)
+	}
+
+	if err = tx.Commit(ctx); err != nil {
 		return application.NewInternalError(err)
 	}
 
@@ -221,23 +227,27 @@ func FinalizePaymentSuccess(
 		return application.NewInternalError(err)
 	}
 	defer func() {
-		_ = tx.Rollback(ctx)
+		_ = tx.Rollback(ctx) //nolint:errcheck // rollback error is not critical in defer
 	}()
 
-	if err := paymentRepo.Update(ctx, tx, payment); err != nil {
+	if err = paymentRepo.Update(ctx, tx, payment); err != nil {
 		return application.NewInternalError(err)
 	}
 
-	responsePayload, _ := json.Marshal(bankResponse)
-	if err := idempotencyRepo.StoreResponse(ctx, tx, idempotencyKey, responsePayload); err != nil {
+	responsePayload, err := json.Marshal(bankResponse)
+	if err != nil {
 		return application.NewInternalError(err)
 	}
 
-	if err := idempotencyRepo.ReleaseLock(ctx, tx, idempotencyKey); err != nil {
+	if err = idempotencyRepo.StoreResponse(ctx, tx, idempotencyKey, responsePayload); err != nil {
 		return application.NewInternalError(err)
 	}
 
-	if err := tx.Commit(ctx); err != nil {
+	if err = idempotencyRepo.ReleaseLock(ctx, tx, idempotencyKey); err != nil {
+		return application.NewInternalError(err)
+	}
+
+	if err = tx.Commit(ctx); err != nil {
 		return application.NewInternalError(err)
 	}
 

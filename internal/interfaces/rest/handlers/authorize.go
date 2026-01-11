@@ -29,7 +29,7 @@ func (h *Handlers) AuthorizePayment(
 		ExpiryYear:  req.ExpiryYear,
 	}
 
-	payment, err := h.authService.Authorize(ctx, cmd, idempotencyKey)
+	payment, err := h.authService.Authorize(ctx, &cmd, idempotencyKey)
 	if err != nil {
 		return mapAuthServiceErrorToAPIResponse(ctx, err)
 	}

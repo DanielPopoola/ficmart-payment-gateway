@@ -85,7 +85,7 @@ func (suite *E2ETestSuite) TestHappyPath_AuthorizeAndCapture() {
 	}
 
 	payment, err := suite.client.Authorize(t, authReq)
-	require.NoError(t, err, "Authorization should suceed")
+	require.NoError(t, err, "Authorization should succeed")
 
 	assert.Equal(t, api.AUTHORIZED, payment.Status)
 	assert.NotEmpty(t, payment.BankAuthId)
@@ -114,7 +114,7 @@ func (suite *E2ETestSuite) TestHappyPath_AuthorizeAndVoid() {
 	}
 
 	payment, err := suite.client.Authorize(t, authReq)
-	require.NoError(t, err, "Authorization should suceed")
+	require.NoError(t, err, "Authorization should succeed")
 
 	assert.Equal(t, api.AUTHORIZED, payment.Status)
 

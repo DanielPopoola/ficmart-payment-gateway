@@ -86,7 +86,7 @@ func (suite *AuthorizeServiceTestSuite) Test_Authorize_Success() {
 		Return(expectedBankResp, nil).
 		Once()
 
-	payment, err := suite.service.Authorize(ctx, cmd, idempotencyKey)
+	payment, err := suite.service.Authorize(ctx, &cmd, idempotencyKey)
 
 	require.NoError(suite.T(), err)
 	require.NotNil(suite.T(), payment)
@@ -128,10 +128,10 @@ func (suite *AuthorizeServiceTestSuite) Test_Authorize_DuplicateIdempotencyKey_R
 		Return(bankResp, nil).
 		Once()
 
-	firstPayment, err := suite.service.Authorize(ctx, cmd, idempotencyKey)
+	firstPayment, err := suite.service.Authorize(ctx, &cmd, idempotencyKey)
 	require.NoError(suite.T(), err)
 
-	secondPayment, err := suite.service.Authorize(ctx, cmd, idempotencyKey)
+	secondPayment, err := suite.service.Authorize(ctx, &cmd, idempotencyKey)
 	require.NoError(suite.T(), err)
 
 	assert.Equal(suite.T(), firstPayment.ID, secondPayment.ID)
@@ -157,13 +157,13 @@ func (suite *AuthorizeServiceTestSuite) Test_Authorize_DifferentRequestSameKey_R
 		Return(bankResp, nil).
 		Once()
 
-	_, err := suite.service.Authorize(ctx, cmd1, idempotencyKey)
+	_, err := suite.service.Authorize(ctx, &cmd1, idempotencyKey)
 	require.NoError(suite.T(), err)
 
 	cmd2 := testhelpers.DefaultAuthorizeCommand()
 	cmd2.Amount = 9999 // Different amount
 
-	_, err = suite.service.Authorize(ctx, cmd2, idempotencyKey)
+	_, err = suite.service.Authorize(ctx, &cmd2, idempotencyKey)
 
 	require.Error(suite.T(), err)
 	assert.Contains(suite.T(), err.Error(), "reused with different")
@@ -189,7 +189,7 @@ func (suite *AuthorizeServiceTestSuite) Test_Authorize_BankReturns500_PaymentSta
 		Return(nil, bankErr).
 		Once()
 
-	payment, err := suite.service.Authorize(ctx, cmd, idempotencyKey)
+	payment, err := suite.service.Authorize(ctx, &cmd, idempotencyKey)
 
 	require.Error(suite.T(), err)
 
@@ -209,7 +209,7 @@ func (suite *AuthorizeServiceTestSuite) Test_Authorize_ContextCancelled_PaymentS
 	cmd := testhelpers.DefaultAuthorizeCommand()
 	idempotencyKey := "idem-" + uuid.New().String()
 
-	payment, err := suite.service.Authorize(ctx, cmd, idempotencyKey)
+	payment, err := suite.service.Authorize(ctx, &cmd, idempotencyKey)
 
 	require.Error(suite.T(), err)
 	svcErr, isSvcErr := application.IsServiceError(err)
@@ -251,7 +251,7 @@ func (suite *AuthorizeServiceTestSuite) Test_Authorize_ConcurrentRequests_OnlyOn
 
 	for range 2 {
 		go func() {
-			payment, err := suite.service.Authorize(ctx, cmd, idempotencyKey)
+			payment, err := suite.service.Authorize(ctx, &cmd, idempotencyKey)
 			results <- result{payment, err}
 		}()
 	}
