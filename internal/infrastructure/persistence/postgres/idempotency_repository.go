@@ -55,7 +55,7 @@ func (r *IdempotencyRepository) FindByKey(ctx context.Context, key string) (*Ide
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, fmt.Errorf("no key found: %w", err)
+			return nil, nil
 		}
 		return nil, err
 	}

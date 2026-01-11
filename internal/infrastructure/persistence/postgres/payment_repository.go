@@ -67,7 +67,7 @@ func (r *PaymentRepository) FindByID(ctx context.Context, id string) (*domain.Pa
 	`
 
 	row := r.db.QueryRow(ctx, query, id)
-	return scanPayment(ctx, row)
+	return scanPayment(row)
 }
 
 // FindbyIDByForUpdate retrieves a payment with row-level lock
@@ -82,7 +82,7 @@ func (r *PaymentRepository) FindByIDForUpdate(ctx context.Context, tx pgx.Tx, id
 	`
 
 	row := tx.QueryRow(ctx, query, id)
-	return scanPayment(ctx, row)
+	return scanPayment(row)
 }
 
 // FindByOrderID retrieves a payment by order
@@ -96,7 +96,7 @@ func (r *PaymentRepository) FindByOrderID(ctx context.Context, orderID string) (
 	`
 
 	row := r.db.QueryRow(ctx, query, orderID)
-	return scanPayment(ctx, row)
+	return scanPayment(row)
 
 }
 
@@ -215,7 +215,7 @@ func (r *PaymentRepository) Update(ctx context.Context, tx pgx.Tx, payment *doma
 
 // scanPayment converts a database row into a domain Payment.
 // Returns ErrPaymentNotFound if the row doesn't exist.
-func scanPayment(ctx context.Context, row pgx.Row) (*domain.Payment, error) {
+func scanPayment(row pgx.Row) (*domain.Payment, error) {
 	var p domain.Payment
 	err := row.Scan(
 		&p.ID, &p.OrderID, &p.CustomerID, &p.AmountCents, &p.Currency, &p.Status,

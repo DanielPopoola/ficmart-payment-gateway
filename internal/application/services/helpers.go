@@ -30,7 +30,11 @@ func checkIdempotency(
 ) (*domain.Payment, bool, error) {
 	existingKey, err := idempotencyRepo.FindByKey(ctx, idempotencyKey)
 	if err != nil {
-		return nil, false, application.NewIdempotencyMismatchError()
+		return nil, false, application.NewInternalError(err)
+	}
+
+	if existingKey == nil {
+		return nil, false, nil
 	}
 
 	if existingKey.RequestHash != requestHash {
