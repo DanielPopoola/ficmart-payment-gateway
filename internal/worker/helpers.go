@@ -27,12 +27,11 @@ func (w *RetryWorker) resumeOperation(
 			idempotencyKey,
 			err,
 		); err != nil {
-			return err
+			if application.IsRetryable(err) {
+				return w.scheduleRetry(ctx, payment, err)
+			}
 		}
 
-		if application.IsRetryable(err) {
-			return w.scheduleRetry(ctx, payment, err)
-		}
 		return err
 	}
 
