@@ -62,6 +62,8 @@ func (suite *QueryServiceTestSuite) TearDownTest() {
 
 // Helper: Create authorized payment using AuthorizeService
 func (suite *QueryServiceTestSuite) createAuthorizedPayment(ctx context.Context, orderID, customerID string) *domain.Payment {
+	t := suite.T()
+
 	cmd := services.AuthorizeCommand{
 		OrderID:     orderID,
 		CustomerID:  customerID,
@@ -90,8 +92,8 @@ func (suite *QueryServiceTestSuite) createAuthorizedPayment(ctx context.Context,
 		Once()
 
 	payment, err := suite.authorizeService.Authorize(ctx, &cmd, idempotencyKey)
-	require.NoError(suite.T(), err)
-	require.NotNil(suite.T(), payment)
+	require.NoError(t, err)
+	require.NotNil(t, payment)
 
 	return payment
 }
@@ -102,6 +104,7 @@ func (suite *QueryServiceTestSuite) createAuthorizedPayment(ctx context.Context,
 
 func (suite *QueryServiceTestSuite) Test_FindByID_Success() {
 	ctx := context.Background()
+	t := suite.T()
 
 	// Create payment
 	orderID := "order-" + uuid.New().String()
@@ -112,17 +115,18 @@ func (suite *QueryServiceTestSuite) Test_FindByID_Success() {
 	foundPayment, err := suite.queryService.FindByID(ctx, payment.ID)
 
 	// Assert
-	require.NoError(suite.T(), err)
-	require.NotNil(suite.T(), foundPayment)
+	require.NoError(t, err)
+	require.NotNil(t, foundPayment)
 
-	assert.Equal(suite.T(), payment.ID, foundPayment.ID)
-	assert.Equal(suite.T(), orderID, foundPayment.OrderID)
-	assert.Equal(suite.T(), customerID, foundPayment.CustomerID)
-	assert.Equal(suite.T(), domain.StatusAuthorized, foundPayment.Status)
+	assert.Equal(t, payment.ID, foundPayment.ID)
+	assert.Equal(t, orderID, foundPayment.OrderID)
+	assert.Equal(t, customerID, foundPayment.CustomerID)
+	assert.Equal(t, domain.StatusAuthorized, foundPayment.Status)
 }
 
 func (suite *QueryServiceTestSuite) Test_FindByOrderID_Success() {
 	ctx := context.Background()
+	t := suite.T()
 
 	// Create payment with specific order ID
 	orderID := "order-specific-123"
@@ -133,15 +137,16 @@ func (suite *QueryServiceTestSuite) Test_FindByOrderID_Success() {
 	foundPayment, err := suite.queryService.FindByOrderID(ctx, orderID)
 
 	// Assert
-	require.NoError(suite.T(), err)
-	require.NotNil(suite.T(), foundPayment)
+	require.NoError(t, err)
+	require.NotNil(t, foundPayment)
 
-	assert.Equal(suite.T(), payment.ID, foundPayment.ID)
-	assert.Equal(suite.T(), orderID, foundPayment.OrderID)
+	assert.Equal(t, payment.ID, foundPayment.ID)
+	assert.Equal(t, orderID, foundPayment.OrderID)
 }
 
 func (suite *QueryServiceTestSuite) Test_FindByCustomerID_Success() {
 	ctx := context.Background()
+	t := suite.T()
 
 	// Create multiple payments for same customer
 	customerID := "cust-specific-456"
@@ -154,47 +159,45 @@ func (suite *QueryServiceTestSuite) Test_FindByCustomerID_Success() {
 	payments, err := suite.queryService.FindByCustomerID(ctx, customerID, 10, 0)
 
 	// Assert
-	require.NoError(suite.T(), err)
-	require.Len(suite.T(), payments, 3)
+	require.NoError(t, err)
+	require.Len(t, payments, 3)
 
 	// Verify all payments belong to the customer
 	paymentIDs := []string{payment1.ID, payment2.ID, payment3.ID}
 	for _, payment := range payments {
-		assert.Equal(suite.T(), customerID, payment.CustomerID)
-		assert.Contains(suite.T(), paymentIDs, payment.ID)
+		assert.Equal(t, customerID, payment.CustomerID)
+		assert.Contains(t, paymentIDs, payment.ID)
 	}
 }
 
 func (suite *QueryServiceTestSuite) Test_FindByCustomerID_WithPagination() {
 	ctx := context.Background()
+	t := suite.T()
 
 	// Create 5 payments for same customer
 	customerID := "cust-pagination-789"
 
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		orderID := "order-" + uuid.New().String()
 		suite.createAuthorizedPayment(ctx, orderID, customerID)
 	}
 
-	// First page (limit=2, offset=0)
 	page1, err := suite.queryService.FindByCustomerID(ctx, customerID, 2, 0)
-	require.NoError(suite.T(), err)
-	assert.Len(suite.T(), page1, 2)
+	require.NoError(t, err)
+	assert.Len(t, page1, 2)
 
-	// Second page (limit=2, offset=2)
 	page2, err := suite.queryService.FindByCustomerID(ctx, customerID, 2, 2)
-	require.NoError(suite.T(), err)
-	assert.Len(suite.T(), page2, 2)
+	require.NoError(t, err)
+	assert.Len(t, page2, 2)
 
-	// Third page (limit=2, offset=4)
 	page3, err := suite.queryService.FindByCustomerID(ctx, customerID, 2, 4)
-	require.NoError(suite.T(), err)
-	assert.Len(suite.T(), page3, 1) // Only 1 remaining
+	require.NoError(t, err)
+	assert.Len(t, page3, 1) // Only 1 remaining
 
 	// Verify no duplicates across pages
 	allPaymentIDs := make(map[string]bool)
 	for _, payment := range append(append(page1, page2...), page3...) {
-		assert.False(suite.T(), allPaymentIDs[payment.ID], "Duplicate payment ID found")
+		assert.False(t, allPaymentIDs[payment.ID], "Duplicate payment ID found")
 		allPaymentIDs[payment.ID] = true
 	}
 }
@@ -205,35 +208,39 @@ func (suite *QueryServiceTestSuite) Test_FindByCustomerID_WithPagination() {
 
 func (suite *QueryServiceTestSuite) Test_FindByID_NotFound() {
 	ctx := context.Background()
+	t := suite.T()
 
 	nonExistentID := uuid.New().String()
 
 	_, err := suite.queryService.FindByID(ctx, nonExistentID)
 
-	require.Error(suite.T(), err)
-	assert.ErrorIs(suite.T(), err, postgres.ErrPaymentNotFound)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, postgres.ErrPaymentNotFound)
 }
 
 func (suite *QueryServiceTestSuite) Test_FindByOrderID_NotFound() {
 	ctx := context.Background()
+	t := suite.T()
 
 	_, err := suite.queryService.FindByOrderID(ctx, "non-existent-order")
 
-	require.Error(suite.T(), err)
-	assert.ErrorIs(suite.T(), err, postgres.ErrPaymentNotFound)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, postgres.ErrPaymentNotFound)
 }
 
 func (suite *QueryServiceTestSuite) Test_FindByCustomerID_EmptyResult() {
 	ctx := context.Background()
+	t := suite.T()
 
 	payments, err := suite.queryService.FindByCustomerID(ctx, "customer-no-payments", 10, 0)
 
-	require.NoError(suite.T(), err)
-	assert.Empty(suite.T(), payments)
+	require.NoError(t, err)
+	assert.Empty(t, payments)
 }
 
 func (suite *QueryServiceTestSuite) Test_FindByCustomerID_OnlyReturnsCustomerPayments() {
 	ctx := context.Background()
+	t := suite.T()
 
 	customer1 := "cust-one"
 	customer2 := "cust-two"
@@ -245,16 +252,17 @@ func (suite *QueryServiceTestSuite) Test_FindByCustomerID_OnlyReturnsCustomerPay
 	payments, err := suite.queryService.FindByCustomerID(ctx, customer1, 10, 0)
 
 	// Should only return customer1's payments
-	require.NoError(suite.T(), err)
-	assert.Len(suite.T(), payments, 2)
+	require.NoError(t, err)
+	assert.Len(t, payments, 2)
 
 	for _, payment := range payments {
-		assert.Equal(suite.T(), customer1, payment.CustomerID)
+		assert.Equal(t, customer1, payment.CustomerID)
 	}
 }
 
 func (suite *QueryServiceTestSuite) Test_FindByCustomerID_RespectsLimit() {
 	ctx := context.Background()
+	t := suite.T()
 
 	customerID := "cust-limit-test"
 
@@ -265,12 +273,13 @@ func (suite *QueryServiceTestSuite) Test_FindByCustomerID_RespectsLimit() {
 
 	payments, err := suite.queryService.FindByCustomerID(ctx, customerID, 3, 0)
 
-	require.NoError(suite.T(), err)
-	assert.Len(suite.T(), payments, 3)
+	require.NoError(t, err)
+	assert.Len(t, payments, 3)
 }
 
 func (suite *QueryServiceTestSuite) Test_FindByCustomerID_RespectsOffset() {
 	ctx := context.Background()
+	t := suite.T()
 
 	customerID := "cust-offset-test"
 
@@ -280,16 +289,16 @@ func (suite *QueryServiceTestSuite) Test_FindByCustomerID_RespectsOffset() {
 	}
 
 	allPayments, err := suite.queryService.FindByCustomerID(ctx, customerID, 10, 0)
-	require.NoError(suite.T(), err)
-	require.Len(suite.T(), allPayments, 5)
+	require.NoError(t, err)
+	require.Len(t, allPayments, 5)
 
 	offsetPayments, err := suite.queryService.FindByCustomerID(ctx, customerID, 10, 2)
 
-	require.NoError(suite.T(), err)
-	assert.Len(suite.T(), offsetPayments, 3)
+	require.NoError(t, err)
+	assert.Len(t, offsetPayments, 3)
 
 	firstTwoIDs := []string{allPayments[0].ID, allPayments[1].ID}
 	for _, payment := range offsetPayments {
-		assert.NotContains(suite.T(), firstTwoIDs, payment.ID)
+		assert.NotContains(t, firstTwoIDs, payment.ID)
 	}
 }

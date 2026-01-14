@@ -178,7 +178,7 @@ func (c *TestClient) GetByOrderID(t *testing.T, orderID string) (*api.Payment, e
 
 }
 
-func (c *TestClient) GetByCustomeID(t *testing.T, customerID string, limit, offset int) ([]api.Payment, error) {
+func (c *TestClient) GetByCustomerID(t *testing.T, customerID string, limit, offset int) ([]api.Payment, error) {
 	url := fmt.Sprintf("%s/payments/customer/%s?limit=%d&offset=%d",
 		c.baseURL, customerID, limit, offset)
 
@@ -210,6 +210,31 @@ func (c *TestClient) GetByCustomeID(t *testing.T, customerID string, limit, offs
 func (c *TestClient) AuthorizeWithKey(t *testing.T, req api.AuthorizeRequest, idempotencyKey string) (*api.Payment, error) {
 	body, _ := json.Marshal(req)
 	httpReq, _ := http.NewRequest("POST", c.baseURL+"/authorize", bytes.NewReader(body))
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Idempotency-Key", idempotencyKey)
+
+	resp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	bodyBytes, _ := io.ReadAll(resp.Body)
+
+	if resp.StatusCode >= 400 {
+		var errResp api.ErrorResponse
+		json.Unmarshal(bodyBytes, &errResp)
+		return nil, fmt.Errorf("status %d: %s", resp.StatusCode, errResp.Error.Message)
+	}
+
+	var paymentResp api.PaymentResponse
+	require.NoError(t, json.Unmarshal(bodyBytes, &paymentResp))
+	return &paymentResp.Data, nil
+}
+
+func (c *TestClient) CaptureWithKey(t *testing.T, req api.CaptureRequest, idempotencyKey string) (*api.Payment, error) {
+	body, _ := json.Marshal(req)
+	httpReq, _ := http.NewRequest("POST", c.baseURL+"/capture", bytes.NewReader(body))
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Idempotency-Key", idempotencyKey)
 

@@ -72,25 +72,26 @@ func (suite *CaptureServiceTestSuite) TearDownTest() {
 
 func (suite *CaptureServiceTestSuite) Test_Capture_Success() {
 	ctx := context.Background()
+	t := suite.T()
 
 	capturedPayment := testhelpers.CreateCapturedPayment(
-		suite.T(),
+		t,
 		ctx,
 		suite.authorizeService,
 		suite.captureService,
 		suite.mockBank,
 	)
-	require.NotNil(suite.T(), capturedPayment)
+	require.NotNil(t, capturedPayment)
 
-	assert.Equal(suite.T(), domain.StatusCaptured, capturedPayment.Status)
-	assert.Equal(suite.T(), "cap-123", *capturedPayment.BankCaptureID)
-	assert.NotNil(suite.T(), capturedPayment.CapturedAt)
+	assert.Equal(t, domain.StatusCaptured, capturedPayment.Status)
+	assert.Equal(t, "cap-123", *capturedPayment.BankCaptureID)
+	assert.NotNil(t, capturedPayment.CapturedAt)
 
 	// Verify database state
 	savedPayment, err := suite.paymentRepo.FindByID(ctx, capturedPayment.ID)
-	require.NoError(suite.T(), err)
-	assert.Equal(suite.T(), domain.StatusCaptured, savedPayment.Status)
-	assert.Equal(suite.T(), "cap-123", *savedPayment.BankCaptureID)
+	require.NoError(t, err)
+	assert.Equal(t, domain.StatusCaptured, savedPayment.Status)
+	assert.Equal(t, "cap-123", *savedPayment.BankCaptureID)
 }
 
 // ============================================================================
@@ -99,6 +100,7 @@ func (suite *CaptureServiceTestSuite) Test_Capture_Success() {
 
 func (suite *CaptureServiceTestSuite) Test_Capture_CannotCapturePendingPayment() {
 	ctx := context.Background()
+	t := suite.T()
 
 	cmd := testhelpers.DefaultAuthorizeCommand()
 	idempotencyKey := "idem-" + uuid.New().String()
@@ -115,9 +117,9 @@ func (suite *CaptureServiceTestSuite) Test_Capture_CannotCapturePendingPayment()
 		Once()
 
 	payment, err := suite.authorizeService.Authorize(ctx, &cmd, idempotencyKey)
-	require.Error(suite.T(), err)
-	require.NotNil(suite.T(), payment)
-	require.Equal(suite.T(), domain.StatusPending, payment.Status)
+	require.Error(t, err)
+	require.NotNil(t, payment)
+	require.Equal(t, domain.StatusPending, payment.Status)
 
 	captureCmd := services.CaptureCommand{
 		PaymentID: payment.ID,
@@ -128,14 +130,15 @@ func (suite *CaptureServiceTestSuite) Test_Capture_CannotCapturePendingPayment()
 	_, err = suite.captureService.Capture(ctx, captureCmd, captureKey)
 
 	svcErr, ok := application.IsServiceError(err)
-	require.True(suite.T(), ok)
-	assert.Equal(suite.T(), application.ErrCodeInvalidState, svcErr.Code)
+	require.True(t, ok)
+	assert.Equal(t, application.ErrCodeInvalidState, svcErr.Code)
 }
 
 func (suite *CaptureServiceTestSuite) Test_Capture_CannotCaptureAlreadyCapturedPayment() {
 	ctx := context.Background()
+	t := suite.T()
 
-	payment := testhelpers.CreateAuthorizedPayment(suite.T(), ctx, suite.authorizeService, suite.mockBank)
+	payment := testhelpers.CreateAuthorizedPayment(t, ctx, suite.authorizeService, suite.mockBank)
 
 	cmd := services.CaptureCommand{
 		PaymentID: payment.ID,
@@ -158,23 +161,24 @@ func (suite *CaptureServiceTestSuite) Test_Capture_CannotCaptureAlreadyCapturedP
 		Once()
 
 	_, err := suite.captureService.Capture(ctx, cmd, firstKey)
-	require.NoError(suite.T(), err)
+	require.NoError(t, err)
 
 	secondKey := "idem-second-" + uuid.New().String()
 
 	_, err = suite.captureService.Capture(ctx, cmd, secondKey)
 
-	require.Error(suite.T(), err)
+	require.Error(t, err)
 
 	svcErr, ok := application.IsServiceError(err)
-	require.True(suite.T(), ok)
-	assert.Equal(suite.T(), application.ErrCodeInvalidState, svcErr.Code)
+	require.True(t, ok)
+	assert.Equal(t, application.ErrCodeInvalidState, svcErr.Code)
 }
 
 func (suite *CaptureServiceTestSuite) Test_Capture_IdempotencyReturnsCache() {
 	ctx := context.Background()
+	t := suite.T()
 
-	payment := testhelpers.CreateAuthorizedPayment(suite.T(), ctx, suite.authorizeService, suite.mockBank)
+	payment := testhelpers.CreateAuthorizedPayment(t, ctx, suite.authorizeService, suite.mockBank)
 
 	cmd := services.CaptureCommand{
 		PaymentID: payment.ID,
@@ -197,17 +201,18 @@ func (suite *CaptureServiceTestSuite) Test_Capture_IdempotencyReturnsCache() {
 		Once()
 
 	firstResult, err := suite.captureService.Capture(ctx, cmd, idempotencyKey)
-	require.NoError(suite.T(), err)
+	require.NoError(t, err)
 
 	secondResult, err := suite.captureService.Capture(ctx, cmd, idempotencyKey)
-	require.NoError(suite.T(), err)
+	require.NoError(t, err)
 
-	assert.Equal(suite.T(), firstResult.ID, secondResult.ID)
-	assert.Equal(suite.T(), domain.StatusCaptured, secondResult.Status)
+	assert.Equal(t, firstResult.ID, secondResult.ID)
+	assert.Equal(t, domain.StatusCaptured, secondResult.Status)
 }
 
 func (suite *CaptureServiceTestSuite) Test_Capture_PaymentNotFound() {
 	ctx := context.Background()
+	t := suite.T()
 
 	cmd := services.CaptureCommand{
 		PaymentID: "non-existent-id",
@@ -218,8 +223,8 @@ func (suite *CaptureServiceTestSuite) Test_Capture_PaymentNotFound() {
 	_, err := suite.captureService.Capture(ctx, cmd, idempotencyKey)
 
 	svcErr, ok := application.IsServiceError(err)
-	require.True(suite.T(), ok)
-	assert.Equal(suite.T(), application.ErrCodeInternal, svcErr.Code)
+	require.True(t, ok)
+	assert.Equal(t, application.ErrCodeInternal, svcErr.Code)
 }
 
 // ============================================================================
@@ -228,8 +233,9 @@ func (suite *CaptureServiceTestSuite) Test_Capture_PaymentNotFound() {
 
 func (suite *CaptureServiceTestSuite) Test_Capture_BankReturns500_PaymentStaysCapturing() {
 	ctx := context.Background()
+	t := suite.T()
 
-	payment := testhelpers.CreateAuthorizedPayment(suite.T(), ctx, suite.authorizeService, suite.mockBank)
+	payment := testhelpers.CreateAuthorizedPayment(t, ctx, suite.authorizeService, suite.mockBank)
 
 	cmd := services.CaptureCommand{
 		PaymentID: payment.ID,
@@ -250,21 +256,22 @@ func (suite *CaptureServiceTestSuite) Test_Capture_BankReturns500_PaymentStaysCa
 
 	capturedPayment, err := suite.captureService.Capture(ctx, cmd, idempotencyKey)
 
-	require.Error(suite.T(), err)
+	require.Error(t, err)
 
-	require.NotNil(suite.T(), capturedPayment)
-	assert.Equal(suite.T(), domain.StatusCapturing, capturedPayment.Status)
+	require.NotNil(t, capturedPayment)
+	assert.Equal(t, domain.StatusCapturing, capturedPayment.Status)
 
 	savedPayment, err := suite.paymentRepo.FindByID(ctx, payment.ID)
-	require.NoError(suite.T(), err)
-	assert.Equal(suite.T(), domain.StatusCapturing, savedPayment.Status)
-	assert.Nil(suite.T(), savedPayment.BankCaptureID)
+	require.NoError(t, err)
+	assert.Equal(t, domain.StatusCapturing, savedPayment.Status)
+	assert.Nil(t, savedPayment.BankCaptureID)
 }
 
 func (suite *CaptureServiceTestSuite) Test_Capture_BankReturnsPermanentError_IsFailed() {
 	ctx := context.Background()
+	t := suite.T()
 
-	payment := testhelpers.CreateAuthorizedPayment(suite.T(), ctx, suite.authorizeService, suite.mockBank)
+	payment := testhelpers.CreateAuthorizedPayment(t, ctx, suite.authorizeService, suite.mockBank)
 
 	cmd := services.CaptureCommand{
 		PaymentID: payment.ID,
@@ -285,16 +292,17 @@ func (suite *CaptureServiceTestSuite) Test_Capture_BankReturnsPermanentError_IsF
 
 	capturedPayment, err := suite.captureService.Capture(ctx, cmd, idempotencyKey)
 
-	require.Error(suite.T(), err)
+	require.Error(t, err)
 
-	require.NotNil(suite.T(), capturedPayment)
-	assert.Equal(suite.T(), domain.StatusFailed, capturedPayment.Status)
+	require.NotNil(t, capturedPayment)
+	assert.Equal(t, domain.StatusFailed, capturedPayment.Status)
 }
 
 func (suite *CaptureServiceTestSuite) Test_Capture_ConcurrentRequests_OnlyOneSucceeds() {
 	ctx := context.Background()
+	t := suite.T()
 
-	payment := testhelpers.CreateAuthorizedPayment(suite.T(), ctx, suite.authorizeService, suite.mockBank)
+	payment := testhelpers.CreateAuthorizedPayment(t, ctx, suite.authorizeService, suite.mockBank)
 
 	cmd := services.CaptureCommand{
 		PaymentID: payment.ID,
@@ -336,9 +344,9 @@ func (suite *CaptureServiceTestSuite) Test_Capture_ConcurrentRequests_OnlyOneSuc
 		}
 	}
 
-	assert.Equal(suite.T(), 2, successCount)
+	assert.Equal(t, 2, successCount)
 
 	finalPayment, err := suite.paymentRepo.FindByID(ctx, payment.ID)
-	require.NoError(suite.T(), err)
-	assert.Equal(suite.T(), domain.StatusCaptured, finalPayment.Status)
+	require.NoError(t, err)
+	assert.Equal(t, domain.StatusCaptured, finalPayment.Status)
 }
