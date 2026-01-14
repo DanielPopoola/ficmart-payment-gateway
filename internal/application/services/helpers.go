@@ -130,6 +130,7 @@ func markPaymentTransitioning(
 	paymentRepo *postgres.PaymentRepository,
 	idempotencyRepo *postgres.IdempotencyRepository,
 	paymentID string,
+	amount *int64,
 	idempotencyKey string,
 	requestHash string,
 	transitionFn func(*domain.Payment) error,
@@ -152,6 +153,12 @@ func markPaymentTransitioning(
 	payment, err := paymentRepo.FindByIDForUpdate(ctx, tx, paymentID)
 	if err != nil {
 		return nil, application.NewInternalError(err)
+	}
+
+	if amount != nil {
+		if payment.AmountCents != *amount {
+			return nil, application.NewRequestAmountMismtachError()
+		}
 	}
 
 	if err = transitionFn(payment); err != nil {

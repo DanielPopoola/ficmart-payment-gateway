@@ -54,6 +54,7 @@ func (s *VoidService) Void(ctx context.Context, cmd VoidCommand, idempotencyKey 
 		s.paymentRepo,
 		s.idempotencyRepo,
 		cmd.PaymentID,
+		nil,
 		idempotencyKey,
 		requestHash,
 		func(p *domain.Payment) error {

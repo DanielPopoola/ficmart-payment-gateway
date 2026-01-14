@@ -54,6 +54,7 @@ func (s *CaptureService) Capture(ctx context.Context, cmd CaptureCommand, idempo
 		s.paymentRepo,
 		s.idempotencyRepo,
 		cmd.PaymentID,
+		&cmd.Amount,
 		idempotencyKey,
 		requestHash,
 		func(p *domain.Payment) error {

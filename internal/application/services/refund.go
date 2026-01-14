@@ -54,6 +54,7 @@ func (s *RefundService) Refund(ctx context.Context, cmd RefundCommand, idempoten
 		s.paymentRepo,
 		s.idempotencyRepo,
 		cmd.PaymentID,
+		&cmd.Amount,
 		idempotencyKey,
 		requestHash,
 		func(p *domain.Payment) error {
@@ -66,7 +67,6 @@ func (s *RefundService) Refund(ctx context.Context, cmd RefundCommand, idempoten
 		}
 		return nil, err
 	}
-
 	bankReq := bank.RefundRequest{
 		Amount:    payment.AmountCents,
 		CaptureID: *payment.BankCaptureID,

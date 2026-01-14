@@ -150,7 +150,7 @@ func (suite *E2ETestSuite) Test_FindByCustomerID_WithPagination() {
 	t := suite.T()
 
 	// Create 5 payments for same customer
-	customerID := "cust-pagination-321"
+	customerID := "cust-pagination-213"
 
 	for range 5 {
 		orderID := "order-" + uuid.New().String()
@@ -237,7 +237,7 @@ func (suite *E2ETestSuite) TestFailure_AmountMismatch() {
 
 	_, err := suite.client.Capture(t, payment.Id, 2000) // Different amount from what was authorized
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "amount_mismatch")
+	assert.Contains(t, err.Error(), "Amount mismatch")
 }
 
 func (suite *E2ETestSuite) TestFailure_IdempotencyMismatch() {
