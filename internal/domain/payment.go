@@ -7,7 +7,6 @@ import (
 	"time"
 )
 
-// PaymentStatus represents the current state of a payment in its lifecycle
 type PaymentStatus string
 
 const (
@@ -24,24 +23,24 @@ const (
 )
 
 type Payment struct {
-	CreatedAt    time.Time
-	ID           string
-	OrderID      string
-	CustomerID   string
-	Currency     string
-	BankAuthID   *string
+	CreatedAt     time.Time
+	ID            string
+	OrderID       string
+	CustomerID    string
+	Currency      string
+	BankAuthID    *string
 	BankCaptureID *string
 	BankVoidID    *string
 	BankRefundID  *string
-	AuthorizedAt *time.Time
-	CapturedAt   *time.Time
-	VoidedAt     *time.Time
-	RefundedAt   *time.Time
-	ExpiresAt    *time.Time
-	NextRetryAt  *time.Time
-	AmountCents  int64
-	Status       PaymentStatus
-	AttemptCount int
+	AuthorizedAt  *time.Time
+	CapturedAt    *time.Time
+	VoidedAt      *time.Time
+	RefundedAt    *time.Time
+	ExpiresAt     *time.Time
+	NextRetryAt   *time.Time
+	AmountCents   int64
+	Status        PaymentStatus
+	AttemptCount  int
 }
 
 func NewPayment(
@@ -99,7 +98,6 @@ func (p *Payment) transition(target PaymentStatus) error {
 	return nil
 }
 
-// defines various payment statuses that can be transitioned to
 func (p *Payment) canTransitionTo(target PaymentStatus) error {
 	switch p.Status {
 	case StatusPending:
@@ -120,7 +118,6 @@ func (p *Payment) canTransitionTo(target PaymentStatus) error {
 	return ErrInvalidTransition
 }
 
-// Helper to check allowed state transitions
 func (p *Payment) allow(target PaymentStatus, allowed ...PaymentStatus) error {
 	if slices.Contains(allowed, target) {
 		return nil
@@ -128,7 +125,6 @@ func (p *Payment) allow(target PaymentStatus, allowed ...PaymentStatus) error {
 	return ErrInvalidTransition
 }
 
-// Authorize sets the payment status to authorized and records the bank authorization details.
 func (p *Payment) Authorize(bankAuthID string, authorizedAt, expiresAt time.Time) error {
 	if err := p.transition(StatusAuthorized); err != nil {
 		return err
@@ -139,7 +135,6 @@ func (p *Payment) Authorize(bankAuthID string, authorizedAt, expiresAt time.Time
 	return nil
 }
 
-// Capture transitions the payment to captured status and records the bank capture details.
 func (p *Payment) Capture(status, bankCaptureID string, capturedAt time.Time) error {
 	if err := p.transition(StatusCaptured); err != nil {
 		return err
@@ -152,7 +147,6 @@ func (p *Payment) Capture(status, bankCaptureID string, capturedAt time.Time) er
 	return nil
 }
 
-// Void transitions the payment to voided status an records the bank void details.
 func (p *Payment) Void(status, bankVoidID string, voidedAt time.Time) error {
 	if err := p.transition(StatusVoided); err != nil {
 		return err
@@ -165,7 +159,6 @@ func (p *Payment) Void(status, bankVoidID string, voidedAt time.Time) error {
 	return nil
 }
 
-// Refund transitions the payment to refunded status and records the bank refund details
 func (p *Payment) Refund(status, bankRefundID string, refundedAt time.Time) error {
 	if err := p.transition(StatusRefunded); err != nil {
 		return err
@@ -178,7 +171,6 @@ func (p *Payment) Refund(status, bankRefundID string, refundedAt time.Time) erro
 	return nil
 }
 
-// helper to identify payment statuses that are terminal
 func (p *Payment) IsTerminal() bool {
 	switch p.Status {
 	case StatusVoided, StatusRefunded, StatusExpired, StatusFailed:
@@ -193,36 +185,4 @@ func (p *Payment) ScheduleRetry(backoff time.Duration, errorCategory string) {
 	p.AttemptCount++
 	next := time.Now().Add(backoff)
 	p.NextRetryAt = &next
-}
-
-// Reconstitute - Special constructor for loading from DB
-func Reconstitute(
-	id string, orderID string, customerID string,
-	amount int64, currency string,
-	status PaymentStatus,
-	bankAuthID, bankCaptureID, bankVoidID, bankRefundID *string,
-	createdAt time.Time,
-	authorizedAt, capturedAt, voidedAt, refundedAt, expiresAt *time.Time,
-	attempCount int, nextRetryAt *time.Time, lastErrorCategory *string,
-) *Payment {
-	return &Payment{
-		ID:            id,
-		OrderID:       orderID,
-		CustomerID:    customerID,
-		AmountCents:   amount,
-		Currency:      currency,
-		Status:        status,
-		BankAuthID:    bankAuthID,
-		BankCaptureID: bankCaptureID,
-		BankVoidID:    bankVoidID,
-		BankRefundID:  bankRefundID,
-		CreatedAt:     createdAt,
-		AuthorizedAt:  authorizedAt,
-		CapturedAt:    capturedAt,
-		VoidedAt:      voidedAt,
-		RefundedAt:    refundedAt,
-		ExpiresAt:     expiresAt,
-		AttemptCount:  attempCount,
-		NextRetryAt:   nextRetryAt,
-	}
 }

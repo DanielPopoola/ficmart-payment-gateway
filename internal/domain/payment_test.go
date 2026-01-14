@@ -263,25 +263,24 @@ func createPaymentWithStatus(t *testing.T, status domain.PaymentStatus) *domain.
 	now := time.Now()
 	expiresAt := now.Add(7 * 24 * time.Hour)
 
-	return domain.Reconstitute(
-		"pay-123",
-		"order-456",
-		"cust-789",
-		5000,
-		"USD",
-		status,
-		&authID,
-		&captureID,
-		&voidID,
-		&refundID,
-		now,
-		&now,
-		&now,
-		&now,
-		&now,
-		&expiresAt,
-		0,
-		nil,
-		nil,
-	)
+	return &domain.Payment{
+		ID:            "pay-123",
+		OrderID:       "order-456",
+		CustomerID:    "cust-789",
+		AmountCents:   5000,
+		Currency:      "USD",
+		Status:        status,
+		BankAuthID:    &authID,
+		BankCaptureID: &captureID,
+		BankVoidID:    &voidID,
+		BankRefundID:  &refundID,
+		CreatedAt:     now,
+		AuthorizedAt:  &now,
+		CapturedAt:    &now,
+		VoidedAt:      &now,
+		RefundedAt:    &now,
+		ExpiresAt:     &expiresAt,
+		AttemptCount:  0,
+		NextRetryAt:   nil,
+	}
 }

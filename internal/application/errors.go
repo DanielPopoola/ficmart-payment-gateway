@@ -6,8 +6,6 @@ import (
 	"net/http"
 )
 
-// APPLICATION-LEVEL ERRORS (Orchestration)
-
 type ServiceError struct {
 	Code       string
 	Message    string
