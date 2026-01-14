@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/api"
-	"github.com/DanielPopoola/ficmart-payment-gateway/internal/application"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/application/services"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/interfaces/rest"
 )
@@ -39,19 +38,7 @@ func (h *Handlers) RefundPayment(
 }
 
 func mapRefundServiceErrorToAPIResponse(ctx context.Context, err error) (api.RefundPaymentResponseObject, error) {
-	statusCode := application.ToHTTPStatus(err)
-	errorCode := application.ToErrorCode(err)
-
-	errorResponse := api.ErrorResponse{
-		Success: false,
-		Error: struct {
-			Code    api.ErrorResponseErrorCode `json:"code"`
-			Message string                     `json:"message"`
-		}{
-			Code:    api.ErrorResponseErrorCode(errorCode),
-			Message: err.Error(),
-		},
-	}
+	statusCode, errorResponse := rest.BuildErrorResponse(err)
 
 	switch statusCode {
 	case http.StatusBadRequest:

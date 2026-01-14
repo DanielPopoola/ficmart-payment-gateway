@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/api"
+	"github.com/DanielPopoola/ficmart-payment-gateway/internal/application"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/domain"
 	"github.com/google/uuid"
 )
@@ -69,4 +70,20 @@ func ToAPIPayments(payments []*domain.Payment) ([]api.Payment, error) {
 		apiPayments = append(apiPayments, apiPayment)
 	}
 	return apiPayments, nil
+}
+
+func BuildErrorResponse(err error) (int, api.ErrorResponse) {
+	statusCode := application.ToHTTPStatus(err)
+	errorCode := application.ToErrorCode(err)
+
+	return statusCode, api.ErrorResponse{
+		Success: false,
+		Error: struct {
+			Code    api.ErrorResponseErrorCode `json:"code"`
+			Message string                     `json:"message"`
+		}{
+			Code:    api.ErrorResponseErrorCode(errorCode),
+			Message: err.Error(),
+		},
+	}
 }

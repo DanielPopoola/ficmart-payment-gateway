@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/api"
-	"github.com/DanielPopoola/ficmart-payment-gateway/internal/application"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/interfaces/rest"
 )
 
@@ -82,19 +81,7 @@ func (h *Handlers) GetPaymentByOrder(
 }
 
 func mapIdServiceErrorToAPIResponse(ctx context.Context, err error) (api.GetPaymentByIDResponseObject, error) {
-	statusCode := application.ToHTTPStatus(err)
-	errorCode := application.ToErrorCode(err)
-
-	errorResponse := api.ErrorResponse{
-		Success: false,
-		Error: struct {
-			Code    api.ErrorResponseErrorCode `json:"code"`
-			Message string                     `json:"message"`
-		}{
-			Code:    api.ErrorResponseErrorCode(errorCode),
-			Message: err.Error(),
-		},
-	}
+	statusCode, errorResponse := rest.BuildErrorResponse(err)
 
 	switch statusCode {
 	case http.StatusNotFound:
@@ -107,19 +94,7 @@ func mapIdServiceErrorToAPIResponse(ctx context.Context, err error) (api.GetPaym
 }
 
 func mapOrderServiceErrorToAPIResponse(ctx context.Context, err error) (api.GetPaymentByOrderResponseObject, error) {
-	statusCode := application.ToHTTPStatus(err)
-	errorCode := application.ToErrorCode(err)
-
-	errorResponse := api.ErrorResponse{
-		Success: false,
-		Error: struct {
-			Code    api.ErrorResponseErrorCode `json:"code"`
-			Message string                     `json:"message"`
-		}{
-			Code:    api.ErrorResponseErrorCode(errorCode),
-			Message: err.Error(),
-		},
-	}
+	statusCode, errorResponse := rest.BuildErrorResponse(err)
 
 	switch statusCode {
 	case http.StatusNotFound:
@@ -132,19 +107,7 @@ func mapOrderServiceErrorToAPIResponse(ctx context.Context, err error) (api.GetP
 }
 
 func mapCustomerServiceErrorToAPIResponse(ctx context.Context, err error) (api.GetPaymentsByCustomerResponseObject, error) {
-	statusCode := application.ToHTTPStatus(err)
-	errorCode := application.ToErrorCode(err)
-
-	errorResponse := api.ErrorResponse{
-		Success: false,
-		Error: struct {
-			Code    api.ErrorResponseErrorCode `json:"code"`
-			Message string                     `json:"message"`
-		}{
-			Code:    api.ErrorResponseErrorCode(errorCode),
-			Message: err.Error(),
-		},
-	}
+	statusCode, errorResponse := rest.BuildErrorResponse(err)
 
 	switch statusCode {
 	case http.StatusNotFound:
