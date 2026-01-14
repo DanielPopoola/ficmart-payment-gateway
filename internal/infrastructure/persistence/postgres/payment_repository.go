@@ -115,21 +115,7 @@ func (r *PaymentRepository) FindByCustomerID(ctx context.Context, customerID str
 	if err != nil {
 		return nil, fmt.Errorf("query payments by customer_id: %w", err)
 	}
-	results, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (*domain.Payment, error) {
-		var p domain.Payment
-		err := row.Scan(
-			&p.ID, &p.OrderID, &p.CustomerID, &p.AmountCents, &p.Currency, &p.Status,
-			&p.BankAuthID, &p.BankCaptureID, &p.BankVoidID, &p.BankRefundID,
-			&p.CreatedAt, &p.AuthorizedAt, &p.CapturedAt, &p.VoidedAt, &p.RefundedAt, &p.ExpiresAt,
-			&p.AttemptCount, &p.NextRetryAt,
-		)
-		return &p, err
-	})
-
-	if err != nil {
-		return nil, fmt.Errorf("error occcured while scanning rows: %w", err)
-	}
-	return results, nil
+	return scanPayments(rows)
 }
 
 // FindExpiredAuthorizations finds AUTHORIZED payments older than the cutoff time
@@ -150,23 +136,7 @@ func (r *PaymentRepository) FindExpiredAuthorizations(ctx context.Context, cutof
 	if err != nil {
 		return nil, fmt.Errorf("query expired authorizations: %w", err)
 	}
-
-	results, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (*domain.Payment, error) {
-		var p domain.Payment
-		err := row.Scan(
-			&p.ID, &p.OrderID, &p.CustomerID, &p.AmountCents, &p.Currency, &p.Status,
-			&p.BankAuthID, &p.BankCaptureID, &p.BankVoidID, &p.BankRefundID,
-			&p.CreatedAt, &p.AuthorizedAt, &p.CapturedAt, &p.VoidedAt, &p.RefundedAt, &p.ExpiresAt,
-			&p.AttemptCount, &p.NextRetryAt,
-		)
-		return &p, err
-	})
-
-	if err != nil {
-		return nil, fmt.Errorf("scan expired authorizations: %w", err)
-	}
-
-	return results, nil
+	return scanPayments(rows)
 }
 
 func (r *PaymentRepository) Update(ctx context.Context, tx pgx.Tx, payment *domain.Payment) error {
@@ -231,4 +201,23 @@ func scanPayment(row pgx.Row) (*domain.Payment, error) {
 		return nil, fmt.Errorf("failed to scan payment: %w", err)
 	}
 	return &p, nil
+}
+
+func scanPayments(rows pgx.Rows) ([]*domain.Payment, error) {
+	results, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (*domain.Payment, error) {
+		var p domain.Payment
+		err := row.Scan(
+			&p.ID, &p.OrderID, &p.CustomerID, &p.AmountCents, &p.Currency, &p.Status,
+			&p.BankAuthID, &p.BankCaptureID, &p.BankVoidID, &p.BankRefundID,
+			&p.CreatedAt, &p.AuthorizedAt, &p.CapturedAt, &p.VoidedAt, &p.RefundedAt, &p.ExpiresAt,
+			&p.AttemptCount, &p.NextRetryAt,
+		)
+		return &p, err
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return results, nil
 }
