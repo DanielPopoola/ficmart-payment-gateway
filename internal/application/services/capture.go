@@ -89,7 +89,7 @@ func (s *CaptureService) Capture(ctx context.Context, cmd CaptureCommand, idempo
 		return nil, application.NewInvalidStateError(err)
 	}
 
-	if err := FinalizePaymentSuccess(ctx, s.db, s.paymentRepo, s.idempotencyRepo, payment, idempotencyKey, bankResp); err != nil {
+	if err := FinalizePayment(ctx, s.db, s.paymentRepo, s.idempotencyRepo, payment, idempotencyKey, bankResp); err != nil {
 		return payment, err
 	}
 

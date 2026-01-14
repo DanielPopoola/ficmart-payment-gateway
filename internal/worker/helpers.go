@@ -13,8 +13,8 @@ func (w *RetryWorker) resumeOperation(
 	ctx context.Context,
 	payment *domain.Payment,
 	idempotencyKey string,
-	callBank func(ctx context.Context, idempotencyKey string) (interface{}, error),
-	applyResponse func(payment *domain.Payment, response interface{}) error,
+	callBank func(ctx context.Context, idempotencyKey string) (any, error),
+	applyResponse func(payment *domain.Payment, response any) error,
 ) error {
 	resp, err := callBank(ctx, idempotencyKey)
 	if err != nil {
@@ -28,7 +28,7 @@ func (w *RetryWorker) resumeOperation(
 			err,
 		); err != nil {
 			if application.IsRetryable(err) {
-				return w.scheduleRetry(ctx, payment, err)
+				return w.scheduleRetry(ctx, payment)
 			}
 		}
 
@@ -39,7 +39,7 @@ func (w *RetryWorker) resumeOperation(
 		return err
 	}
 
-	return services.FinalizePaymentSuccess(
+	return services.FinalizePayment(
 		ctx,
 		w.db,
 		w.paymentRepo,
@@ -50,12 +50,9 @@ func (w *RetryWorker) resumeOperation(
 	)
 }
 
-func (w *RetryWorker) scheduleRetry(ctx context.Context, payment *domain.Payment, lastErr error) error {
-	category := application.CategorizeError(lastErr)
-
+func (w *RetryWorker) scheduleRetry(ctx context.Context, payment *domain.Payment) error {
 	payment.ScheduleRetry(
-		time.Duration(1<<payment.AttemptCount)*time.Minute,
-		string(category),
+		time.Duration(1<<payment.AttemptCount) * time.Minute,
 	)
 	return w.paymentRepo.Update(ctx, nil, payment)
 }

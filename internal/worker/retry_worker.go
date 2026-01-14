@@ -177,8 +177,6 @@ func (w *RetryWorker) retryPayment(ctx context.Context, sp stuckPayment) error {
 		return w.resumeVoid(ctx, payment, sp.idempotencyKey)
 	case domain.StatusRefunding:
 		return w.resumeRefund(ctx, payment, sp.idempotencyKey)
-	case domain.StatusPending, domain.StatusAuthorized, domain.StatusCaptured, domain.StatusFailed, domain.StatusRefunded, domain.StatusVoided, domain.StatusExpired:
-		return fmt.Errorf("unexpected status %s for retry: %w", sp.status, domain.ErrInvalidState)
 	default:
 		return fmt.Errorf("unexpected status %s: %w", sp.status, domain.ErrInvalidState)
 	}
@@ -189,14 +187,14 @@ func (w *RetryWorker) resumeCapture(ctx context.Context, payment *domain.Payment
 		ctx,
 		payment,
 		idempotencyKey,
-		func(ctx context.Context, key string) (interface{}, error) {
+		func(ctx context.Context, key string) (any, error) {
 			req := bank.CaptureRequest{
 				Amount:          payment.AmountCents,
 				AuthorizationID: *payment.BankAuthID,
 			}
 			return w.bankClient.Capture(ctx, req, key)
 		},
-		func(p *domain.Payment, resp interface{}) error {
+		func(p *domain.Payment, resp any) error {
 			r, ok := resp.(*bank.CaptureResponse)
 			if !ok {
 				return fmt.Errorf("expected *bank.CaptureResponse, got %T", resp)
@@ -211,13 +209,13 @@ func (w *RetryWorker) resumeVoid(ctx context.Context, payment *domain.Payment, i
 		ctx,
 		payment,
 		idempotencyKey,
-		func(ctx context.Context, key string) (interface{}, error) {
+		func(ctx context.Context, key string) (any, error) {
 			req := bank.VoidRequest{
 				AuthorizationID: *payment.BankAuthID,
 			}
 			return w.bankClient.Void(ctx, req, key)
 		},
-		func(p *domain.Payment, resp interface{}) error {
+		func(p *domain.Payment, resp any) error {
 			r, ok := resp.(*bank.VoidResponse)
 			if !ok {
 				return fmt.Errorf("expected *bank.VoidResponse, got %T", resp)
@@ -233,14 +231,14 @@ func (w *RetryWorker) resumeRefund(ctx context.Context, payment *domain.Payment,
 		ctx,
 		payment,
 		idempotencyKey,
-		func(ctx context.Context, key string) (interface{}, error) {
+		func(ctx context.Context, key string) (any, error) {
 			req := bank.RefundRequest{
 				Amount:    payment.AmountCents,
 				CaptureID: *payment.BankCaptureID,
 			}
 			return w.bankClient.Refund(ctx, req, key)
 		},
-		func(p *domain.Payment, resp interface{}) error {
+		func(p *domain.Payment, resp any) error {
 			r, ok := resp.(*bank.RefundResponse)
 			if !ok {
 				return fmt.Errorf("expected *bank.RefundResponse, got %T", resp)

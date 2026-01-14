@@ -14,7 +14,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-func ComputeHash(v interface{}) string {
+func ComputeHash(v any) string {
 	data := fmt.Sprintf("%+v", v)
 	hash := sha256.Sum256([]byte(data))
 	return fmt.Sprintf("%x", hash)
@@ -216,15 +216,15 @@ func HandleBankFailure(
 	return bankErr
 }
 
-// FinalizePaymentSuccess stores successful bank response and releases lock
-func FinalizePaymentSuccess(
+// FinalizePayment stores successful bank response and releases lock
+func FinalizePayment(
 	ctx context.Context,
 	db *postgres.DB,
 	paymentRepo *postgres.PaymentRepository,
 	idempotencyRepo *postgres.IdempotencyRepository,
 	payment *domain.Payment,
 	idempotencyKey string,
-	bankResponse interface{},
+	bankResponse any,
 ) error {
 	tx, err := db.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.ReadCommitted})
 	if err != nil {

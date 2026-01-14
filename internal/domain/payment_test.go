@@ -177,7 +177,7 @@ func TestPayment_ScheduleRetry(t *testing.T) {
 		payment := createTestPayment(t)
 		backoff := 2 * time.Minute
 
-		payment.ScheduleRetry(backoff, "TRANSIENT")
+		payment.ScheduleRetry(backoff)
 
 		assert.Equal(t, 1, payment.AttemptCount)
 		assert.NotNil(t, payment.NextRetryAt)
@@ -189,9 +189,9 @@ func TestPayment_ScheduleRetry(t *testing.T) {
 	t.Run("increments attempt count on multiple retries", func(t *testing.T) {
 		payment := createTestPayment(t)
 
-		payment.ScheduleRetry(1*time.Minute, "TRANSIENT")
-		payment.ScheduleRetry(2*time.Minute, "TRANSIENT")
-		payment.ScheduleRetry(4*time.Minute, "TRANSIENT")
+		payment.ScheduleRetry(1 * time.Minute)
+		payment.ScheduleRetry(2 * time.Minute)
+		payment.ScheduleRetry(4 * time.Minute)
 
 		assert.Equal(t, 3, payment.AttemptCount)
 	})

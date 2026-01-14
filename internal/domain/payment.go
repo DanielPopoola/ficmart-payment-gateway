@@ -181,7 +181,7 @@ func (p *Payment) IsTerminal() bool {
 	return false
 }
 
-func (p *Payment) ScheduleRetry(backoff time.Duration, errorCategory string) {
+func (p *Payment) ScheduleRetry(backoff time.Duration) {
 	p.AttemptCount++
 	next := time.Now().Add(backoff)
 	p.NextRetryAt = &next

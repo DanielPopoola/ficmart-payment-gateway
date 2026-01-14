@@ -88,7 +88,7 @@ func (s *RefundService) Refund(ctx context.Context, cmd RefundCommand, idempoten
 		return nil, application.NewInvalidStateError(err)
 	}
 
-	if err := FinalizePaymentSuccess(ctx, s.db, s.paymentRepo, s.idempotencyRepo, payment, idempotencyKey, bankResp); err != nil {
+	if err := FinalizePayment(ctx, s.db, s.paymentRepo, s.idempotencyRepo, payment, idempotencyKey, bankResp); err != nil {
 		return payment, err
 	}
 
