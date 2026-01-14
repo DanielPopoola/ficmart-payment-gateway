@@ -136,11 +136,11 @@ func (p *Payment) Authorize(bankAuthID string, authorizedAt, expiresAt time.Time
 }
 
 func (p *Payment) Capture(status, bankCaptureID string, capturedAt time.Time) error {
-	if err := p.transition(StatusCaptured); err != nil {
-		return err
-	}
 	if status != "captured" {
 		return ErrPaymentExpired
+	}
+	if err := p.transition(StatusCaptured); err != nil {
+		return err
 	}
 	p.BankCaptureID = &bankCaptureID
 	p.CapturedAt = &capturedAt
@@ -148,11 +148,11 @@ func (p *Payment) Capture(status, bankCaptureID string, capturedAt time.Time) er
 }
 
 func (p *Payment) Void(status, bankVoidID string, voidedAt time.Time) error {
-	if err := p.transition(StatusVoided); err != nil {
-		return err
-	}
 	if status != "voided" {
 		return ErrPaymentExpired
+	}
+	if err := p.transition(StatusVoided); err != nil {
+		return err
 	}
 	p.BankVoidID = &bankVoidID
 	p.VoidedAt = &voidedAt
@@ -160,11 +160,11 @@ func (p *Payment) Void(status, bankVoidID string, voidedAt time.Time) error {
 }
 
 func (p *Payment) Refund(status, bankRefundID string, refundedAt time.Time) error {
-	if err := p.transition(StatusRefunded); err != nil {
-		return err
-	}
 	if status != "refunded" {
 		return ErrPaymentExpired
+	}
+	if err := p.transition(StatusRefunded); err != nil {
+		return err
 	}
 	p.BankRefundID = &bankRefundID
 	p.RefundedAt = &refundedAt

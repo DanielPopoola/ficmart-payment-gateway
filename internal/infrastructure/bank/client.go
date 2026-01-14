@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"time"
 
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/config"
 )
@@ -31,7 +30,7 @@ func NewBankClient(cfg config.BankConfig) BankClient {
 	return &HTTPBankClient{
 		baseURL: cfg.BankBaseURL,
 		httpClient: &http.Client{
-			Timeout: cfg.BankConnTimeout * time.Second,
+			Timeout: cfg.BankConnTimeout,
 		},
 	}
 }

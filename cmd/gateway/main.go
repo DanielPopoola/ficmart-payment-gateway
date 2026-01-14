@@ -90,6 +90,8 @@ func main() {
 		db,
 		cfg.Worker.Interval,
 		cfg.Worker.BatchSize,
+		cfg.Retry.MaxRetries,
+		cfg.Retry.MaxBackoff,
 		logger,
 	)
 
@@ -110,7 +112,6 @@ func main() {
 		logger.Info("server starting", "addr", server.Addr)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Error("server error", "error", err)
-			os.Exit(1)
 		}
 	}()
 

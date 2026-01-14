@@ -95,16 +95,15 @@ func (w *ExpirationWorker) checkAndMarkExpired(ctx context.Context, payment *dom
 	}
 
 	if bankAuth.Status == "AUTHORIZED" {
+		if time.Since(*payment.AuthorizedAt) > 9*24*time.Hour {
+			w.logger.Error("FORCE_EXPIRED", "payment_id", payment.ID)
+			return w.markAsExpired(ctx, payment)
+		}
 		w.logger.Warn("payment still active at bank despite age",
 			"payment_id", payment.ID,
 			"bank_auth_id", *payment.BankAuthID,
 			"authorized_at", payment.AuthorizedAt)
 		return nil
-	}
-
-	if time.Since(*payment.AuthorizedAt) > 9*24*time.Hour {
-		w.logger.Error("FORCE_EXPIRED", "payment_id", payment.ID)
-		return w.markAsExpired(ctx, payment)
 	}
 
 	return w.markAsExpired(ctx, payment)

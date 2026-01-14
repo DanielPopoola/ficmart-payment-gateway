@@ -17,6 +17,8 @@ type RetryWorker struct {
 	bankClient      bank.BankClient
 	interval        time.Duration
 	batchSize       int
+	maxRetries      int32
+	maxBackoff      int32
 	db              *postgres.DB
 	logger          *slog.Logger
 }
@@ -28,6 +30,8 @@ func NewRetryWorker(
 	db *postgres.DB,
 	interval time.Duration,
 	batchSize int,
+	maxRetries int32,
+	maxBackoff int32,
 	logger *slog.Logger,
 ) *RetryWorker {
 	return &RetryWorker{
@@ -36,6 +40,8 @@ func NewRetryWorker(
 		bankClient:      bankClient,
 		interval:        interval,
 		batchSize:       batchSize,
+		maxRetries:      maxRetries,
+		maxBackoff:      maxBackoff,
 		db:              db,
 		logger:          logger,
 	}
@@ -77,14 +83,14 @@ func (w *RetryWorker) ProcessRetries(ctx context.Context) error {
 			AND (
 				p.next_retry_at IS NULL OR p.next_retry_at <= NOW()
 			)
-			AND p.attempt_count < 5
-			AND i.locked_at < NOW() - $1::interval
+			AND p.attempt_count < $1
+			AND i.locked_at < NOW() - $2::interval
 		ORDER BY p.created_at ASC
 		LIMIT $2
 		FOR UPDATE SKIP LOCKED
 	`
 
-	rows, err := w.db.Query(ctx, query, w.interval, w.batchSize)
+	rows, err := w.db.Query(ctx, query, w.maxRetries, w.interval, w.batchSize)
 	if err != nil {
 		return fmt.Errorf("query stuck payments: %w", err)
 	}
@@ -124,7 +130,7 @@ func (w *RetryWorker) timeoutUnauthorizedPayments(ctx context.Context) error {
             p.status = 'PENDING'
             AND p.created_at < NOW() - INTERVAL '10 minutes'
             AND i.locked_at IS NOT NULL
-		FOR UPDATE
+		FOR UPDATE SKIP LOCKED
     `
 
 	rows, err := w.db.Query(ctx, query)
@@ -245,7 +251,7 @@ func (w *RetryWorker) resumeRefund(ctx context.Context, payment *domain.Payment,
 			if !ok {
 				return fmt.Errorf("expected *bank.RefundResponse, got %T", resp)
 			}
-			return p.Capture(r.Status, r.RefundID, r.RefundedAt)
+			return p.Refund(r.Status, r.RefundID, r.RefundedAt)
 		},
 	)
 }

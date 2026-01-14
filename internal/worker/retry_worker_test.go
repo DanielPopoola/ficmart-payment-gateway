@@ -94,6 +94,8 @@ func TestRetryWorker_RecoversStuckCapture(t *testing.T) {
 		testDB.DB,
 		1*time.Minute,
 		10,
+		5,
+		10,
 		logger,
 	)
 
@@ -180,6 +182,8 @@ func TestRetryWorker_SchedulesRetryOnTransientError(t *testing.T) {
 		testDB.DB,
 		1*time.Minute,
 		10,
+		5,
+		10,
 		logger,
 	)
 
@@ -264,6 +268,8 @@ func TestRetryWorker_FailsOnPermanentError(t *testing.T) {
 		mockBank,
 		testDB.DB,
 		1*time.Minute,
+		10,
+		5,
 		10,
 		logger,
 	)

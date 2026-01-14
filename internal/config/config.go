@@ -57,8 +57,9 @@ type BankConfig struct {
 }
 
 type RetryConfig struct {
-	BaseDelay  int32 `koanf:"base_delay"`
-	MaxRetries int32 `koanf:"max_retries"`
+	BaseDelay  int32 `koanf:"base_delay" validate:"required"`
+	MaxRetries int32 `koanf:"max_retries" validate:"required"`
+	MaxBackoff int32 `koanf:"max_backoff" validate:"required"`
 }
 
 type LoggerConfig struct {

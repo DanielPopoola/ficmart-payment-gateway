@@ -51,8 +51,14 @@ func (w *RetryWorker) resumeOperation(
 }
 
 func (w *RetryWorker) scheduleRetry(ctx context.Context, payment *domain.Payment) error {
-	payment.ScheduleRetry(
-		time.Duration(1<<payment.AttemptCount) * time.Minute,
-	)
+	backoff := w.calculateBackoff(payment.AttemptCount)
+	payment.ScheduleRetry(backoff)
 	return w.paymentRepo.Update(ctx, nil, payment)
+}
+
+func (w *RetryWorker) calculateBackoff(attemptCount int) time.Duration {
+	exponentialMinutes := 1 << attemptCount
+	cappedMinutes := min(exponentialMinutes, int(w.maxBackoff))
+
+	return time.Duration(cappedMinutes) * time.Minute
 }

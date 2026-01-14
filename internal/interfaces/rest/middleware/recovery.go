@@ -25,7 +25,7 @@ func Recovery(logger *slog.Logger) func(http.Handler) http.Handler {
 					)
 
 					err := application.NewInternalError(fmt.Errorf("panic: %v", rec))
-					rest.WriteError(w, err)
+					rest.WriteError(w, err, logger)
 				}
 			}()
 

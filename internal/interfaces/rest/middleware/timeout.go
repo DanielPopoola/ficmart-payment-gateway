@@ -15,7 +15,13 @@ func Timeout(timeout time.Duration) func(http.Handler) http.Handler {
 
 			r = r.WithContext(ctx)
 
-			next.ServeHTTP(w, r)
+			timeoutHandler := http.TimeoutHandler(
+				next,
+				timeout,
+				`{"success":false,"error":{"code":"TIMEOUT","message":"Request timeout"}}`,
+			)
+
+			timeoutHandler.ServeHTTP(w, r)
 		})
 	}
 }
