@@ -177,6 +177,8 @@ func (w *RetryWorker) retryPayment(ctx context.Context, sp stuckPayment) error {
 		return w.resumeVoid(ctx, payment, sp.idempotencyKey)
 	case domain.StatusRefunding:
 		return w.resumeRefund(ctx, payment, sp.idempotencyKey)
+	case domain.StatusPending, domain.StatusAuthorized, domain.StatusCaptured, domain.StatusFailed, domain.StatusRefunded, domain.StatusVoided, domain.StatusExpired:
+		return fmt.Errorf("unexpected status %s for retry: %w", sp.status, domain.ErrInvalidState)
 	default:
 		return fmt.Errorf("unexpected status %s: %w", sp.status, domain.ErrInvalidState)
 	}
