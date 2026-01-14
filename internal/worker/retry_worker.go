@@ -86,7 +86,7 @@ func (w *RetryWorker) ProcessRetries(ctx context.Context) error {
 			AND p.attempt_count < $1
 			AND i.locked_at < NOW() - $2::interval
 		ORDER BY p.created_at ASC
-		LIMIT $2
+		LIMIT $3
 		FOR UPDATE SKIP LOCKED
 	`
 
