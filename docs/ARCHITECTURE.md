@@ -137,7 +137,5 @@ Since we cannot store card details (PCI compliance), we cannot "retry" an author
 ---
 
 ## Performance & Scalability
-
-- **Horizontal Scaling**: Multiple gateway instances can run safely. Workers use `FOR UPDATE SKIP LOCKED` to ensure they never process the same record simultaneously.
 - **Database Integrity**: All state transitions and idempotency updates are wrapped in ACID-compliant transactions.
 - **Idempotency Efficiency**: `checkIdempotency` is a sub-5ms lookup, protecting the system from redundant heavy operations.

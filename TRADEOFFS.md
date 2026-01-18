@@ -23,7 +23,6 @@ My strategy focuses on **Error Classification** to avoid "poison pill" retries.
 *   **Handling Partial Failures:** If the gateway crashes after a bank call but before updating my DB, background workers handle recovery:
     *   **Scenario (Capture/Void):** The worker finds the stuck intermediate state and retries the operation. Because of idempotency, the bank returns the cached success, and my DB eventually syncs.
     *   **Scenario (Authorize):** Since card details aren't stored, I cannot retry authorizations. These are marked `FAILED` for manual reconciliation to prevent holding customer funds indefinitely.
-*   **Efficient Processing:** Workers use `FOR UPDATE SKIP LOCKED` to allow multiple instances to process stuck payments concurrently without blocking each other.
 
 ## 4. Idempotency: Implementation and Edge Cases
 Idempotency is enforced at the database level using a dedicated `idempotency_keys` table in PostgreSQL.
@@ -38,4 +37,5 @@ With more time, I would address the following limitations:
 *   **Separate Operation Intent:** Currently, the payment state encodes intent (e.g., `CAPTURING`). In production, I’d add an `operation_type` column to the idempotency table. This would keep the domain state clean (only `AUTHORIZED`, `CAPTURED`) while explicitly tracking what the worker needs to do.
 *   **Event Sourcing:** I would move to a `payment_events` table. Storing every transition (e.g., `PENDING` -> `CAPTURING` -> `CAPTURED`) provides a full audit trail and makes it easier to debug "orphaned" authorizations where the bank says "Yes" but my gateway marked "Failed" due to timeout.
 *   **Infrastructure Optimization:** For a high-scale environment, I’d move idempotency lookups to **Redis** for sub-millisecond latency, keeping PostgreSQL as a durable fallback.
+  **Database-level Concurrency**: I will add `FOR UPDATE SKIP LOCKED` in workers query to allow multiple instances to process stuck payments concurrently without blocking each other.
 *   **Advanced Chaos Testing:** I would implement failure-injection testing to simulate crashes at the exact millisecond between the bank response and the database commit to further harden the recovery workers.

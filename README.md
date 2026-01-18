@@ -86,7 +86,6 @@ Invalid transitions (e.g., voiding after capture) are rejected at the domain lev
 1. **Domain-Driven Design**: Business logic lives in the domain layer, completely isolated from HTTP/database concerns
 2. **Write-Ahead Pattern**: Every payment is saved as `PENDING` before calling the bank, ensuring we have a record to reconcile
 3. **Intermediate States**: States like `CAPTURING` signal intent, allowing workers to resume operations after crashes
-4. **Database-Level Concurrency**: PostgreSQL's `FOR UPDATE SKIP LOCKED` enables multiple worker instances to process retries concurrently
 
 See [TRADEOFFS.md](./TRADEOFFS.md) for detailed rationale.
 
@@ -95,7 +94,7 @@ See [TRADEOFFS.md](./TRADEOFFS.md) for detailed rationale.
 ### Prerequisites
 
 - **Docker & Docker Compose**: 20.10+
-- **Go**: 1.23+ (for local development)
+- **Go**: 1.25+ (for local development)
 - **Make**: Optional (macOS/Linux)
 
 ### 1. Start the Mock Bank

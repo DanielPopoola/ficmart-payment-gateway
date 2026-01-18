@@ -1,7 +1,7 @@
 # Development Guide
 
 ## Prerequisites
-- **Go 1.23+**
+- **Go 1.25+**
 - **Docker & Docker Compose**
 - **Make** (optional, but recommended)
 - **Air** (for hot-reload development)
@@ -48,7 +48,8 @@
 │   ├── interfaces/       # HTTP handlers and middleware
 │   ├── worker/           # Background retry and expiration jobs
 │   └── db/migrations/    # Postgres SQL migrations
-└── tests/e2e/            # End-to-end integration tests
+|   └── tests/e2e/        # End-to-end integration tests
+
 ```
 
 ---
@@ -135,5 +136,5 @@ Useful queries:
 ## Deployment
 The gateway is stateless and supports horizontal scaling. Ensure:
 - `GATEWAY_DATABASE__HOST` points to a shared Postgres instance.
-- Multiple instances can safely run workers due to `FOR UPDATE SKIP LOCKED` logic.
+
 - Idempotency is shared across all instances via the central DB.
