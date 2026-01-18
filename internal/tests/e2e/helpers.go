@@ -58,7 +58,7 @@ func (c *TestClient) Authorize(t *testing.T, req api.AuthorizeRequest) (*api.Pay
 }
 
 // Capture calls /capture endpoint
-func (c *TestClient) Capture(t *testing.T, paymentID uuid.UUID, amount int64) (*api.Payment, error) {
+func (c *TestClient) Capture(t *testing.T, paymentID uuid.UUID) (*api.Payment, error) {
 	idempotencyKey := "e2e-cap-" + uuid.New().String()
 
 	req := api.CaptureRequest{
@@ -120,7 +120,7 @@ func (c *TestClient) Void(t *testing.T, paymentID uuid.UUID) (*api.Payment, erro
 	return &paymentResp.Data, nil
 }
 
-func (c *TestClient) Refund(t *testing.T, paymentID uuid.UUID, amount int64) (*api.Payment, error) {
+func (c *TestClient) Refund(t *testing.T, paymentID uuid.UUID) (*api.Payment, error) {
 	idempotencyKey := "e2e-ref-" + uuid.New().String()
 
 	req := api.RefundRequest{

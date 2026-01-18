@@ -103,7 +103,7 @@ func (suite *E2ETestSuite) TestHappyPath_AuthorizeAndCapture() {
 
 	payment := suite.createAuthorizedPayment(orderID, customerID)
 
-	capturedPayment, err := suite.client.Capture(t, payment.Id, payment.AmountCents)
+	capturedPayment, err := suite.client.Capture(t, payment.Id)
 	require.NoError(t, err, "Capture should succeed")
 
 	assert.Equal(t, api.CAPTURED, capturedPayment.Status)
@@ -134,10 +134,10 @@ func (suite *E2ETestSuite) TestHappyPath_AuthorizeCaptureRefund() {
 
 	payment := suite.createAuthorizedPayment(orderID, customerID)
 
-	_, err := suite.client.Capture(t, payment.Id, payment.AmountCents)
+	_, err := suite.client.Capture(t, payment.Id)
 	require.NoError(t, err, "Capture should succeed")
 
-	refundedPayment, err := suite.client.Refund(t, payment.Id, payment.AmountCents)
+	refundedPayment, err := suite.client.Refund(t, payment.Id)
 	require.NoError(t, err, "Refund should succeed")
 
 	assert.Equal(t, api.REFUNDED, refundedPayment.Status)
@@ -225,19 +225,6 @@ func (suite *E2ETestSuite) TestFailure_InsufficientFunds() {
 	if payment != nil {
 		assert.Equal(t, api.FAILED, payment.Status)
 	}
-}
-
-func (suite *E2ETestSuite) TestFailure_AmountMismatch() {
-	t := suite.T()
-
-	orderID := "order-" + uuid.New().String()
-	customerID := "cust-" + uuid.New().String()
-
-	payment := suite.createAuthorizedPayment(orderID, customerID)
-
-	_, err := suite.client.Capture(t, payment.Id, 2000) // Different amount from what was authorized
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "Amount mismatch")
 }
 
 func (suite *E2ETestSuite) TestFailure_IdempotencyMismatch() {
@@ -330,7 +317,7 @@ func (suite *E2ETestSuite) TestEdgeCase_CannotCaptureVoidedPayment() {
 	payment, _ := suite.client.Authorize(t, authReq)
 	suite.client.Void(t, payment.Id)
 
-	_, err := suite.client.Capture(t, payment.Id, payment.AmountCents)
+	_, err := suite.client.Capture(t, payment.Id)
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid transition")

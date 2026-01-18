@@ -38,8 +38,7 @@ func CategorizeError(err error) ErrorCategory {
 		return CategoryBusinessRule
 	}
 
-	if errors.Is(err, domain.ErrInvalidAmount) ||
-		errors.Is(err, domain.ErrAmountMismatch) {
+	if errors.Is(err, domain.ErrInvalidAmount) {
 		return CategoryBusinessRule
 	}
 
@@ -84,8 +83,6 @@ func CategorizeError(err error) ErrorCategory {
 		case "insufficient_funds":
 			return CategoryPermanent
 		case "invalid_amount":
-			return CategoryPermanent
-		case "amount_mismatch":
 			return CategoryPermanent
 		case "authorization_already_used":
 			return CategoryPermanent
@@ -141,7 +138,6 @@ func ToHTTPStatus(err error) int {
 
 	switch {
 	case errors.Is(err, domain.ErrInvalidAmount),
-		errors.Is(err, domain.ErrAmountMismatch),
 		errors.Is(err, domain.ErrMissingRequiredField):
 		return http.StatusBadRequest
 	case errors.Is(err, domain.ErrInvalidTransition),

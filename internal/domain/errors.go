@@ -10,5 +10,4 @@ var (
 	ErrInvalidAmount        = errors.New("invalid amount")
 	ErrMissingRequiredField = errors.New("missing required fields")
 	ErrInvalidState         = errors.New("invalid state")
-	ErrAmountMismatch       = errors.New("amounts mismatch")
 )
