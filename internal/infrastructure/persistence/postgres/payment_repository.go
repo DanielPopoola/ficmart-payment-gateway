@@ -26,8 +26,9 @@ func (r *PaymentRepository) Create(ctx context.Context, tx pgx.Tx, payment *doma
 		INSERT INTO payments (
             id, order_id, customer_id, amount_cents, currency, status,
             bank_auth_id, bank_capture_id, bank_void_id, bank_refund_id,
-            created_at, authorized_at, captured_at, voided_at, refunded_at, expires_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+            created_at, authorized_at, captured_at, voided_at, refunded_at, expires_at,
+			attempt_count, next_retry_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
 	`
 
 	_, err := tx.Exec(ctx, query,
@@ -47,6 +48,8 @@ func (r *PaymentRepository) Create(ctx context.Context, tx pgx.Tx, payment *doma
 		payment.VoidedAt,
 		payment.RefundedAt,
 		payment.ExpiresAt,
+		payment.AttemptCount,
+		payment.NextRetryAt,
 	)
 
 	if err != nil {
@@ -108,6 +111,7 @@ func (r *PaymentRepository) FindByCustomerID(ctx context.Context, customerID str
 		       created_at, authorized_at, captured_at, voided_at, refunded_at, expires_at,
 			   attempt_count, next_retry_at
 		FROM payments WHERE customer_id = $1
+		ORDER BY created_at DESC
 		LIMIT $2 OFFSET $3
 	`
 
@@ -177,7 +181,7 @@ func (r *PaymentRepository) Update(ctx context.Context, tx pgx.Tx, payment *doma
 
 	rowsAffected := results.RowsAffected()
 	if rowsAffected == 0 {
-		return fmt.Errorf("payment not found")
+		return ErrPaymentNotFound
 	}
 
 	return nil

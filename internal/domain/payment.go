@@ -4,6 +4,7 @@ package domain
 import (
 	"errors"
 	"slices"
+	"strings"
 	"time"
 )
 
@@ -27,7 +28,9 @@ type Payment struct {
 	ID            string
 	OrderID       string
 	CustomerID    string
+	AmountCents   int64
 	Currency      string
+	Status        PaymentStatus
 	BankAuthID    *string
 	BankCaptureID *string
 	BankVoidID    *string
@@ -37,10 +40,8 @@ type Payment struct {
 	VoidedAt      *time.Time
 	RefundedAt    *time.Time
 	ExpiresAt     *time.Time
-	NextRetryAt   *time.Time
-	AmountCents   int64
-	Status        PaymentStatus
 	AttemptCount  int
+	NextRetryAt   *time.Time
 }
 
 func NewPayment(
@@ -60,13 +61,14 @@ func NewPayment(
 	}
 
 	return &Payment{
-		ID:          id,
-		OrderID:     orderID,
-		CustomerID:  customerID,
-		AmountCents: amount,
-		Currency:    currency,
-		Status:      StatusPending,
-		CreatedAt:   time.Now(),
+		ID:           id,
+		OrderID:      orderID,
+		CustomerID:   customerID,
+		AmountCents:  amount,
+		Currency:     currency,
+		Status:       StatusPending,
+		CreatedAt:    time.Now(),
+		AttemptCount: 0,
 	}, nil
 }
 
@@ -136,9 +138,10 @@ func (p *Payment) Authorize(bankAuthID string, authorizedAt, expiresAt time.Time
 }
 
 func (p *Payment) Capture(status, bankCaptureID string, capturedAt time.Time) error {
-	if status != "captured" {
+	if strings.EqualFold(status, "authorization_expired") {
 		return ErrPaymentExpired
 	}
+
 	if err := p.transition(StatusCaptured); err != nil {
 		return err
 	}
@@ -148,7 +151,7 @@ func (p *Payment) Capture(status, bankCaptureID string, capturedAt time.Time) er
 }
 
 func (p *Payment) Void(status, bankVoidID string, voidedAt time.Time) error {
-	if status != "voided" {
+	if strings.EqualFold(status, "authorization_expired") {
 		return ErrPaymentExpired
 	}
 	if err := p.transition(StatusVoided); err != nil {
@@ -159,10 +162,7 @@ func (p *Payment) Void(status, bankVoidID string, voidedAt time.Time) error {
 	return nil
 }
 
-func (p *Payment) Refund(status, bankRefundID string, refundedAt time.Time) error {
-	if status != "refunded" {
-		return ErrPaymentExpired
-	}
+func (p *Payment) Refund(bankRefundID string, refundedAt time.Time) error {
 	if err := p.transition(StatusRefunded); err != nil {
 		return err
 	}

@@ -104,7 +104,7 @@ func TestPayment_StateTransitions(t *testing.T) {
 	t.Run("REFUNDING -> REFUNDED transition", func(t *testing.T) {
 		payment := createRefundingPayment(t)
 
-		err := payment.Refund("refunded", "ref-123", time.Now())
+		err := payment.Refund("ref-123", time.Now())
 
 		require.NoError(t, err)
 		assert.Equal(t, domain.StatusRefunded, payment.Status)

@@ -83,7 +83,7 @@ func (s *RefundService) Refund(ctx context.Context, paymentID, idempotencyKey st
 			err,
 		)
 	}
-	if err := payment.Refund(bankResp.Status, bankResp.RefundID, bankResp.RefundedAt); err != nil {
+	if err := payment.Refund(bankResp.RefundID, bankResp.RefundedAt); err != nil {
 		return nil, application.NewInvalidStateError(err)
 	}
 

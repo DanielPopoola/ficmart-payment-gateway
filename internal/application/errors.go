@@ -31,6 +31,8 @@ const (
 	ErrCodeInternal            = "INTERNAL_ERROR"
 	ErrCodeInvalidInput        = "INVALID_INPUT"
 	ErrCodeInvalidState        = "INVALID_STATE"
+	ErrCodeInvalidTransition   = "INVALID_TRANSITION"
+	ErrCodePaymentExpired      = "PAYMENT_EXPIRED"
 )
 
 func NewIdempotencyMismatchError() *ServiceError {
@@ -85,7 +87,7 @@ func NewInvalidStateError(err error) *ServiceError {
 
 func NewInvalidTransitionError(err error) *ServiceError {
 	return &ServiceError{
-		Code:       ErrCodeInvalidState,
+		Code:       ErrCodeInvalidTransition,
 		Message:    "Invalid transition",
 		HTTPStatus: http.StatusConflict,
 		Err:        err,
@@ -94,7 +96,7 @@ func NewInvalidTransitionError(err error) *ServiceError {
 
 func NewPaymentExpiredError(err error) *ServiceError {
 	return &ServiceError{
-		Code:       ErrCodeInvalidState,
+		Code:       ErrCodePaymentExpired,
 		Message:    "payment has expired",
 		HTTPStatus: http.StatusConflict,
 		Err:        err,

@@ -42,7 +42,7 @@ func checkIdempotency(
 	}
 
 	if existingKey.LockedAt != nil {
-		payment, err := paymentRepo.FindByID(ctx, existingKey.PaymentID)
+		payment, err := waitForCompletion(ctx, idempotencyRepo, paymentRepo, idempotencyKey)
 		if err != nil {
 			return nil, false, application.NewInternalError(err)
 		}
@@ -104,9 +104,7 @@ func acquireIdempotencyLock(
 	if err != nil {
 		return application.NewInternalError(err)
 	}
-	defer func() {
-		_ = tx.Rollback(ctx) //nolint:errcheck // rollback error is not critical in defer
-	}()
+	defer tx.Rollback(ctx) //nolint:errcheck // rollback error is not critical in defer
 
 	if err := paymentRepo.Create(ctx, tx, payment); err != nil {
 		return application.NewInternalError(err)
@@ -138,9 +136,7 @@ func markPaymentTransitioning(
 	if err != nil {
 		return nil, application.NewInternalError(err)
 	}
-	defer func() {
-		_ = tx.Rollback(ctx) //nolint:errcheck // rollback error is not critical in defer
-	}()
+	defer tx.Rollback(ctx) //nolint:errcheck // rollback error is not critical in defer
 
 	if err = idempotencyRepo.AcquireLock(ctx, tx, idempotencyKey, paymentID, requestHash); err != nil {
 		if errors.Is(err, postgres.ErrDuplicateIdempotencyKey) {
@@ -192,9 +188,7 @@ func HandleBankFailure(
 	if err != nil {
 		return application.NewInternalError(err)
 	}
-	defer func() {
-		_ = tx.Rollback(ctx) //nolint:errcheck // rollback error is not critical in defer
-	}()
+	defer tx.Rollback(ctx) //nolint:errcheck // rollback error is not critical in defer
 
 	if err = paymentRepo.Update(ctx, tx, payment); err != nil {
 		return application.NewInternalError(err)

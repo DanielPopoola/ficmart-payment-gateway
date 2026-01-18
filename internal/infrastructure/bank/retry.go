@@ -127,7 +127,7 @@ func isRetryable(err error) bool {
 		return true
 	}
 
-	return true
+	return false
 }
 
 // Backoff calculation with exponential delay and jitter
