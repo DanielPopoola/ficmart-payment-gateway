@@ -182,7 +182,7 @@ payment.Capture()       // Only works if status is CAPTURING
 
 **Bank Client Pattern:**
 ```
-YourCode
+Code
     ↓
 RetryBankClient (wraps HTTPBankClient)
     ↓ (retries 500 errors automatically)
