@@ -87,7 +87,6 @@ func (w *RetryWorker) ProcessRetries(ctx context.Context) error {
 			AND i.locked_at < NOW() - $2::interval
 		ORDER BY p.created_at ASC
 		LIMIT $3
-		FOR UPDATE SKIP LOCKED
 	`
 
 	rows, err := w.db.Query(ctx, query, w.maxRetries, w.interval, w.batchSize)
@@ -130,7 +129,6 @@ func (w *RetryWorker) timeoutUnauthorizedPayments(ctx context.Context) error {
             p.status = 'PENDING'
             AND p.created_at < NOW() - INTERVAL '10 minutes'
             AND i.locked_at IS NOT NULL
-		FOR UPDATE SKIP LOCKED
     `
 
 	rows, err := w.db.Query(ctx, query)
@@ -251,7 +249,7 @@ func (w *RetryWorker) resumeRefund(ctx context.Context, payment *domain.Payment,
 			if !ok {
 				return fmt.Errorf("expected *bank.RefundResponse, got %T", resp)
 			}
-			return p.Refund(r.Status, r.RefundID, r.RefundedAt)
+			return p.Refund(r.RefundID, r.RefundedAt)
 		},
 	)
 }
