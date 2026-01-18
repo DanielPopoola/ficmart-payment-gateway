@@ -22,7 +22,7 @@ RUN go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate
 RUN go install github.com/vektra/mockery/v3@${MOCKERY_VERSION}
 
 RUN curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | \
-    sh -s -- -b /go/bin v${GOLANGCI_LINT_VERSION}
+    sh -s -- -b /go/bin ${GOLANGCI_LINT_VERSION}
 
 WORKDIR /app
 

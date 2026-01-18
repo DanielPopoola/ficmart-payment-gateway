@@ -10,7 +10,7 @@ done
 
 echo "Running migrations..."
 migrate -path ./internal/db/migrations \
-  -database "postgres://${GATEWAY_DATABASE__USER}:${GATEWAY_DATABASE__PASSWORD}@${GATEWAY_DATABASE__HOST}:${GATEWAY_DATABASE__PORT}/${GATEWAY_DATABASE__NAME}?sslmode=disable" \
+  -database "postgres://${GATEWAY_DATABASE__USER}:${GATEWAY_DATABASE__PASSWORD}@${GATEWAY_DATABASE__HOST}:${GATEWAY_DATABASE__PORT}/${GATEWAY_DATABASE__NAME}?sslmode=${GATEWAY_DATABASE__SSL_MODE}" \
   up
   
 exec "$@"
