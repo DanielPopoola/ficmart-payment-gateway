@@ -5,6 +5,7 @@ import (
 
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/api"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/application/services"
+	"github.com/DanielPopoola/ficmart-payment-gateway/internal/infrastructure/persistence/postgres"
 )
 
 // Handlers implements the OpenAPI StrictServerInterface
@@ -13,7 +14,7 @@ type Handlers struct {
 	captureService *services.CaptureService
 	voidService    *services.VoidService
 	refundService  *services.RefundService
-	queryService   *services.QueryService
+	paymentRepo    *postgres.PaymentRepository
 	logger         *slog.Logger
 }
 
@@ -22,7 +23,7 @@ func NewHandlers(
 	captureService *services.CaptureService,
 	voidService *services.VoidService,
 	refundService *services.RefundService,
-	queryService *services.QueryService,
+	paymentRepo *postgres.PaymentRepository,
 	logger *slog.Logger,
 ) *Handlers {
 	return &Handlers{
@@ -30,7 +31,7 @@ func NewHandlers(
 		captureService: captureService,
 		voidService:    voidService,
 		refundService:  refundService,
-		queryService:   queryService,
+		paymentRepo:    paymentRepo,
 		logger:         logger,
 	}
 }

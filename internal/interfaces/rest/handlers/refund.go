@@ -18,12 +18,12 @@ func (h *Handlers) RefundPayment(
 	paymentID := req.PaymentId.String()
 	payment, err := h.refundService.Refund(ctx, paymentID, idempotencyKey)
 	if err != nil {
-		return mapRefundServiceErrorToAPIResponse(ctx, err)
+		return mapRefundServiceErrorToAPIResponse(err)
 	}
 
 	apiPayment, err := rest.ToAPIPayment(payment)
 	if err != nil {
-		return mapRefundServiceErrorToAPIResponse(ctx, err)
+		return mapRefundServiceErrorToAPIResponse(err)
 	}
 
 	return api.RefundPayment200JSONResponse{
@@ -32,7 +32,7 @@ func (h *Handlers) RefundPayment(
 	}, nil
 }
 
-func mapRefundServiceErrorToAPIResponse(ctx context.Context, err error) (api.RefundPaymentResponseObject, error) {
+func mapRefundServiceErrorToAPIResponse(err error) (api.RefundPaymentResponseObject, error) {
 	statusCode, errorResponse := rest.BuildErrorResponse(err)
 
 	switch statusCode {

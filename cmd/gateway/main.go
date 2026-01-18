@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"os"
@@ -52,14 +53,13 @@ func main() {
 	captureService := services.NewCaptureService(paymentRepo, idempotencyRepo, retryBankClient, db)
 	voidService := services.NewVoidService(paymentRepo, idempotencyRepo, retryBankClient, db)
 	refundService := services.NewRefundService(paymentRepo, idempotencyRepo, retryBankClient, db)
-	queryService := services.NewQueryService(paymentRepo)
 
 	h := handlers.NewHandlers(
 		authService,
 		captureService,
 		voidService,
 		refundService,
-		queryService,
+		paymentRepo,
 		logger,
 	)
 
@@ -73,7 +73,7 @@ func main() {
 
 	handler := middleware.Recovery(logger)(router)
 	handler = middleware.Logging(logger)(handler)
-	handler = middleware.Timeout(cfg.Server.ReadTimeout)(handler)
+	handler = middleware.Timeout(cfg.Server.ReadTimeout, logger)(handler)
 
 	server := &http.Server{
 		Addr:         "0.0.0.0:" + cfg.Server.Port,
@@ -108,18 +108,24 @@ func main() {
 	go retryWorker.Start(workerCtx)
 	go expirationWorker.Start(workerCtx)
 
+	serveErr := make(chan error, 1)
 	go func() {
 		logger.Info("server starting", "addr", server.Addr)
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Error("server error", "error", err)
-		}
+		serveErr <- server.ListenAndServe()
 	}()
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
 
-	logger.Info("shutting down server...")
+	select {
+	case <-quit:
+		logger.Info("shutting down server...")
+	case err := <-serveErr:
+		if err != nil && errors.Is(err, http.ErrServerClosed) {
+			logger.Error("server error", "error", err)
+			cancelWorkers()
+		}
+	}
 
 	cancelWorkers()
 

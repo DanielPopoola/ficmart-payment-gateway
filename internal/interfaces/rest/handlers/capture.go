@@ -18,12 +18,12 @@ func (h *Handlers) CapturePayment(
 	paymentID := req.PaymentId.String()
 	payment, err := h.captureService.Capture(ctx, paymentID, idempotencyKey)
 	if err != nil {
-		return mapCaptureServiceErrorToAPIResponse(ctx, err)
+		return mapCaptureServiceErrorToAPIResponse(err)
 	}
 
 	apiPayment, err := rest.ToAPIPayment(payment)
 	if err != nil {
-		return mapCaptureServiceErrorToAPIResponse(ctx, err)
+		return mapCaptureServiceErrorToAPIResponse(err)
 	}
 
 	return api.CapturePayment200JSONResponse{
@@ -32,7 +32,7 @@ func (h *Handlers) CapturePayment(
 	}, nil
 }
 
-func mapCaptureServiceErrorToAPIResponse(ctx context.Context, err error) (api.CapturePaymentResponseObject, error) {
+func mapCaptureServiceErrorToAPIResponse(err error) (api.CapturePaymentResponseObject, error) {
 	statusCode, errorResponse := rest.BuildErrorResponse(err)
 
 	switch statusCode {

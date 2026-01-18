@@ -18,12 +18,12 @@ func (h *Handlers) VoidPayment(
 	paymentID := req.PaymentId.String()
 	payment, err := h.voidService.Void(ctx, paymentID, idempotencyKey)
 	if err != nil {
-		return mapVoidServiceErrorToAPIResponse(ctx, err)
+		return mapVoidServiceErrorToAPIResponse(err)
 	}
 
 	apiPayment, err := rest.ToAPIPayment(payment)
 	if err != nil {
-		return mapVoidServiceErrorToAPIResponse(ctx, err)
+		return mapVoidServiceErrorToAPIResponse(err)
 	}
 
 	return api.VoidPayment200JSONResponse{
@@ -32,7 +32,7 @@ func (h *Handlers) VoidPayment(
 	}, nil
 }
 
-func mapVoidServiceErrorToAPIResponse(ctx context.Context, err error) (api.VoidPaymentResponseObject, error) {
+func mapVoidServiceErrorToAPIResponse(err error) (api.VoidPaymentResponseObject, error) {
 	statusCode, errorResponse := rest.BuildErrorResponse(err)
 
 	switch statusCode {

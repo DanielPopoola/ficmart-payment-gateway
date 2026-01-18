@@ -30,12 +30,12 @@ func (h *Handlers) AuthorizePayment(
 
 	payment, err := h.authService.Authorize(ctx, &cmd, idempotencyKey)
 	if err != nil {
-		return mapAuthServiceErrorToAPIResponse(ctx, err)
+		return mapAuthServiceErrorToAPIResponse(err)
 	}
 
 	apiPayment, err := rest.ToAPIPayment(payment)
 	if err != nil {
-		return mapAuthServiceErrorToAPIResponse(ctx, err)
+		return mapAuthServiceErrorToAPIResponse(err)
 	}
 
 	return api.AuthorizePayment201JSONResponse{
@@ -44,7 +44,7 @@ func (h *Handlers) AuthorizePayment(
 	}, nil
 }
 
-func mapAuthServiceErrorToAPIResponse(ctx context.Context, err error) (api.AuthorizePaymentResponseObject, error) {
+func mapAuthServiceErrorToAPIResponse(err error) (api.AuthorizePaymentResponseObject, error) {
 	statusCode, errorResponse := rest.BuildErrorResponse(err)
 
 	switch statusCode {

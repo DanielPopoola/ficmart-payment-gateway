@@ -15,14 +15,14 @@ func (h *Handlers) GetPaymentByID(
 
 	paymentID := request.PaymentID.String()
 
-	payment, err := h.queryService.FindByID(ctx, paymentID)
+	payment, err := h.paymentRepo.FindByID(ctx, paymentID)
 	if err != nil {
-		return mapIdServiceErrorToAPIResponse(ctx, err)
+		return mapIdErrorToAPIResponse(err)
 	}
 
 	apiPayment, err := rest.ToAPIPayment(payment)
 	if err != nil {
-		return mapIdServiceErrorToAPIResponse(ctx, err)
+		return mapIdErrorToAPIResponse(err)
 	}
 
 	return api.GetPaymentByID200JSONResponse{
@@ -41,14 +41,14 @@ func (h *Handlers) GetPaymentsByCustomer(
 	limit := request.Params.Limit
 	offset := request.Params.Offset
 
-	customerPayment, err := h.queryService.FindByCustomerID(ctx, customerID, limit, offset)
+	customerPayment, err := h.paymentRepo.FindByCustomerID(ctx, customerID, limit, offset)
 	if err != nil {
-		return mapCustomerServiceErrorToAPIResponse(ctx, err)
+		return mapCustomerErrorToAPIResponse(err)
 	}
 
 	apiPayment, err := rest.ToAPIPayments(customerPayment)
 	if err != nil {
-		return mapCustomerServiceErrorToAPIResponse(ctx, err)
+		return mapCustomerErrorToAPIResponse(err)
 	}
 
 	return api.GetPaymentsByCustomer200JSONResponse{
@@ -64,14 +64,14 @@ func (h *Handlers) GetPaymentByOrder(
 
 	orderID := request.OrderID
 
-	payment, err := h.queryService.FindByOrderID(ctx, orderID)
+	payment, err := h.paymentRepo.FindByOrderID(ctx, orderID)
 	if err != nil {
-		return mapOrderServiceErrorToAPIResponse(ctx, err)
+		return mapOrderErrorToAPIResponse(err)
 	}
 
 	apiPayment, err := rest.ToAPIPayment(payment)
 	if err != nil {
-		return mapOrderServiceErrorToAPIResponse(ctx, err)
+		return mapOrderErrorToAPIResponse(err)
 	}
 
 	return api.GetPaymentByOrder200JSONResponse{
@@ -80,7 +80,7 @@ func (h *Handlers) GetPaymentByOrder(
 	}, nil
 }
 
-func mapIdServiceErrorToAPIResponse(ctx context.Context, err error) (api.GetPaymentByIDResponseObject, error) {
+func mapIdErrorToAPIResponse(err error) (api.GetPaymentByIDResponseObject, error) {
 	statusCode, errorResponse := rest.BuildErrorResponse(err)
 
 	switch statusCode {
@@ -93,7 +93,7 @@ func mapIdServiceErrorToAPIResponse(ctx context.Context, err error) (api.GetPaym
 	}
 }
 
-func mapOrderServiceErrorToAPIResponse(ctx context.Context, err error) (api.GetPaymentByOrderResponseObject, error) {
+func mapOrderErrorToAPIResponse(err error) (api.GetPaymentByOrderResponseObject, error) {
 	statusCode, errorResponse := rest.BuildErrorResponse(err)
 
 	switch statusCode {
@@ -106,7 +106,7 @@ func mapOrderServiceErrorToAPIResponse(ctx context.Context, err error) (api.GetP
 	}
 }
 
-func mapCustomerServiceErrorToAPIResponse(ctx context.Context, err error) (api.GetPaymentsByCustomerResponseObject, error) {
+func mapCustomerErrorToAPIResponse(err error) (api.GetPaymentsByCustomerResponseObject, error) {
 	statusCode, errorResponse := rest.BuildErrorResponse(err)
 
 	switch statusCode {
