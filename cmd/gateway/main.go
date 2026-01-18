@@ -13,10 +13,10 @@ import (
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/api"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/application/services"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/config"
+	"github.com/DanielPopoola/ficmart-payment-gateway/internal/handlers"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/infrastructure/bank"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/infrastructure/persistence/postgres"
-	"github.com/DanielPopoola/ficmart-payment-gateway/internal/interfaces/rest/handlers"
-	"github.com/DanielPopoola/ficmart-payment-gateway/internal/interfaces/rest/middleware"
+	"github.com/DanielPopoola/ficmart-payment-gateway/internal/middleware"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/worker"
 )
 

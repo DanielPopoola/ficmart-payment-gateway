@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/api"
-	"github.com/DanielPopoola/ficmart-payment-gateway/internal/interfaces/rest"
 )
 
 func (h *Handlers) VoidPayment(
@@ -21,7 +20,7 @@ func (h *Handlers) VoidPayment(
 		return mapVoidServiceErrorToAPIResponse(err)
 	}
 
-	apiPayment, err := rest.ToAPIPayment(payment)
+	apiPayment, err := ToAPIPayment(payment)
 	if err != nil {
 		return mapVoidServiceErrorToAPIResponse(err)
 	}
@@ -33,7 +32,7 @@ func (h *Handlers) VoidPayment(
 }
 
 func mapVoidServiceErrorToAPIResponse(err error) (api.VoidPaymentResponseObject, error) {
-	statusCode, errorResponse := rest.BuildErrorResponse(err)
+	statusCode, errorResponse := BuildErrorResponse(err)
 
 	switch statusCode {
 	case http.StatusBadRequest:

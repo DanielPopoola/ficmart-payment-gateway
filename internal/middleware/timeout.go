@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/application"
-	"github.com/DanielPopoola/ficmart-payment-gateway/internal/interfaces/rest"
+	"github.com/DanielPopoola/ficmart-payment-gateway/internal/handlers"
 )
 
 type timeoutWriter struct {
@@ -60,7 +60,7 @@ func Timeout(timeout time.Duration, logger *slog.Logger) func(http.Handler) http
 					logger.Warn("request timed out", "path", r.URL.Path, "method", r.Method)
 					if tw.code == 0 {
 						err := application.NewTimeoutError()
-						rest.WriteError(w, err, logger)
+						handlers.WriteError(w, err, logger)
 					}
 				}
 			case p := <-panicChan:

@@ -7,7 +7,7 @@ import (
 	"runtime/debug"
 
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/application"
-	"github.com/DanielPopoola/ficmart-payment-gateway/internal/interfaces/rest"
+	"github.com/DanielPopoola/ficmart-payment-gateway/internal/handlers"
 )
 
 // Recovery creates middleware that recovers from panics and returns 500
@@ -25,7 +25,7 @@ func Recovery(logger *slog.Logger) func(http.Handler) http.Handler {
 					)
 
 					err := application.NewInternalError(fmt.Errorf("panic: %v", rec))
-					rest.WriteError(w, err, logger)
+					handlers.WriteError(w, err, logger)
 				}
 			}()
 

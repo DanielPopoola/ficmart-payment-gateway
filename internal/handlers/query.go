@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/api"
-	"github.com/DanielPopoola/ficmart-payment-gateway/internal/interfaces/rest"
 )
 
 func (h *Handlers) GetPaymentByID(
@@ -20,7 +19,7 @@ func (h *Handlers) GetPaymentByID(
 		return mapIdErrorToAPIResponse(err)
 	}
 
-	apiPayment, err := rest.ToAPIPayment(payment)
+	apiPayment, err := ToAPIPayment(payment)
 	if err != nil {
 		return mapIdErrorToAPIResponse(err)
 	}
@@ -46,7 +45,7 @@ func (h *Handlers) GetPaymentsByCustomer(
 		return mapCustomerErrorToAPIResponse(err)
 	}
 
-	apiPayment, err := rest.ToAPIPayments(customerPayment)
+	apiPayment, err := ToAPIPayments(customerPayment)
 	if err != nil {
 		return mapCustomerErrorToAPIResponse(err)
 	}
@@ -69,7 +68,7 @@ func (h *Handlers) GetPaymentByOrder(
 		return mapOrderErrorToAPIResponse(err)
 	}
 
-	apiPayment, err := rest.ToAPIPayment(payment)
+	apiPayment, err := ToAPIPayment(payment)
 	if err != nil {
 		return mapOrderErrorToAPIResponse(err)
 	}
@@ -81,7 +80,7 @@ func (h *Handlers) GetPaymentByOrder(
 }
 
 func mapIdErrorToAPIResponse(err error) (api.GetPaymentByIDResponseObject, error) {
-	statusCode, errorResponse := rest.BuildErrorResponse(err)
+	statusCode, errorResponse := BuildErrorResponse(err)
 
 	switch statusCode {
 	case http.StatusNotFound:
@@ -94,7 +93,7 @@ func mapIdErrorToAPIResponse(err error) (api.GetPaymentByIDResponseObject, error
 }
 
 func mapOrderErrorToAPIResponse(err error) (api.GetPaymentByOrderResponseObject, error) {
-	statusCode, errorResponse := rest.BuildErrorResponse(err)
+	statusCode, errorResponse := BuildErrorResponse(err)
 
 	switch statusCode {
 	case http.StatusNotFound:
@@ -107,7 +106,7 @@ func mapOrderErrorToAPIResponse(err error) (api.GetPaymentByOrderResponseObject,
 }
 
 func mapCustomerErrorToAPIResponse(err error) (api.GetPaymentsByCustomerResponseObject, error) {
-	statusCode, errorResponse := rest.BuildErrorResponse(err)
+	statusCode, errorResponse := BuildErrorResponse(err)
 
 	switch statusCode {
 	case http.StatusNotFound:

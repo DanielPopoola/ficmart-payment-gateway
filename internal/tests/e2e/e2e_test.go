@@ -150,7 +150,7 @@ func (suite *E2ETestSuite) Test_FindByCustomerID_WithPagination() {
 	t := suite.T()
 
 	// Create 5 payments for same customer
-	customerID := "cust-pagination-213"
+	customerID := "cust-pagination-456"
 
 	for range 5 {
 		orderID := "order-" + uuid.New().String()

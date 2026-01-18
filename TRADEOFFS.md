@@ -1,11 +1,11 @@
 # Payment Gateway Design & Tradeoffs
 
 ## 1. Architecture: Why structure it this way?
-I implemented this gateway using **Domain-Driven Design (DDD)** principles, organizing the code into four distinct layers: domain, application, infrastructure, and interfaces. 
+I implemented this gateway using some **Domain-Driven Design (DDD)** principles, organizing the code into three distinct layers: domain, application, infrastructure (didn't add interface layer cos requirements mentioned exposing one api type of api layer)
 
 *   **Dependency Isolation** The domain layer is the core of the system and has zero dependencies. This ensures that business rules (like state transitions) remain stable and are never coupled to external APIs or database schemas.
 *   **Separate Services:** Instead of a monolithic `PaymentService`, I split operations into dedicated services (`AuthorizeService`, `CaptureService`, etc.). This makes mapping services to HTTP handlers easy.
-*   **Testability via Abstractions:** By using interfaces like `BankClient`, I can mock the bank during unit tests. Similarly, separating the REST interface ensures I could swap HTTP for gRPC without modifying business logic.
+*   **Testability via Abstractions:** By using interfaces like `BankClient`, I can mock the bank during unit tests.
 
 ## 2. State Management: How and why?
 I used a **Write-Ahead Pattern** and a robust state machine to track payments.
