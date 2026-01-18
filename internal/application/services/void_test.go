@@ -121,12 +121,9 @@ func (suite *voidServiceTestSuite) Test_Void_CannotVoidPendingPayment() {
 	require.NotNil(t, payment)
 	require.Equal(t, domain.StatusPending, payment.Status)
 
-	VoidCmd := services.VoidCommand{
-		PaymentID: payment.ID,
-	}
 	VoidKey := "idem-Void-" + uuid.New().String()
 
-	_, err = suite.voidService.Void(ctx, VoidCmd, VoidKey)
+	_, err = suite.voidService.Void(ctx, payment.ID, VoidKey)
 
 	svcErr, ok := application.IsServiceError(err)
 	require.True(t, ok)
@@ -139,9 +136,6 @@ func (suite *voidServiceTestSuite) Test_Void_CannotVoidAlreadyVoidedPayment() {
 
 	payment := testhelpers.CreateAuthorizedPayment(t, ctx, suite.authorizeService, suite.mockBank)
 
-	cmd := services.VoidCommand{
-		PaymentID: payment.ID,
-	}
 	firstKey := "idem-first-" + uuid.New().String()
 
 	VoidResp := &bank.VoidResponse{
@@ -156,12 +150,12 @@ func (suite *voidServiceTestSuite) Test_Void_CannotVoidAlreadyVoidedPayment() {
 		Return(VoidResp, nil).
 		Once()
 
-	_, err := suite.voidService.Void(ctx, cmd, firstKey)
+	_, err := suite.voidService.Void(ctx, payment.ID, firstKey)
 	require.NoError(t, err)
 
 	secondKey := "idem-second-" + uuid.New().String()
 
-	_, err = suite.voidService.Void(ctx, cmd, secondKey)
+	_, err = suite.voidService.Void(ctx, payment.ID, secondKey)
 
 	require.Error(t, err)
 
@@ -176,9 +170,6 @@ func (suite *voidServiceTestSuite) Test_Void_IdempotencyReturnsCache() {
 
 	payment := testhelpers.CreateAuthorizedPayment(t, ctx, suite.authorizeService, suite.mockBank)
 
-	cmd := services.VoidCommand{
-		PaymentID: payment.ID,
-	}
 	idempotencyKey := "idem-same-key"
 
 	VoidResp := &bank.VoidResponse{
@@ -193,10 +184,10 @@ func (suite *voidServiceTestSuite) Test_Void_IdempotencyReturnsCache() {
 		Return(VoidResp, nil).
 		Once()
 
-	firstResult, err := suite.voidService.Void(ctx, cmd, idempotencyKey)
+	firstResult, err := suite.voidService.Void(ctx, payment.ID, idempotencyKey)
 	require.NoError(t, err)
 
-	secondResult, err := suite.voidService.Void(ctx, cmd, idempotencyKey)
+	secondResult, err := suite.voidService.Void(ctx, payment.ID, idempotencyKey)
 	require.NoError(t, err)
 
 	assert.Equal(t, firstResult.ID, secondResult.ID)
@@ -207,12 +198,11 @@ func (suite *voidServiceTestSuite) Test_Void_PaymentNotFound() {
 	t := suite.T()
 	ctx := context.Background()
 
-	cmd := services.VoidCommand{
-		PaymentID: "non-existent-id",
-	}
+	paymentID := "non-existent-id"
+
 	idempotencyKey := "idem-" + uuid.New().String()
 
-	_, err := suite.voidService.Void(ctx, cmd, idempotencyKey)
+	_, err := suite.voidService.Void(ctx, paymentID, idempotencyKey)
 
 	svcErr, ok := application.IsServiceError(err)
 	require.True(t, ok)
@@ -229,9 +219,6 @@ func (suite *voidServiceTestSuite) Test_Void_BankReturns500_PaymentStaysVoiding(
 
 	payment := testhelpers.CreateAuthorizedPayment(t, ctx, suite.authorizeService, suite.mockBank)
 
-	cmd := services.VoidCommand{
-		PaymentID: payment.ID,
-	}
 	idempotencyKey := "idem-" + uuid.New().String()
 
 	bankErr := &bank.BankError{
@@ -245,7 +232,7 @@ func (suite *voidServiceTestSuite) Test_Void_BankReturns500_PaymentStaysVoiding(
 		Return(nil, bankErr).
 		Once()
 
-	voidedPayment, err := suite.voidService.Void(ctx, cmd, idempotencyKey)
+	voidedPayment, err := suite.voidService.Void(ctx, payment.ID, idempotencyKey)
 
 	require.Error(t, err)
 
@@ -264,9 +251,6 @@ func (suite *voidServiceTestSuite) Test_Void_BankReturnsPermanentError_PaymentFa
 
 	payment := testhelpers.CreateAuthorizedPayment(t, ctx, suite.authorizeService, suite.mockBank)
 
-	cmd := services.VoidCommand{
-		PaymentID: payment.ID,
-	}
 	idempotencyKey := "idem-" + uuid.New().String()
 
 	bankErr := &bank.BankError{
@@ -280,7 +264,7 @@ func (suite *voidServiceTestSuite) Test_Void_BankReturnsPermanentError_PaymentFa
 		Return(nil, bankErr).
 		Once()
 
-	voidedPayment, err := suite.voidService.Void(ctx, cmd, idempotencyKey)
+	voidedPayment, err := suite.voidService.Void(ctx, payment.ID, idempotencyKey)
 
 	require.Error(t, err)
 
@@ -294,9 +278,6 @@ func (suite *voidServiceTestSuite) Test_Void_ConcurrentRequests_OnlyOneSucceeds(
 
 	payment := testhelpers.CreateAuthorizedPayment(t, ctx, suite.authorizeService, suite.mockBank)
 
-	cmd := services.VoidCommand{
-		PaymentID: payment.ID,
-	}
 	idempotencyKey := "idem-same-key"
 
 	VoidResp := &bank.VoidResponse{
@@ -316,7 +297,7 @@ func (suite *voidServiceTestSuite) Test_Void_ConcurrentRequests_OnlyOneSucceeds(
 
 	for range 2 {
 		wg.Go(func() {
-			_, err := suite.voidService.Void(ctx, cmd, idempotencyKey)
+			_, err := suite.voidService.Void(ctx, payment.ID, idempotencyKey)
 			results <- err
 		})
 	}

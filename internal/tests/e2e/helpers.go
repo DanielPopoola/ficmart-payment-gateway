@@ -63,7 +63,6 @@ func (c *TestClient) Capture(t *testing.T, paymentID uuid.UUID, amount int64) (*
 
 	req := api.CaptureRequest{
 		PaymentId: paymentID,
-		Amount:    amount,
 	}
 
 	body, _ := json.Marshal(req)
@@ -126,7 +125,6 @@ func (c *TestClient) Refund(t *testing.T, paymentID uuid.UUID, amount int64) (*a
 
 	req := api.RefundRequest{
 		PaymentId: paymentID,
-		Amount:    amount,
 	}
 
 	body, _ := json.Marshal(req)

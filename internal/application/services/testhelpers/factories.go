@@ -66,10 +66,6 @@ func CreateCapturedPayment(
 ) *domain.Payment {
 	payment := CreateAuthorizedPayment(t, ctx, authService, mockBank)
 
-	cmd := services.CaptureCommand{
-		PaymentID: payment.ID,
-		Amount:    payment.AmountCents,
-	}
 	idempotencyKey := "idem-capt" + uuid.New().String()
 
 	captureResp := &bank.CaptureResponse{
@@ -86,7 +82,7 @@ func CreateCapturedPayment(
 		Return(captureResp, nil).
 		Once()
 
-	capturedPayment, err := captureService.Capture(ctx, cmd, idempotencyKey)
+	capturedPayment, err := captureService.Capture(ctx, payment.ID, idempotencyKey)
 	require.NoError(t, err)
 
 	return capturedPayment
@@ -101,9 +97,6 @@ func CreateVoidedPayment(
 ) *domain.Payment {
 	payment := CreateAuthorizedPayment(t, ctx, authService, mockBank)
 
-	cmd := services.VoidCommand{
-		PaymentID: payment.ID,
-	}
 	idempotencyKey := "idem-void" + uuid.New().String()
 
 	voidResp := &bank.VoidResponse{
@@ -118,7 +111,7 @@ func CreateVoidedPayment(
 		Return(voidResp, nil).
 		Once()
 
-	voidPayment, err := voidService.Void(ctx, cmd, idempotencyKey)
+	voidPayment, err := voidService.Void(ctx, payment.ID, idempotencyKey)
 	require.NoError(t, err)
 
 	return voidPayment
@@ -134,10 +127,6 @@ func CreateRefundedPayment(
 ) *domain.Payment {
 	payment := CreateCapturedPayment(t, ctx, authService, captureService, mockBank)
 
-	cmd := services.RefundCommand{
-		PaymentID: payment.ID,
-		Amount:    payment.AmountCents,
-	}
 	idempotencyKey := "idem-refund" + uuid.New().String()
 
 	refundResp := &bank.RefundResponse{
@@ -154,7 +143,7 @@ func CreateRefundedPayment(
 		Return(refundResp, nil).
 		Once()
 
-	refundedPayment, err := refundService.Refund(ctx, cmd, idempotencyKey)
+	refundedPayment, err := refundService.Refund(ctx, payment.ID, idempotencyKey)
 	require.NoError(t, err)
 
 	return refundedPayment

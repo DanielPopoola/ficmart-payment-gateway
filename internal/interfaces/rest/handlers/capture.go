@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/api"
-	"github.com/DanielPopoola/ficmart-payment-gateway/internal/application/services"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/interfaces/rest"
 )
 
@@ -16,12 +15,8 @@ func (h *Handlers) CapturePayment(
 	req := request.Body
 	idempotencyKey := request.Params.IdempotencyKey
 
-	cmd := services.CaptureCommand{
-		PaymentID: req.PaymentId.String(),
-		Amount:    req.Amount,
-	}
-
-	payment, err := h.captureService.Capture(ctx, cmd, idempotencyKey)
+	paymentID := req.PaymentId.String()
+	payment, err := h.captureService.Capture(ctx, paymentID, idempotencyKey)
 	if err != nil {
 		return mapCaptureServiceErrorToAPIResponse(ctx, err)
 	}

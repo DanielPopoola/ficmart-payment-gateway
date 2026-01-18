@@ -31,8 +31,8 @@ func NewVoidService(
 	}
 }
 
-func (s *VoidService) Void(ctx context.Context, cmd VoidCommand, idempotencyKey string) (*domain.Payment, error) {
-	requestHash := ComputeHash(cmd)
+func (s *VoidService) Void(ctx context.Context, paymentID, idempotencyKey string) (*domain.Payment, error) {
+	requestHash := ComputeHash(paymentID)
 
 	cachedPayment, isCached, err := checkIdempotency(
 		ctx,
@@ -53,8 +53,7 @@ func (s *VoidService) Void(ctx context.Context, cmd VoidCommand, idempotencyKey 
 		s.db,
 		s.paymentRepo,
 		s.idempotencyRepo,
-		cmd.PaymentID,
-		nil,
+		paymentID,
 		idempotencyKey,
 		requestHash,
 		func(p *domain.Payment) error {

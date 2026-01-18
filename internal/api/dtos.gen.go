@@ -11,7 +11,6 @@ import (
 
 // Defines values for ErrorResponseErrorCode.
 const (
-	AMOUNTMISMATCH          ErrorResponseErrorCode = "AMOUNT_MISMATCH"
 	DUPLICATEIDEMPOTENCYKEY ErrorResponseErrorCode = "DUPLICATE_IDEMPOTENCY_KEY"
 	IDEMPOTENCYMISMATCH     ErrorResponseErrorCode = "IDEMPOTENCY_MISMATCH"
 	INTERNALERROR           ErrorResponseErrorCode = "INTERNAL_ERROR"
@@ -64,9 +63,6 @@ type AuthorizeRequest struct {
 
 // CaptureRequest defines model for CaptureRequest.
 type CaptureRequest struct {
-	// Amount Amount to capture in cents (must match authorized amount)
-	Amount int64 `json:"amount"`
-
 	// PaymentId The payment ID to capture
 	PaymentId openapi_types.UUID `json:"payment_id"`
 }
@@ -156,9 +152,6 @@ type PaymentResponse struct {
 
 // RefundRequest defines model for RefundRequest.
 type RefundRequest struct {
-	// Amount Amount to refund in cents (must match captured amount)
-	Amount int64 `json:"amount"`
-
 	// PaymentId The payment ID to refund
 	PaymentId openapi_types.UUID `json:"payment_id"`
 }

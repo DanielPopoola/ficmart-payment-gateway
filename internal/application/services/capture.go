@@ -31,8 +31,8 @@ func NewCaptureService(
 	}
 }
 
-func (s *CaptureService) Capture(ctx context.Context, cmd CaptureCommand, idempotencyKey string) (*domain.Payment, error) {
-	requestHash := ComputeHash(cmd)
+func (s *CaptureService) Capture(ctx context.Context, paymentID, idempotencyKey string) (*domain.Payment, error) {
+	requestHash := ComputeHash(paymentID)
 
 	cachedPayment, isCached, err := checkIdempotency(
 		ctx,
@@ -53,8 +53,7 @@ func (s *CaptureService) Capture(ctx context.Context, cmd CaptureCommand, idempo
 		s.db,
 		s.paymentRepo,
 		s.idempotencyRepo,
-		cmd.PaymentID,
-		&cmd.Amount,
+		paymentID,
 		idempotencyKey,
 		requestHash,
 		func(p *domain.Payment) error {
@@ -69,7 +68,7 @@ func (s *CaptureService) Capture(ctx context.Context, cmd CaptureCommand, idempo
 	}
 
 	bankReq := bank.CaptureRequest{
-		Amount:          cmd.Amount,
+		Amount:          payment.AmountCents,
 		AuthorizationID: *payment.BankAuthID,
 	}
 

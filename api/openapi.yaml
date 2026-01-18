@@ -507,19 +507,12 @@ components:
       type: object
       required:
         - payment_id
-        - amount
       properties:
         payment_id:
           type: string
           format: uuid
           description: The payment ID to capture
           example: "550e8400-e29b-41d4-a716-446655440000"
-        amount:
-          type: integer
-          format: int64
-          description: Amount to capture in cents (must match authorized amount)
-          minimum: 1
-          example: 5000
 
     VoidRequest:
       type: object
@@ -543,13 +536,7 @@ components:
           format: uuid
           description: The payment ID to refund
           example: "550e8400-e29b-41d4-a716-446655440000"
-        amount:
-          type: integer
-          format: int64
-          description: Amount to refund in cents (must match captured amount)
-          minimum: 1
-          example: 5000
-
+          
     Payment:
       type: object
       required:
@@ -675,7 +662,7 @@ components:
                 - REQUEST_PROCESSING
                 - MISSING_REQUIRED_FIELD
                 - INVALID_STATE
-                - AMOUNT_MISMATCH
+             
                 - MISSING_DEPENDENCY
                 - IDEMPOTENCY_MISMATCH
                 - TIMEOUT

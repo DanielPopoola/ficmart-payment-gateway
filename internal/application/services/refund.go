@@ -31,8 +31,8 @@ func NewRefundService(
 	}
 }
 
-func (s *RefundService) Refund(ctx context.Context, cmd RefundCommand, idempotencyKey string) (*domain.Payment, error) {
-	requestHash := ComputeHash(cmd)
+func (s *RefundService) Refund(ctx context.Context, paymentID, idempotencyKey string) (*domain.Payment, error) {
+	requestHash := ComputeHash(paymentID)
 
 	cachedPayment, isCached, err := checkIdempotency(
 		ctx,
@@ -53,8 +53,7 @@ func (s *RefundService) Refund(ctx context.Context, cmd RefundCommand, idempoten
 		s.db,
 		s.paymentRepo,
 		s.idempotencyRepo,
-		cmd.PaymentID,
-		&cmd.Amount,
+		paymentID,
 		idempotencyKey,
 		requestHash,
 		func(p *domain.Payment) error {

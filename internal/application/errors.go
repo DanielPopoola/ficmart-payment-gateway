@@ -31,21 +31,12 @@ const (
 	ErrCodeInternal            = "INTERNAL_ERROR"
 	ErrCodeInvalidInput        = "INVALID_INPUT"
 	ErrCodeInvalidState        = "INVALID_STATE"
-	ErrCodeAmountMismatch      = "AMOUNT_MISMATCH"
 )
 
 func NewIdempotencyMismatchError() *ServiceError {
 	return &ServiceError{
 		Code:       ErrCodeIdempotencyMismatch,
 		Message:    "Idempotency key reused with different request parameters",
-		HTTPStatus: http.StatusBadRequest,
-	}
-}
-
-func NewRequestAmountMismtachError() *ServiceError {
-	return &ServiceError{
-		Code:       ErrCodeAmountMismatch,
-		Message:    "Amount mismatch. Can only do full captures/refunds",
 		HTTPStatus: http.StatusBadRequest,
 	}
 }

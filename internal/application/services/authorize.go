@@ -11,6 +11,17 @@ import (
 	"github.com/google/uuid"
 )
 
+type AuthorizeCommand struct {
+	OrderID     string
+	CustomerID  string
+	Amount      int64
+	Currency    string
+	CardNumber  string
+	CVV         string
+	ExpiryMonth int
+	ExpiryYear  int
+}
+
 type AuthorizeService struct {
 	paymentRepo     *postgres.PaymentRepository
 	idempotencyRepo *postgres.IdempotencyRepository

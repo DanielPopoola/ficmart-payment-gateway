@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/api"
-	"github.com/DanielPopoola/ficmart-payment-gateway/internal/application/services"
 	"github.com/DanielPopoola/ficmart-payment-gateway/internal/interfaces/rest"
 )
 
@@ -16,11 +15,8 @@ func (h *Handlers) VoidPayment(
 	req := request.Body
 	idempotencyKey := request.Params.IdempotencyKey
 
-	cmd := services.VoidCommand{
-		PaymentID: req.PaymentId.String(),
-	}
-
-	payment, err := h.voidService.Void(ctx, cmd, idempotencyKey)
+	paymentID := req.PaymentId.String()
+	payment, err := h.voidService.Void(ctx, paymentID, idempotencyKey)
 	if err != nil {
 		return mapVoidServiceErrorToAPIResponse(ctx, err)
 	}

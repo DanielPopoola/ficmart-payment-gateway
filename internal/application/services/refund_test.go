@@ -129,13 +129,9 @@ func (suite *RefundServiceTestSuite) Test_Refund_CannotRefundPendingPayment() {
 	require.NotNil(t, payment)
 	require.Equal(t, domain.StatusPending, payment.Status)
 
-	refundCmd := services.RefundCommand{
-		PaymentID: payment.ID,
-		Amount:    payment.AmountCents,
-	}
 	refundKey := "idem-Refund-" + uuid.New().String()
 
-	_, err = suite.refundService.Refund(ctx, refundCmd, refundKey)
+	_, err = suite.refundService.Refund(ctx, payment.ID, refundKey)
 
 	svcErr, ok := application.IsServiceError(err)
 	require.True(t, ok)
@@ -154,10 +150,6 @@ func (suite *RefundServiceTestSuite) Test_Refund_CannotRefundAlreadyRefundedPaym
 		suite.mockBank,
 	)
 
-	cmd := services.RefundCommand{
-		PaymentID: payment.ID,
-		Amount:    payment.AmountCents,
-	}
 	firstKey := "idem-first-" + uuid.New().String()
 
 	refundResp := &bank.RefundResponse{
@@ -174,12 +166,12 @@ func (suite *RefundServiceTestSuite) Test_Refund_CannotRefundAlreadyRefundedPaym
 		Return(refundResp, nil).
 		Once()
 
-	_, err := suite.refundService.Refund(ctx, cmd, firstKey)
+	_, err := suite.refundService.Refund(ctx, payment.ID, firstKey)
 	require.NoError(t, err)
 
 	secondKey := "idem-second-" + uuid.New().String()
 
-	_, err = suite.refundService.Refund(ctx, cmd, secondKey)
+	_, err = suite.refundService.Refund(ctx, payment.ID, secondKey)
 
 	require.Error(t, err)
 
@@ -200,10 +192,6 @@ func (suite *RefundServiceTestSuite) Test_Refund_IdempotencyReturnsCache() {
 		suite.mockBank,
 	)
 
-	cmd := services.RefundCommand{
-		PaymentID: payment.ID,
-		Amount:    payment.AmountCents,
-	}
 	idempotencyKey := "idem-same-key"
 
 	refundResp := &bank.RefundResponse{
@@ -220,10 +208,10 @@ func (suite *RefundServiceTestSuite) Test_Refund_IdempotencyReturnsCache() {
 		Return(refundResp, nil).
 		Once()
 
-	firstResult, err := suite.refundService.Refund(ctx, cmd, idempotencyKey)
+	firstResult, err := suite.refundService.Refund(ctx, payment.ID, idempotencyKey)
 	require.NoError(t, err)
 
-	secondResult, err := suite.refundService.Refund(ctx, cmd, idempotencyKey)
+	secondResult, err := suite.refundService.Refund(ctx, payment.ID, idempotencyKey)
 	require.NoError(t, err)
 
 	assert.Equal(t, firstResult.ID, secondResult.ID)
@@ -234,13 +222,11 @@ func (suite *RefundServiceTestSuite) Test_Refund_PaymentNotFound() {
 	t := suite.T()
 	ctx := context.Background()
 
-	cmd := services.RefundCommand{
-		PaymentID: "non-existent-id",
-		Amount:    500,
-	}
+	paymentID := "non-existent-id"
+
 	idempotencyKey := "idem-" + uuid.New().String()
 
-	_, err := suite.refundService.Refund(ctx, cmd, idempotencyKey)
+	_, err := suite.refundService.Refund(ctx, paymentID, idempotencyKey)
 
 	svcErr, ok := application.IsServiceError(err)
 	require.True(t, ok)
@@ -263,10 +249,6 @@ func (suite *RefundServiceTestSuite) Test_Refund_BankReturns500_PaymentStaysRefu
 		suite.mockBank,
 	)
 
-	cmd := services.RefundCommand{
-		PaymentID: payment.ID,
-		Amount:    payment.AmountCents,
-	}
 	idempotencyKey := "idem-" + uuid.New().String()
 
 	bankErr := &bank.BankError{
@@ -280,7 +262,7 @@ func (suite *RefundServiceTestSuite) Test_Refund_BankReturns500_PaymentStaysRefu
 		Return(nil, bankErr).
 		Once()
 
-	RefundedPayment, err := suite.refundService.Refund(ctx, cmd, idempotencyKey)
+	RefundedPayment, err := suite.refundService.Refund(ctx, payment.ID, idempotencyKey)
 
 	require.Error(t, err)
 
@@ -305,10 +287,6 @@ func (suite *RefundServiceTestSuite) Test_Refund_BankReturnsPermanentError_Payme
 		suite.mockBank,
 	)
 
-	cmd := services.RefundCommand{
-		PaymentID: payment.ID,
-		Amount:    payment.AmountCents,
-	}
 	idempotencyKey := "idem-" + uuid.New().String()
 
 	bankErr := &bank.BankError{
@@ -322,7 +300,7 @@ func (suite *RefundServiceTestSuite) Test_Refund_BankReturnsPermanentError_Payme
 		Return(nil, bankErr).
 		Once()
 
-	RefundedPayment, err := suite.refundService.Refund(ctx, cmd, idempotencyKey)
+	RefundedPayment, err := suite.refundService.Refund(ctx, payment.ID, idempotencyKey)
 
 	require.Error(t, err)
 
@@ -340,11 +318,6 @@ func (suite *RefundServiceTestSuite) Test_Refund_ConcurrentRequests_OnlyOneSucce
 		suite.captureService,
 		suite.mockBank,
 	)
-
-	cmd := services.RefundCommand{
-		PaymentID: payment.ID,
-		Amount:    payment.AmountCents,
-	}
 
 	type result struct {
 		payment *domain.Payment
@@ -372,7 +345,7 @@ func (suite *RefundServiceTestSuite) Test_Refund_ConcurrentRequests_OnlyOneSucce
 	for i := range 2 {
 		go func(goroutineID int) {
 
-			payment, err := suite.refundService.Refund(ctx, cmd, idempotencyKey)
+			payment, err := suite.refundService.Refund(ctx, payment.ID, idempotencyKey)
 			results <- result{payment, err}
 		}(i)
 	}

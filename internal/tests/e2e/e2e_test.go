@@ -260,7 +260,6 @@ func (suite *E2ETestSuite) TestFailure_IdempotencyMismatch() {
 	require.NoError(t, err)
 
 	capReq := api.CaptureRequest{
-		Amount:    payment1.AmountCents,
 		PaymentId: payment1.Id,
 	}
 
@@ -274,7 +273,6 @@ func (suite *E2ETestSuite) TestFailure_IdempotencyMismatch() {
 	assert.Equal(t, capture1.BankCaptureId, capture2.BankCaptureId)
 
 	differentcapReq := api.CaptureRequest{
-		Amount:    2000,
 		PaymentId: uuid.New(),
 	}
 	_, err = suite.client.CaptureWithKey(t, differentcapReq, captureKey)

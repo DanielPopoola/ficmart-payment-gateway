@@ -189,9 +189,6 @@ func ToErrorCode(err error) string {
 	if errors.Is(err, domain.ErrInvalidState) {
 		return "INVALID_STATE"
 	}
-	if errors.Is(err, domain.ErrAmountMismatch) {
-		return "AMOUNT_MISMATCH"
-	}
 	if errors.Is(err, postgres.ErrDuplicateIdempotencyKey) {
 		return "DUPLICATE_IDEMPOTENCY_KEY"
 	}
