@@ -31,6 +31,7 @@ func (tw *timeoutWriter) WriteHeader(code int) {
 
 // Timeout creates middleware that enforces a request timeout.
 // If the timeout is exceeded, it returns a 408 Request Timeout with a JSON error.
+// It was used over http.TimeoutHandler to be compatible with defined OpenAPI schema
 func Timeout(timeout time.Duration, logger *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

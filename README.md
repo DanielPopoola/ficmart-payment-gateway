@@ -241,7 +241,7 @@ Migrations run automatically on startup. Files are in `internal/db/migrations/`.
 │   ├── infrastructure/      # External integrations
 │   │   ├── bank/           # Bank API client with retry logic
 │   │   └── persistence/    # PostgreSQL repositories
-│   ├── interfaces/          # HTTP handlers & middleware
+│   ├── handlers/          # HTTP handlers & middleware
 │   └── worker/              # Background retry & expiration workers
 ├── internal/db/migrations/  # SQL migration files
 ├── docker/                  # Docker & docker-compose setup
@@ -268,7 +268,8 @@ GATEWAY_BANK_CLIENT__BANK_CONN_TIMEOUT=30s
 
 # Retry Behavior
 GATEWAY_RETRY__BASE_DELAY=1        # Initial delay in seconds
-GATEWAY_RETRY__MAX_RETRIES=3       # Max retry attempts
+GATEWAY_RETRY__MAX_RETRIES=3      # Max retry attempts
+GATEWAY_RETRY__MAX_BACKOFF=10    # Max backoff duration
 
 # Workers
 GATEWAY_WORKER__INTERVAL=30s       # How often to check for stuck payments
