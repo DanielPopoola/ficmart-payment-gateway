@@ -125,7 +125,7 @@ func (w *RetryWorker) timeoutUnauthorizedPayments(ctx context.Context) error {
         SELECT p.id, p.order_id, i.key, p.created_at
         FROM payments p
         JOIN idempotency_keys i ON p.id = i.payment_id
-        WHERE 
+        WHERE
             p.status = 'PENDING'
             AND p.created_at < NOW() - INTERVAL '10 minutes'
             AND i.locked_at IS NOT NULL
@@ -174,6 +174,7 @@ func (w *RetryWorker) retryPayment(ctx context.Context, sp stuckPayment) error {
 		return err
 	}
 
+	//nolint:exhaustive //statuses are pre-filtered by SQL query
 	switch domain.PaymentStatus(sp.status) {
 	case domain.StatusCapturing:
 		return w.resumeCapture(ctx, payment, sp.idempotencyKey)
@@ -181,8 +182,6 @@ func (w *RetryWorker) retryPayment(ctx context.Context, sp stuckPayment) error {
 		return w.resumeVoid(ctx, payment, sp.idempotencyKey)
 	case domain.StatusRefunding:
 		return w.resumeRefund(ctx, payment, sp.idempotencyKey)
-	case domain.StatusPending, domain.StatusAuthorized, domain.StatusCaptured, domain.StatusFailed, domain.StatusRefunded, domain.StatusVoided, domain.StatusExpired:
-		return fmt.Errorf("unexpected status %s for retry: %w", sp.status, domain.ErrInvalidState)
 	default:
 		return fmt.Errorf("unexpected status %s: %w", sp.status, domain.ErrInvalidState)
 	}
